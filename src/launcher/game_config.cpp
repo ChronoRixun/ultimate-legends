@@ -1,0 +1,227 @@
+#include "std_include.hpp"
+#include "game_config.hpp"
+#include <utils/properties.hpp>
+#include <utils/property_keys.hpp>
+#include <utils/io.hpp>
+#include <utils/nt.hpp>
+#include <utils/string.hpp>
+#include <unordered_set>
+
+// Patch files for MUA and MUA2 (the controller fix: dinput8.dll), installed into the game folder.
+// Each release of github.com/ChronoRixun/mua-controller-fix publishes the DLL and a patch manifest.
+#define CONTROLLER_FIX_RELEASE "https://github.com/ChronoRixun/mua-controller-fix/releases/latest/download/"
+// X-Men Legends II gets the same from github.com/ChronoRixun/xml2-fix (dinput.dll: controller
+// bindings and the OpenSpy redirect for online play).
+#define XML2_FIX_RELEASE "https://github.com/ChronoRixun/xml2-fix/releases/latest/download/"
+
+namespace game_config
+{
+    // Property access method implementations
+    std::string game_config_t::make_property_key(const std::string& suffix) const
+    {
+        return this->game_key + "-" + suffix;
+    }
+
+    std::optional<std::string> game_config_t::get(const std::string& property_suffix) const
+    {
+        return utils::properties::load(this->make_property_key(property_suffix));
+    }
+
+    void game_config_t::set(const std::string& property_suffix, const std::string& value) const
+    {
+        utils::properties::store(this->make_property_key(property_suffix), value);
+    }
+
+    // Convenience methods
+    std::optional<std::filesystem::path> game_config_t::get_install_path() const
+    {
+        const auto value = this->get(property_keys::INSTALL);
+        if (!value)
+        {
+            return std::nullopt;
+        }
+
+        return utils::string::utf8_to_path(*value);
+    }
+
+    void game_config_t::set_install_path(const std::filesystem::path& path) const
+    {
+        this->set(property_keys::INSTALL, utils::string::path_to_utf8(path));
+    }
+
+    bool game_config_t::is_installed() const
+    {
+        auto value = this->get(property_keys::IS_INSTALLED);
+        return value && value.value() == "true";
+    }
+
+    void game_config_t::set_installed(bool installed) const
+    {
+        this->set(property_keys::IS_INSTALLED, installed ? "true" : "false");
+    }
+
+    std::optional<std::string> game_config_t::get_launch_options() const
+    {
+        return this->get(property_keys::LAUNCH_OPTIONS);
+    }
+
+    bool game_config_t::launch_elevated() const
+    {
+        const auto value = this->get(property_keys::LAUNCH_ADMIN);
+        if (value && !value->empty())
+        {
+            return *value == "true";
+        }
+        return this->requires_elevation;
+    }
+
+    std::vector<std::string> game_config_t::collect_exes() const
+    {
+        std::vector<std::string> exes{ this->exe_name };
+        for (const auto& exe : this->check_running_exes)
+        {
+            exes.push_back(exe);
+        }
+        return exes;
+    }
+
+    void game_config_t::reset() const
+    {
+        // Clear all properties for this game
+        this->set(property_keys::INSTALL, "");
+        this->set(property_keys::IS_INSTALLED, "");
+        this->set(property_keys::LAUNCH_OPTIONS, "");
+        this->set(property_keys::LAUNCH_ADMIN, "");
+    }
+
+    // Game configurations
+    // The games Ultimate Legends supports. All of them run from an install the user already
+    // has; the launcher only installs its patch files into it and never downloads, repairs or
+    // deletes the game itself. Marvel: Ultimate Alliance (2006 PC) and X-Men Legends are listed
+    // in the UI as coming soon and get entries here once their executables have been checked
+    // against real installs.
+    const std::unordered_map<std::string, game_config_t> game_configs_ = {
+        {
+            "mua",
+            {
+                .game_key = "mua",
+                .display_name = "Marvel: Ultimate Alliance",
+                .id = "mua",
+                .exe_name = "Marvel.exe",
+                .update_manifest_url = CONTROLLER_FIX_RELEASE "ultimate-legends.json",
+                .update_folder_url = CONTROLLER_FIX_RELEASE,
+                .valid_game_files = {"Marvel.exe"},
+                .check_running_exes = {"Marvel.exe"},
+                .required_redists = {"vcr2012"},
+                .steam_app_id = "433300"
+            }
+        },
+        {
+            "mua2",
+            {
+                .game_key = "mua2",
+                .display_name = "Marvel: Ultimate Alliance 2",
+                .id = "mua2",
+                .exe_name = "Alliance.exe",
+                .update_manifest_url = CONTROLLER_FIX_RELEASE "ultimate-legends.json",
+                .update_folder_url = CONTROLLER_FIX_RELEASE,
+                .valid_game_files = {"Alliance.exe"},
+                .check_running_exes = {"Alliance.exe"},
+                .required_redists = {"vcr2012"},
+                .steam_app_id = "433320"
+            }
+        },
+        {
+            "xml2",
+            {
+                .game_key = "xml2",
+                .display_name = "X-Men Legends II: Rise of Apocalypse",
+                .id = "xml2",
+                .exe_name = "XMen2.exe",
+                .update_manifest_url = XML2_FIX_RELEASE "ultimate-legends.json",
+                .update_folder_url = XML2_FIX_RELEASE,
+                .valid_game_files = {"XMen2.exe"},
+                .check_running_exes = {"XMen2.exe"}
+            }
+        },
+    };
+
+    std::optional<game_config_t> get_game_config(const std::string& game)
+    {
+        const auto it = game_configs_.find(game);
+        if (it != game_configs_.end())
+        {
+            return it->second;
+        }
+        return std::nullopt;
+    }
+
+    // Lookup by wire id (game_config.id, e.g. "mua"), as tracked for the running game.
+    std::optional<game_config_t> get_game_config_by_id(const std::string& id)
+    {
+        for (const auto& [game_key, config] : game_configs_)
+        {
+            if (config.id == id)
+            {
+                return config;
+            }
+        }
+        return std::nullopt;
+    }
+
+    bool validate_game_path(const std::string& game, const std::filesystem::path& path)
+    {
+        const auto config = get_game_config(game);
+        if (!config)
+        {
+            return false;
+        }
+
+        // Check if any of the valid game executables exist
+        for (const auto& exe : config->valid_game_files)
+        {
+            const auto exe_path = path / exe;
+            if (utils::io::file_exists(exe_path))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool is_game_process_running(const std::string& game, const unsigned int max_age_ms)
+    {
+        const auto config = get_game_config_by_id(game);
+        if (!config)
+        {
+            return false;
+        }
+
+        return utils::nt::is_any_process_running(config->collect_exes(), max_age_ms);
+    }
+
+    void reset_all_games()
+    {
+        // Reset properties for all games
+        for (const auto& [game_key, config] : game_configs_)
+        {
+            config.reset();
+        }
+    }
+
+    std::vector<std::string> resolve_required_redists(const std::string& game)
+    {
+        const auto config = get_game_config(game);
+        if (!config) return {};
+
+        std::vector<std::string> result;
+        std::unordered_set<std::string> seen;
+        for (const auto& id : config->required_redists)
+        {
+            if (seen.insert(id).second) result.push_back(id);
+        }
+
+        return result;
+    }
+}

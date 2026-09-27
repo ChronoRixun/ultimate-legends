@@ -1,0 +1,1267 @@
+(function() {
+    const translations = {
+        en: {
+            app: {
+                title: 'Ultimate Legends'
+            },
+            window: {
+                minimize: 'Minimize',
+                maximize: 'Maximize',
+                restore: 'Restore',
+                close: 'Close'
+            },
+            brand: {
+                launcher: 'Launcher'
+            },
+            nav: {
+                home: 'Home',
+                library: 'Library',
+                downloads: 'Downloads',
+                support: 'Support',
+                settings: 'Settings',
+            },
+            downloads: {
+                title: 'Downloads',
+                subtitle: 'Patch installs, updates and removals in progress or queued.',
+                empty: 'No downloads in progress.',
+                statusVerifying: 'Verifying',
+                statusInstalling: 'Installing',
+                statusUninstalling: 'Uninstalling',
+                statusActive: 'In progress',
+                statusQueued: 'Queued — #{{position}}',
+                statusPaused: 'Paused',
+                statusPausedAt: 'Paused — {{percent}}%',
+                pause: 'Pause',
+                resume: 'Resume',
+                etaLeft: '{{time}}'
+            },
+            toasts: {
+                queued: '{{game}} added to queue',
+                queuedVerify: '{{game}} queued for verification/update',
+                queuedInstall: '{{game}} queued for patch install',
+                queuedUninstall: '{{game}} queued for uninstall',
+                cancelledVerify: '{{game}} verification/update cancelled',
+                cancelledInstall: '{{game}} patch install cancelled',
+                cancelledUninstall: '{{game}} uninstall cancelled',
+                cancelled: '{{game}} cancelled',
+                shortcutCreated: 'Shortcut created for {{game}}',
+                shortcutFailed: 'Could not create shortcut for {{game}}'
+            },
+            offline: {
+                titleSuffix: '(OFFLINE)',
+                blockTitle: 'Offline Mode',
+                blockBody: 'The launcher is running in offline mode, so downloads, updates and file verification are disabled. Relaunch online to continue?',
+                relaunchOnline: 'Relaunch Online'
+            },
+            deepLink: {
+                unknownGame: 'Unknown game in link: {{game}}',
+                unknownAction: 'Unknown link action: {{action}}'
+            },
+            common: {
+                ok: 'OK',
+                cancel: 'Cancel',
+                play: 'Play',
+                verify: 'Verify Files',
+                install: 'Install',
+                installing: 'Installing',
+                verifying: 'Verifying',
+                uninstalling: 'Uninstalling',
+                queued: 'Queued',
+                reinstall: 'Reinstall',
+                manageInstall: 'Manage Install',
+                setup: 'Setup',
+                finishSetup: 'Finish Setup',
+                setUp: 'Set up',
+                stop: 'Stop',
+                uninstall: 'Uninstall',
+                browse: 'Browse',
+                browseLocalFiles: 'Browse Local Files',
+                saveSettings: 'Save Settings',
+                resetSettings: 'Reset Settings',
+                continue: 'Continue',
+                loading: 'Loading...',
+                error: 'Error',
+                pinToHome: 'Pin to home',
+                unpinFromHome: 'Unpin from home',
+                hideFromLibrary: 'Hide game',
+                unhideGame: 'Unhide game',
+                gameDetails: 'Game details',
+                createShortcut: 'Create shortcut',
+                comingSoon: 'Coming soon'
+            },
+            home: {
+                readyToPlay: 'Ready to Play',
+                pinnedTitle: 'Pinned',
+                heroEyebrow: 'Featured',
+                heroPrev: 'Previous',
+                heroNext: 'Next',
+                welcomeTitle: 'Welcome to Ultimate Legends',
+                welcomeBody: 'Welcome to Ultimate Legends, a community launcher for Marvel: Ultimate Alliance and X-Men Legends on PC. Point it at the games you already have installed and it keeps them patched and ready to play. Head to the <strong>Library</strong> to set up a game, or the <strong>Support</strong> tab if you need a hand.',
+                disclaimer: 'Ultimate Legends is an unofficial fan project. It is not affiliated with or endorsed by Activision, Marvel or Disney, and it never downloads the games: you need your own copies. Based on the CB Servers launcher.'
+            },
+            library: {
+                title: 'Library',
+                subtitle: 'Games you can play through Ultimate Legends.',
+                comingSoonHint: 'Support for this game is on the way.',
+                comingSoonToast: "{{game}} is coming soon and can't be set up or launched yet.",
+                filterAll: 'All',
+                filterInstalled: 'Installed',
+                filterHidden: 'Hidden',
+                filterNotInstalled: 'Not installed',
+                searchPlaceholder: 'Search games...',
+                clearSearch: 'Clear search',
+                noMatches: 'No games match this filter.'
+            },
+            support: {
+                title: 'Support',
+                subtitle: 'Troubleshooting, redistributables and community help.',
+                launcherFaqTitle: 'Launcher FAQ',
+                launcherFaqBody: "Pointing the launcher at your installs, keeping patches up to date and games that won't start.",
+                launcherFaqCta: 'Open Launcher FAQ',
+                reportBug: 'Report a bug',
+                openLogs: 'Open log folder',
+                redistTitle: 'Redistributables',
+                redistBody: 'Install the Visual C++ and DirectX runtimes needed by the older games.',
+                manageRedist: 'Manage Redistributables',
+                redistSummary: '{{installed}} of {{total}} installed',
+                installAllMissing: 'Install all missing',
+                reinstallAll: 'Reinstall All',
+                redistStatusInstalled: 'Installed',
+                redistStatusMissing: 'Missing',
+                redistStatusDownloading: 'Downloading',
+                redistStatusInstalling: 'Installing',
+                redistStatusFailed: 'Failed',
+                popup: {
+                    title: 'Manage Redistributables',
+                    reinstallAllTitle: 'Reinstall all redistributables?',
+                    reinstallAllBody: 'This reinstalls all {{total}} redistributable packages, including ones already installed. Windows will show a single administrator permission (UAC) prompt. Continue?'
+                },
+                noteBody: 'Ultimate Legends is an unofficial fan project. It is not affiliated with or endorsed by Activision, Marvel or Disney, and it never downloads the games: you need your own copies. Based on the CB Servers launcher.',
+                github: 'Ultimate Legends GitHub'
+            },
+            installer: {
+                missingRedistTitle: 'Required components missing',
+                missingRedistBody: '{{gameName}} needs the following components installed:',
+                installAndLaunch: 'Install and launch',
+                launchAnyway: 'Launch anyway',
+                dontCheckRedistAgain: 'Don\'t check for missing redistributables again',
+                installingComponents: 'Installing required components…',
+                installingNamed: 'Installing {{name}}…',
+                redistInstallFailed: 'Failed to install required components. Open the Support page and try the Manage redistributables option.'
+            },
+            settings: {
+                title: 'Settings',
+                subtitle: 'Launcher preferences.',
+                appearance: 'Appearance',
+                startup: 'Startup',
+                advanced: 'Advanced',
+                launcher: 'Launcher',
+                language: 'Language',
+                languageBody: 'Choose the interface language used by the launcher. This setting only affects the launcher UI, not the in-game language.',
+                languageEnglish: 'English',
+                languageFrench: 'French',
+                languageSpanish: 'Spanish',
+                languageRussian: 'Russian',
+                closeLauncherAfterLaunch: 'Close launcher after game launch',
+                closeLauncherAfterLaunchBody: 'When enabled, the launcher will automatically close after launching a game.',
+                skipClientUpdate: 'Skip patch update on launch',
+                skipClientUpdateBody: 'When enabled, patch updates will be skipped on launch. Useful when troubleshooting, but you may run an outdated patch.',
+                reduceMotion: 'Reduce motion',
+                reduceMotionBody: 'When enabled, the launcher disables its animations and transitions.',
+                grayscaleUninstalled: 'Gray out uninstalled games',
+                grayscaleUninstalledBody: 'Shows games you have not installed in black and white in the library. Turn off to keep their artwork in color.',
+                skipRedistCheck: 'Skip redistributable check on launch',
+                skipRedistCheckBody: 'When enabled, the launcher will not check for missing redistributables before launching a game. Games may fail to start if required components are missing.',
+                restartOffline: 'Restart in offline mode',
+                restartOnline: 'Restart online',
+                portableMode: 'Portable mode',
+                portableModeBody: 'Keeps launcher data and settings in an ultimate-legends folder next to the launcher exe instead of AppData. Same as the -portable flag. Switching moves your data to the new location and restarts the launcher.',
+                portableMoveAndRestart: 'Move data and restart',
+                portableMoveBackAndRestart: 'Move data back and restart',
+                portableNotWritable: 'The launcher folder is not writable, so portable mode cannot be enabled from here. Move the launcher somewhere writable first.',
+                portableBusy: 'Wait for downloads and running games to finish before switching.',
+                portableConfirmTitle: 'Switch data location',
+                portableConfirmBody: 'Your settings and patches will be moved to the new location and the launcher will restart. Caches are rebuilt on first use. Continue?',
+                portableFailed: 'Could not move launcher data. Nothing was changed.',
+                offlineMode: 'Offline mode',
+                offlineModeBody: 'When enabled, the launcher starts without going online: no patch updates or downloads. Same as the -offline flag. Takes effect the next time the launcher starts.',
+                autoShortcuts: 'Create launcher shortcuts',
+                autoShortcutsBody: 'Keeps a Desktop and Start Menu shortcut for the launcher.',
+                commandLine: 'Command line arguments',
+                commandLineBody: 'Flags the launcher accepts when started from a shortcut or terminal.',
+                commandLineShow: 'Show',
+                commandLineHide: 'Hide',
+                cliLaunch: "Launch a game on startup (mua, mua2, xml2, or any library id)",
+                cliInstall: "Open the setup flow for a game on startup",
+                cliOffline: "Start without network features (no patch updates or downloads)",
+                cliPortable: "Keep data and settings next to the launcher exe",
+                maintenance: 'Maintenance',
+                theme: 'Theme',
+                themeTactical: 'Tactical Orange',
+                themeTacticalGreen: 'Tactical Green',
+                themeNavy: 'Navy Dark',
+                themeDark: 'Dark',
+                themeNavyGradient: 'Navy Gradient',
+                resetAllSettings: 'Reset All Settings',
+                showConsole: 'Show Console',
+                hideConsole: 'Hide Console',
+                source: 'Source',
+                basedOn: 'Based on the <a href="https://github.com/CBServers/cb-launcher" target="_blank">CB Servers Launcher</a> (GPL-3.0)',
+                versionLoading: 'Version: Loading...',
+                versionUnknown: 'Version: Unknown',
+                versionValue: 'Version: {{version}}',
+                themeBody: "Switch between the launcher's available color themes."
+            },
+            progress: {
+                readyToPlay: 'Ready to play',
+                launching: 'Launching {{game}}...',
+                verifying: 'Verifying {{game}}...',
+                installingPatch: 'Installing the patch for {{game}}...',
+                launchComplete: 'Launch complete!',
+                verificationComplete: 'Verification complete!',
+                uninstallComplete: 'Uninstall complete!'
+            },
+            detail: {
+                clientSettings: 'Settings',
+                credits: 'Credits',
+                note: 'Note',
+                noteBody: 'Ultimate Legends is an unofficial fan project and is not affiliated with or endorsed by Activision, Marvel or Disney. Please report launcher issues on our <a href="https://github.com/ChronoRixun/ultimate-legends/issues" target="_blank">GitHub</a>.',
+                client: 'Game',
+                provider: 'Provider',
+            },
+            popup: {
+                gameSettings: {
+                    titleWithGame: '{{game}} Settings',
+                    installationPath: 'Installation Path',
+                    installationFolderWithGame: '{{game}} Installation Folder:',
+                    installationPlaceholder: 'Select installation folder...',
+                    gameOptions: 'Game Options',
+                    launchAdmin: 'Launch as administrator',
+                    advanced: 'Advanced',
+                    launchOptions: 'Launch Options:',
+                    invalidGamePathTitle: 'Invalid Game Path',
+                    invalidGamePathBody: 'The selected folder does not contain valid {{game}} game files. Please select the correct game installation folder.',
+                    saveFailedTitle: 'Save Failed',
+                    saveFailedBody: 'Failed to save settings. Please try again.',
+                    resetTitle: 'Reset Game Settings',
+                    resetBody: 'Are you sure you want to reset all settings for {{game}}? This will clear the installation path and game preferences but WILL NOT delete game files.',
+                    resetDoneTitle: 'Settings Reset',
+                    resetDoneBody: '{{game}} settings have been reset to defaults!',
+                    resetFailedTitle: 'Reset Failed',
+                    resetFailedBody: 'Failed to reset settings. Please try again.'
+                },
+                manageInstall: {
+                    titleWithGame: 'Manage Installation - {{game}}',
+                    setupTitleWithGame: 'Finish Setup - {{game}}',
+                    setupNote: "Ultimate Legends never downloads or changes your game files. Finishing setup installs the launcher's patch (such as the controller fix) into your game folder.",
+                    manageNote: "Ultimate Legends never downloads or changes your game files. Update Patch re-checks the launcher's patch in your game folder and downloads anything missing or out of date.",
+                    folder: 'Game folder',
+                    patch: 'Patch',
+                    patchDefault: 'Launcher patch',
+                    noPatch: 'None',
+                    notSet: 'Not set',
+                    folderMissing: "{{game}} was not found in this folder. Pick the right folder in the game's settings.",
+                    updatePatch: 'Update Patch',
+                    loadError: 'Failed to load the install information. Please try again.',
+                    uninstall: 'Uninstall',
+                    confirmUninstallTitle: 'Confirm Uninstall',
+                    confirmUninstallBody: "Remove {{game}} from Ultimate Legends?\n\nThis removes the launcher's patch files from your game folder and forgets the folder. The game itself is not deleted.",
+                    uninstalling: 'Uninstalling {{game}}...',
+                    errorTitle: 'Error'
+                },
+                setup: {
+                    title: 'Setup {{game}}',
+                    alreadyInstalledTitle: 'I already have the game installed',
+                    alreadyInstalledBody: 'Select the folder where {{game}} is installed on your computer.',
+                    invalidGamePathTitle: 'Invalid Game Path',
+                    invalidGamePathBody: 'The selected folder does not contain valid {{game}} game files. Please select the correct game installation folder.',
+                    foundInstallTitle: 'Found {{game}}',
+                    foundInstallBody: '{{game}} is installed in your Steam library at {{path}}. Use this folder?',
+                    useThisFolder: 'Use this folder',
+                    chooseAnotherFolder: 'Choose another folder',
+                }
+            },
+            dialog: {
+                resetAllSettingsTitle: 'Reset All Settings',
+                resetAllSettingsBody: 'Are you sure you want to reset all launcher and game settings to defaults? This will clear all settings including game installation paths.',
+                resetDoneTitle: 'Settings Reset',
+                resetDoneBody: 'All settings have been reset to defaults!',
+                resetFailedTitle: 'Reset Failed',
+                resetFailedBody: 'Failed to reset settings. Please try again.',
+                stopGameFailedTitle: 'Error Stopping Game',
+                stopGameFailedBody: 'Failed to stop {{game}}. The game may have already closed.'
+            },
+            errors: {
+                gameNotConfiguredTitle: '{{game}} not configured',
+                gameNotConfiguredBody: 'You have not configured your {{game}} installation path.',
+                cannotLaunchTitle: 'Cannot launch right now',
+                cannotLaunchBody: 'Another game is currently updating. Please wait for it to finish or cancel it before launching a different game.'
+            }
+        },
+        fr: {
+            app: {
+                title: 'Ultimate Legends'
+            },
+            window: {
+                minimize: 'Reduire',
+                maximize: 'Agrandir',
+                restore: 'Restaurer',
+                close: 'Fermer'
+            },
+            brand: {
+                launcher: 'Lanceur'
+            },
+            nav: {
+                home: 'Accueil',
+                library: 'Bibliotheque',
+                downloads: 'Telechargements',
+                support: 'Support',
+                settings: 'Parametres',
+            },
+            downloads: {
+                title: 'Telechargements',
+                subtitle: "Installations, mises a jour et suppressions de correctifs en cours ou en file d'attente.",
+                empty: 'Aucun telechargement en cours.',
+                statusVerifying: 'Verification',
+                statusInstalling: 'Installation',
+                statusUninstalling: 'Desinstallation',
+                statusActive: 'En cours',
+                statusQueued: 'En file - #{{position}}',
+                statusPaused: 'En pause',
+                statusPausedAt: 'En pause - {{percent}}%',
+                pause: 'Mettre en pause',
+                resume: 'Reprendre',
+                etaLeft: '{{time}}'
+            },
+            toasts: {
+                queued: '{{game}} ajoute a la file',
+                queuedVerify: '{{game}} en file pour verification/mise a jour',
+                queuedInstall: '{{game}} en file pour installation du correctif',
+                queuedUninstall: '{{game}} en file pour desinstallation',
+                cancelledVerify: 'Verification/mise a jour de {{game}} annulee',
+                cancelledInstall: 'Installation du correctif de {{game}} annulee',
+                cancelledUninstall: 'Desinstallation de {{game}} annulee',
+                cancelled: '{{game}} annule',
+                shortcutCreated: 'Raccourci cree pour {{game}}',
+                shortcutFailed: 'Impossible de creer le raccourci pour {{game}}'
+            },
+            offline: {
+                titleSuffix: '(HORS LIGNE)',
+                blockTitle: 'Mode hors ligne',
+                blockBody: 'Le lanceur est en mode hors ligne ; les telechargements, mises a jour et la verification des fichiers sont desactives. Relancer en ligne pour continuer ?',
+                relaunchOnline: 'Relancer en ligne'
+            },
+            deepLink: {
+                unknownGame: 'Jeu inconnu dans le lien : {{game}}',
+                unknownAction: 'Action de lien inconnue : {{action}}'
+            },
+            common: {
+                ok: 'OK',
+                cancel: 'Annuler',
+                play: 'Jouer',
+                verify: 'Verifier les fichiers',
+                install: 'Installer',
+                installing: 'Installation...',
+                verifying: 'Verification...',
+                uninstalling: 'Desinstallation...',
+                queued: 'En file',
+                reinstall: 'Reinstaller',
+                manageInstall: "Gerer l'installation",
+                setup: 'Configurer',
+                finishSetup: 'Terminer la configuration',
+                setUp: 'Configurer',
+                stop: 'Arreter',
+                uninstall: 'Desinstaller',
+                browse: 'Parcourir',
+                browseLocalFiles: 'Parcourir les fichiers locaux',
+                saveSettings: 'Enregistrer',
+                resetSettings: 'Reinitialiser',
+                continue: 'Continuer',
+                loading: 'Chargement...',
+                error: 'Erreur',
+                pinToHome: "Epingler a l'accueil",
+                unpinFromHome: "Detacher de l'accueil",
+                hideFromLibrary: 'Masquer le jeu',
+                unhideGame: 'Afficher le jeu',
+                gameDetails: 'Details du jeu',
+                createShortcut: 'Creer un raccourci',
+                comingSoon: 'Bientot disponible'
+            },
+            home: {
+                readyToPlay: 'Pret a jouer',
+                pinnedTitle: 'Epingles',
+                heroEyebrow: 'En vedette',
+                heroPrev: 'Precedent',
+                heroNext: 'Suivant',
+                welcomeTitle: 'Bienvenue sur Ultimate Legends',
+                welcomeBody: 'Bienvenue sur Ultimate Legends, un launcher communautaire pour Marvel: Ultimate Alliance et X-Men Legends sur PC. Indiquez-lui les jeux que vous avez deja installes et il les garde patches et prets a jouer. Rendez-vous dans la <strong>Bibliotheque</strong> pour configurer un jeu, ou dans l\'onglet <strong>Support</strong> si vous avez besoin d\'un coup de main.',
+                disclaimer: 'Ultimate Legends est un projet de fans non officiel. Il n\'est ni affilie ni approuve par Activision, Marvel ou Disney, et il ne telecharge jamais les jeux : vous devez posseder vos propres copies. Base sur le launcher CB Servers.'
+            },
+            library: {
+                title: 'Bibliotheque',
+                subtitle: 'Jeux jouables avec Ultimate Legends.',
+                comingSoonHint: "Le support de ce jeu est en cours d'arrivee.",
+                comingSoonToast: '{{game}} arrive bientot : il ne peut pas encore etre configure ni lance.',
+                filterAll: 'Tous',
+                filterInstalled: 'Installes',
+                filterHidden: 'Masques',
+                filterNotInstalled: 'Non installes',
+                searchPlaceholder: 'Rechercher un jeu...',
+                clearSearch: 'Effacer la recherche',
+                noMatches: 'Aucun jeu ne correspond a ce filtre.'
+            },
+            support: {
+                title: 'Support',
+                subtitle: 'Depannage, redistribuables et aide communautaire.',
+                launcherFaqTitle: 'FAQ du launcher',
+                launcherFaqBody: "Lier le launcher a vos jeux installes, garder les patchs a jour et jeux qui ne demarrent pas.",
+                launcherFaqCta: 'Ouvrir la FAQ du launcher',
+                reportBug: 'Signaler un bug',
+                openLogs: 'Ouvrir le dossier des logs',
+                redistTitle: 'Redistribuables',
+                redistBody: 'Installez les runtimes Visual C++ et DirectX requis par les jeux plus anciens.',
+                manageRedist: 'Gerer les redistribuables',
+                redistSummary: '{{installed}} sur {{total}} installes',
+                installAllMissing: 'Installer tous les manquants',
+                reinstallAll: 'Tout reinstaller',
+                redistStatusInstalled: 'Installe',
+                redistStatusMissing: 'Manquant',
+                redistStatusDownloading: 'Telechargement',
+                redistStatusInstalling: 'Installation',
+                redistStatusFailed: 'Echec',
+                popup: {
+                    title: 'Gerer les redistribuables',
+                    reinstallAllTitle: 'Reinstaller tous les redistribuables ?',
+                    reinstallAllBody: 'Cela reinstalle les {{total}} paquets redistribuables, y compris ceux deja installes. Windows affichera une seule invite d\'autorisation administrateur (UAC). Continuer ?'
+                },
+                noteBody: "Ultimate Legends est un projet de fans non officiel. Il n'est ni affilie ni approuve par Activision, Marvel ou Disney, et il ne telecharge jamais les jeux : vous devez posseder vos propres copies. Base sur le launcher CB Servers.",
+                github: 'GitHub Ultimate Legends'
+            },
+            installer: {
+                missingRedistTitle: 'Composants requis manquants',
+                missingRedistBody: '{{gameName}} a besoin des composants suivants :',
+                installAndLaunch: 'Installer et lancer',
+                launchAnyway: 'Lancer quand meme',
+                dontCheckRedistAgain: 'Ne plus verifier les redistribuables manquants',
+                installingComponents: 'Installation des composants requis…',
+                installingNamed: 'Installation de {{name}}…',
+                redistInstallFailed: 'Echec de l’installation des composants requis. Ouvrez la page Support et utilisez Gerer les redistribuables.'
+            },
+            settings: {
+                title: 'Parametres',
+                subtitle: 'Preferences du launcher.',
+                appearance: 'Apparence',
+                startup: 'Demarrage',
+                advanced: 'Avance',
+                launcher: 'Launcher',
+                language: 'Langue',
+                languageBody: "Choisissez la langue de l'interface du launcher. Ce parametre n'affecte que l'interface du launcher, pas la langue en jeu.",
+                languageEnglish: 'Anglais',
+                languageFrench: 'Francais',
+                languageSpanish: 'Espagnol',
+                languageRussian: 'Russe',
+                closeLauncherAfterLaunch: 'Fermer le launcher apres le lancement du jeu',
+                closeLauncherAfterLaunchBody: "Lorsqu'active, le launcher se fermera automatiquement apres le lancement d'un jeu.",
+                skipClientUpdate: 'Ignorer la mise a jour des patchs au lancement',
+                skipClientUpdateBody: "Lorsqu'active, les mises a jour des patchs seront ignorees au lancement. Utile pour le depannage, mais les patchs peuvent etre obsoletes.",
+                reduceMotion: 'Reduire les animations',
+                reduceMotionBody: "Lorsqu'active, le launcher desactive ses animations et transitions.",
+                grayscaleUninstalled: 'Griser les jeux non installes',
+                grayscaleUninstalledBody: 'Affiche les jeux non installes en noir et blanc dans la bibliotheque. Desactivez pour conserver leurs visuels en couleur.',
+                skipRedistCheck: 'Ignorer la verification des redistribuables au lancement',
+                skipRedistCheckBody: "Lorsqu'active, le launcher ne verifiera pas les redistribuables manquants avant de lancer un jeu. Les jeux peuvent ne pas demarrer si des composants requis sont manquants.",
+                restartOffline: 'Redemarrer hors ligne',
+                restartOnline: 'Redemarrer en ligne',
+                portableMode: 'Mode portable',
+                portableModeBody: "Conserve les donnees et parametres du launcher dans un dossier ultimate-legends a cote de l'executable au lieu d'AppData. Equivalent de l'option -portable. Le changement deplace vos donnees vers le nouvel emplacement et redemarre le launcher.",
+                portableMoveAndRestart: 'Deplacer les donnees et redemarrer',
+                portableMoveBackAndRestart: 'Restaurer les donnees et redemarrer',
+                portableNotWritable: "Le dossier du launcher n'est pas accessible en ecriture, le mode portable ne peut pas etre active d'ici. Deplacez d'abord le launcher dans un dossier accessible en ecriture.",
+                portableBusy: 'Attendez la fin des telechargements et des jeux en cours avant de changer.',
+                portableConfirmTitle: "Changer l'emplacement des donnees",
+                portableConfirmBody: 'Vos parametres et patchs seront deplaces vers le nouvel emplacement et le launcher redemarrera. Les caches seront reconstruits a la premiere utilisation. Continuer ?',
+                portableFailed: "Impossible de deplacer les donnees du launcher. Rien n'a ete modifie.",
+                offlineMode: 'Mode hors ligne',
+                offlineModeBody: "Lorsqu'active, le launcher demarre sans se connecter : ni mises a jour des patchs ni telechargements. Equivalent de l'option -offline. Prend effet au prochain demarrage du launcher.",
+                autoShortcuts: 'Creer les raccourcis du launcher',
+                autoShortcutsBody: 'Conserve un raccourci sur le Bureau et dans le menu Demarrer.',
+                commandLine: 'Arguments de ligne de commande',
+                commandLineBody: "Options acceptees par le launcher lorsqu'il est lance depuis un raccourci ou un terminal.",
+                commandLineShow: 'Afficher',
+                commandLineHide: 'Masquer',
+                cliLaunch: "Lancer un jeu au demarrage (mua, mua2, xml2 ou tout id de la bibliotheque)",
+                cliInstall: "Ouvrir l'installation d'un jeu au demarrage",
+                cliOffline: "Demarrer sans fonctions reseau (ni mises a jour des patchs ni telechargements)",
+                cliPortable: "Conserver les donnees et parametres a cote de l'executable",
+                maintenance: 'Maintenance',
+                theme: 'Theme',
+                themeTactical: 'Tactique orange',
+                themeTacticalGreen: 'Tactique vert',
+                themeNavy: 'Navy Sombre',
+                themeDark: 'Sombre',
+                themeNavyGradient: 'Degrade Marine',
+                resetAllSettings: 'Reinitialiser tous les parametres',
+                showConsole: 'Afficher la console',
+                hideConsole: 'Masquer la console',
+                source: 'Source',
+                basedOn: 'Base sur le <a href="https://github.com/CBServers/cb-launcher" target="_blank">CB Servers Launcher</a> (GPL-3.0)',
+                versionLoading: 'Version : Chargement...',
+                versionUnknown: 'Version : Inconnue',
+                versionValue: 'Version : {{version}}',
+                themeBody: 'Changer entre les themes de couleur disponibles du launcher.'
+            },
+            progress: {
+                readyToPlay: 'Pret a jouer',
+                launching: 'Lancement de {{game}}...',
+                verifying: 'Verification de {{game}}...',
+                installingPatch: 'Installation du correctif pour {{game}}...',
+                launchComplete: 'Lancement termine !',
+                verificationComplete: 'Verification terminee !',
+                uninstallComplete: 'Desinstallation terminee !'
+            },
+            detail: {
+                clientSettings: 'Parametres',
+                credits: 'Credits',
+                note: 'Note',
+                noteBody: "Ultimate Legends est un projet de fans non officiel, ni affilie ni approuve par Activision, Marvel ou Disney. Signalez les problemes du launcher sur notre <a href=\"https://github.com/ChronoRixun/ultimate-legends/issues\" target=\"_blank\">GitHub</a>.",
+                client: 'Jeu',
+                provider: 'Fournisseur',
+            },
+            popup: {
+                gameSettings: {
+                    titleWithGame: 'Parametres de {{game}}',
+                    installationPath: "Chemin d'installation",
+                    installationFolderWithGame: "Dossier d'installation de {{game}} :",
+                    installationPlaceholder: "Selectionnez un dossier d'installation...",
+                    gameOptions: 'Options du jeu',
+                    launchAdmin: "Lancer en tant qu'administrateur",
+                    advanced: 'Avance',
+                    launchOptions: 'Options de lancement :',
+                    invalidGamePathTitle: 'Chemin de jeu invalide',
+                    invalidGamePathBody: 'Le dossier selectionne ne contient pas de fichiers valides pour {{game}}. Selectionnez le bon dossier du jeu.',
+                    saveFailedTitle: "Echec de l'enregistrement",
+                    saveFailedBody: "Impossible d'enregistrer les parametres. Reessayez.",
+                    resetTitle: 'Reinitialiser les parametres du jeu',
+                    resetBody: "Voulez-vous vraiment reinitialiser tous les parametres de {{game}} ? Le chemin d'installation et les preferences seront effaces, mais les fichiers du jeu ne seront PAS supprimes.",
+                    resetDoneTitle: 'Parametres reinitialises',
+                    resetDoneBody: 'Les parametres de {{game}} ont ete reinitialises.',
+                    resetFailedTitle: 'Echec de la reinitialisation',
+                    resetFailedBody: 'Impossible de reinitialiser les parametres. Reessayez.'
+                },
+                manageInstall: {
+                    titleWithGame: "Gerer l'installation - {{game}}",
+                    setupTitleWithGame: "Finaliser la configuration - {{game}}",
+                    setupNote: "Ultimate Legends ne telecharge ni ne modifie jamais les fichiers de votre jeu. Terminer l'installation ajoute le correctif du launcher (comme le correctif manette) dans le dossier du jeu.",
+                    manageNote: 'Ultimate Legends ne telecharge ni ne modifie jamais les fichiers de votre jeu. Mettre a jour le correctif reverifie le correctif du launcher dans le dossier du jeu et telecharge ce qui manque ou est obsolete.',
+                    folder: 'Dossier du jeu',
+                    patch: 'Correctif',
+                    patchDefault: 'Correctif du launcher',
+                    noPatch: 'Aucun',
+                    notSet: 'Non defini',
+                    folderMissing: '{{game}} est introuvable dans ce dossier. Choisissez le bon dossier dans les parametres du jeu.',
+                    updatePatch: 'Mettre a jour le correctif',
+                    loadError: "Impossible de charger les informations d'installation. Reessayez.",
+                    uninstall: 'Desinstaller',
+                    confirmUninstallTitle: 'Confirmer la desinstallation',
+                    confirmUninstallBody: "Retirer {{game}} d'Ultimate Legends ?\n\nLes fichiers de correctif du launcher seront supprimes du dossier du jeu et le dossier sera oublie. Le jeu lui-meme n'est pas supprime.",
+                    uninstalling: 'Desinstallation de {{game}}...',
+                    errorTitle: 'Erreur'
+                },
+                setup: {
+                    title: 'Configurer {{game}}',
+                    alreadyInstalledTitle: 'Le jeu est deja installe',
+                    alreadyInstalledBody: 'Selectionnez le dossier ou {{game}} est installe sur votre ordinateur.',
+                    invalidGamePathTitle: 'Chemin de jeu invalide',
+                    invalidGamePathBody: 'Le dossier selectionne ne contient pas de fichiers valides pour {{game}}. Selectionnez le bon dossier du jeu.',
+                    foundInstallTitle: '{{game}} trouve',
+                    foundInstallBody: '{{game}} est installe dans votre bibliotheque Steam, dans {{path}}. Utiliser ce dossier&nbsp;?',
+                    useThisFolder: 'Utiliser ce dossier',
+                    chooseAnotherFolder: 'Choisir un autre dossier',
+                }
+            },
+            dialog: {
+                resetAllSettingsTitle: 'Reinitialiser tous les parametres',
+                resetAllSettingsBody: "Voulez-vous vraiment reinitialiser tous les parametres du launcher et des jeux ? Cela effacera aussi les chemins d'installation des jeux.",
+                resetDoneTitle: 'Parametres reinitialises',
+                resetDoneBody: 'Tous les parametres ont ete reinitialises.',
+                resetFailedTitle: 'Echec de la reinitialisation',
+                resetFailedBody: 'Impossible de reinitialiser les parametres. Reessayez.',
+                stopGameFailedTitle: "Erreur lors de l'arret du jeu",
+                stopGameFailedBody: "Impossible d'arreter {{game}}. Le jeu est peut-etre deja ferme."
+            },
+            errors: {
+                gameNotConfiguredTitle: '{{game}} non configure',
+                gameNotConfiguredBody: "Vous n'avez pas configure le chemin d'installation de {{game}}.",
+                cannotLaunchTitle: 'Lancement impossible pour le moment',
+                cannotLaunchBody: "Un autre jeu est en cours de mise a jour. Veuillez attendre la fin ou annuler avant de lancer un autre jeu."
+            }
+        },
+        es: {
+            app: {
+                title: 'Ultimate Legends'
+            },
+            window: {
+                minimize: 'Minimizar',
+                maximize: 'Maximizar',
+                restore: 'Restaurar',
+                close: 'Cerrar'
+            },
+            brand: {
+                launcher: 'Launcher'
+            },
+            nav: {
+                home: 'Inicio',
+                library: 'Biblioteca',
+                downloads: 'Descargas',
+                support: 'Soporte',
+                settings: 'Ajustes',
+            },
+            downloads: {
+                title: 'Descargas',
+                subtitle: 'Instalaciones, actualizaciones y eliminaciones de parches en curso o en cola.',
+                empty: 'No hay descargas en curso.',
+                statusVerifying: 'Verificando',
+                statusInstalling: 'Instalando',
+                statusUninstalling: 'Desinstalando',
+                statusActive: 'En curso',
+                statusQueued: 'En cola - #{{position}}',
+                statusPaused: 'En pausa',
+                statusPausedAt: 'En pausa - {{percent}}%',
+                pause: 'Pausar',
+                resume: 'Reanudar',
+                etaLeft: '{{time}}'
+            },
+            toasts: {
+                queued: '{{game}} anadido a la cola',
+                queuedVerify: '{{game}} en cola para verificacion/actualizacion',
+                queuedInstall: '{{game}} en cola para instalar el parche',
+                queuedUninstall: '{{game}} en cola para desinstalacion',
+                cancelledVerify: 'Verificacion/actualizacion de {{game}} cancelada',
+                cancelledInstall: 'Instalacion del parche de {{game}} cancelada',
+                cancelledUninstall: 'Desinstalacion de {{game}} cancelada',
+                cancelled: '{{game}} cancelado',
+                shortcutCreated: 'Acceso directo creado para {{game}}',
+                shortcutFailed: 'No se pudo crear el acceso directo para {{game}}'
+            },
+            offline: {
+                titleSuffix: '(SIN CONEXION)',
+                blockTitle: 'Modo sin conexion',
+                blockBody: 'El lanzador esta en modo sin conexion, por lo que las descargas, actualizaciones y la verificacion de archivos estan desactivadas. Relanzar en linea para continuar?',
+                relaunchOnline: 'Relanzar en linea'
+            },
+            deepLink: {
+                unknownGame: 'Juego desconocido en el enlace: {{game}}',
+                unknownAction: 'Accion de enlace desconocida: {{action}}'
+            },
+            common: {
+                ok: 'OK',
+                cancel: 'Cancelar',
+                play: 'Jugar',
+                verify: 'Verificar archivos',
+                install: 'Instalar',
+                installing: 'Instalando',
+                verifying: 'Verificando',
+                uninstalling: 'Desinstalando',
+                queued: 'En cola',
+                reinstall: 'Reinstalar',
+                manageInstall: 'Gestionar instalacion',
+                setup: 'Configurar',
+                finishSetup: 'Terminar configuracion',
+                setUp: 'Configurar',
+                stop: 'Detener',
+                uninstall: 'Desinstalar',
+                browse: 'Explorar',
+                browseLocalFiles: 'Explorar archivos locales',
+                saveSettings: 'Guardar ajustes',
+                resetSettings: 'Restablecer ajustes',
+                continue: 'Continuar',
+                loading: 'Cargando...',
+                error: 'Error',
+                pinToHome: 'Anclar al inicio',
+                unpinFromHome: 'Desanclar del inicio',
+                hideFromLibrary: 'Ocultar juego',
+                unhideGame: 'Mostrar juego',
+                gameDetails: 'Detalles del juego',
+                createShortcut: 'Crear acceso directo',
+                comingSoon: 'Proximamente'
+            },
+            home: {
+                readyToPlay: 'Listo para jugar',
+                pinnedTitle: 'Anclados',
+                heroEyebrow: 'Destacado',
+                heroPrev: 'Anterior',
+                heroNext: 'Siguiente',
+                welcomeTitle: 'Bienvenido a Ultimate Legends',
+                welcomeBody: 'Bienvenido a Ultimate Legends, un launcher comunitario para Marvel: Ultimate Alliance y X-Men Legends en PC. Indicale los juegos que ya tienes instalados y los mantendra parcheados y listos para jugar. Ve a la <strong>Biblioteca</strong> para configurar un juego, o a la pestana <strong>Soporte</strong> si necesitas una mano.',
+                disclaimer: 'Ultimate Legends es un proyecto de fans no oficial. No esta afiliado ni respaldado por Activision, Marvel ni Disney, y nunca descarga los juegos: necesitas tus propias copias. Basado en el launcher de CB Servers.'
+            },
+            library: {
+                title: 'Biblioteca',
+                subtitle: 'Juegos que puedes jugar con Ultimate Legends.',
+                comingSoonHint: 'El soporte para este juego esta en camino.',
+                comingSoonToast: '{{game}} llegara pronto: aun no se puede configurar ni iniciar.',
+                filterAll: 'Todos',
+                filterInstalled: 'Instalados',
+                filterHidden: 'Ocultos',
+                filterNotInstalled: 'No instalados',
+                searchPlaceholder: 'Buscar juegos...',
+                clearSearch: 'Borrar busqueda',
+                noMatches: 'Ningun juego coincide con este filtro.'
+            },
+            support: {
+                title: 'Soporte',
+                subtitle: 'Solucion de problemas, redistribuibles y ayuda comunitaria.',
+                launcherFaqTitle: 'Preguntas frecuentes del launcher',
+                launcherFaqBody: 'Vincular el launcher con tus juegos instalados, mantener los parches al dia y juegos que no arrancan.',
+                launcherFaqCta: 'Abrir preguntas del launcher',
+                reportBug: 'Reportar un error',
+                openLogs: 'Abrir carpeta de registros',
+                redistTitle: 'Redistribuibles',
+                redistBody: 'Instala los runtimes de Visual C++ y DirectX necesarios para los juegos mas antiguos.',
+                manageRedist: 'Administrar redistribuibles',
+                redistSummary: '{{installed}} de {{total}} instalados',
+                installAllMissing: 'Instalar todos los faltantes',
+                reinstallAll: 'Reinstalar todo',
+                redistStatusInstalled: 'Instalado',
+                redistStatusMissing: 'Faltante',
+                redistStatusDownloading: 'Descargando',
+                redistStatusInstalling: 'Instalando',
+                redistStatusFailed: 'Fallo',
+                popup: {
+                    title: 'Administrar redistribuibles',
+                    reinstallAllTitle: '¿Reinstalar todos los redistribuibles?',
+                    reinstallAllBody: 'Esto reinstala los {{total}} paquetes redistribuibles, incluidos los ya instalados. Windows mostrara una sola ventana de permiso de administrador (UAC). ¿Continuar?'
+                },
+                noteBody: 'Ultimate Legends es un proyecto de fans no oficial. No esta afiliado ni respaldado por Activision, Marvel ni Disney, y nunca descarga los juegos: necesitas tus propias copias. Basado en el launcher de CB Servers.',
+                github: 'GitHub de Ultimate Legends'
+            },
+            installer: {
+                missingRedistTitle: 'Faltan componentes requeridos',
+                missingRedistBody: '{{gameName}} necesita instalar los siguientes componentes:',
+                installAndLaunch: 'Instalar y ejecutar',
+                launchAnyway: 'Ejecutar de todos modos',
+                dontCheckRedistAgain: 'No volver a comprobar los redistribuibles faltantes',
+                installingComponents: 'Instalando componentes requeridos…',
+                installingNamed: 'Instalando {{name}}…',
+                redistInstallFailed: 'Fallo al instalar los componentes requeridos. Abre la pagina de Soporte y usa Administrar redistribuibles.'
+            },
+            settings: {
+                title: 'Ajustes',
+                subtitle: 'Preferencias del launcher.',
+                appearance: 'Apariencia',
+                startup: 'Inicio',
+                advanced: 'Avanzado',
+                launcher: 'Launcher',
+                language: 'Idioma',
+                languageBody: 'Elige el idioma de la interfaz del launcher. Esta opcion solo afecta a la interfaz del launcher, no al idioma del juego.',
+                languageEnglish: 'Ingles',
+                languageFrench: 'Frances',
+                languageSpanish: 'Espanol',
+                languageRussian: 'Ruso',
+                closeLauncherAfterLaunch: 'Cerrar el launcher al iniciar el juego',
+                closeLauncherAfterLaunchBody: 'Cuando esta activado, el launcher se cerrara automaticamente despues de iniciar un juego.',
+                skipClientUpdate: 'Omitir actualizacion de parches al iniciar',
+                skipClientUpdateBody: 'Cuando esta activado, las actualizaciones de parches se omitiran al iniciar. Util para solucionar problemas, pero podrias estar usando un parche desactualizado.',
+                reduceMotion: 'Reducir movimiento',
+                reduceMotionBody: 'Cuando esta activado, el launcher desactiva sus animaciones y transiciones.',
+                grayscaleUninstalled: 'Atenuar juegos no instalados',
+                grayscaleUninstalledBody: 'Muestra los juegos no instalados en blanco y negro en la biblioteca. Desactivalo para mantener sus imagenes en color.',
+                skipRedistCheck: 'Omitir comprobacion de redistribuibles al iniciar',
+                skipRedistCheckBody: 'Cuando esta activado, el launcher no comprobara los redistribuibles faltantes antes de iniciar un juego. Los juegos pueden no iniciarse si faltan componentes requeridos.',
+                restartOffline: 'Reiniciar sin conexion',
+                restartOnline: 'Reiniciar en linea',
+                portableMode: 'Modo portatil',
+                portableModeBody: 'Guarda los datos y ajustes del launcher en una carpeta ultimate-legends junto al ejecutable en lugar de AppData. Equivale a la opcion -portable. Al cambiar se mueven tus datos a la nueva ubicacion y el launcher se reinicia.',
+                portableMoveAndRestart: 'Mover datos y reiniciar',
+                portableMoveBackAndRestart: 'Devolver datos y reiniciar',
+                portableNotWritable: 'No se puede escribir en la carpeta del launcher, asi que el modo portatil no puede activarse desde aqui. Mueve primero el launcher a una carpeta con permisos de escritura.',
+                portableBusy: 'Espera a que terminen las descargas y los juegos en ejecucion antes de cambiar.',
+                portableConfirmTitle: 'Cambiar ubicacion de datos',
+                portableConfirmBody: 'Tus ajustes y parches se moveran a la nueva ubicacion y el launcher se reiniciara. Las caches se reconstruyen al primer uso. Continuar?',
+                portableFailed: 'No se pudieron mover los datos del launcher. No se cambio nada.',
+                offlineMode: 'Modo sin conexion',
+                offlineModeBody: 'Cuando esta activado, el launcher se inicia sin conectarse: sin actualizaciones de parches ni descargas. Equivale a la opcion -offline. Se aplica la proxima vez que se inicie el launcher.',
+                autoShortcuts: 'Crear accesos directos del launcher',
+                autoShortcutsBody: 'Mantiene un acceso directo en el Escritorio y en el menu Inicio.',
+                commandLine: 'Argumentos de linea de comandos',
+                commandLineBody: 'Opciones que acepta el launcher al iniciarse desde un acceso directo o una terminal.',
+                commandLineShow: 'Mostrar',
+                commandLineHide: 'Ocultar',
+                cliLaunch: "Iniciar un juego al arrancar (mua, mua2, xml2 o cualquier id de la biblioteca)",
+                cliInstall: "Abrir la instalacion de un juego al arrancar",
+                cliOffline: "Iniciar sin funciones de red (sin actualizaciones de parches ni descargas)",
+                cliPortable: "Guardar datos y ajustes junto al ejecutable del launcher",
+                maintenance: 'Mantenimiento',
+                theme: 'Tema',
+                themeTactical: 'Táctico naranja',
+                themeTacticalGreen: 'Táctico verde',
+                themeNavy: 'Navy oscuro',
+                themeDark: 'Oscuro',
+                themeNavyGradient: 'Degradado Navy',
+                resetAllSettings: 'Restablecer todos los ajustes',
+                showConsole: 'Mostrar consola',
+                hideConsole: 'Ocultar consola',
+                source: 'Codigo fuente',
+                basedOn: 'Basado en el <a href="https://github.com/CBServers/cb-launcher" target="_blank">CB Servers Launcher</a> (GPL-3.0)',
+                versionLoading: 'Version: Cargando...',
+                versionUnknown: 'Version: Desconocida',
+                versionValue: 'Version: {{version}}',
+                themeBody: 'Cambia entre los temas de color disponibles del launcher.'
+            },
+            progress: {
+                readyToPlay: 'Listo para jugar',
+                launching: 'Iniciando {{game}}...',
+                verifying: 'Verificando {{game}}...',
+                installingPatch: 'Instalando el parche para {{game}}...',
+                launchComplete: 'Inicio completado!',
+                verificationComplete: 'Verificacion completada!',
+                uninstallComplete: 'Desinstalacion completada!'
+            },
+            detail: {
+                clientSettings: 'Ajustes',
+                credits: 'Creditos',
+                note: 'Nota',
+                noteBody: 'Ultimate Legends es un proyecto de fans no oficial y no esta afiliado ni respaldado por Activision, Marvel ni Disney. Informa de los problemas del launcher en nuestro <a href="https://github.com/ChronoRixun/ultimate-legends/issues" target="_blank">GitHub</a>.',
+                client: 'Juego',
+                provider: 'Proveedor',
+            },
+            popup: {
+                gameSettings: {
+                    titleWithGame: 'Ajustes de {{game}}',
+                    installationPath: 'Ruta de instalacion',
+                    installationFolderWithGame: 'Carpeta de instalacion de {{game}}:',
+                    installationPlaceholder: 'Selecciona la carpeta de instalacion...',
+                    gameOptions: 'Opciones del juego',
+                    launchAdmin: 'Ejecutar como administrador',
+                    advanced: 'Avanzado',
+                    launchOptions: 'Opciones de inicio:',
+                    invalidGamePathTitle: 'Ruta de juego invalida',
+                    invalidGamePathBody: 'La carpeta seleccionada no contiene archivos validos de {{game}}. Selecciona la carpeta de instalacion correcta del juego.',
+                    saveFailedTitle: 'Error al guardar',
+                    saveFailedBody: 'No se pudo guardar los ajustes. Intentalo de nuevo.',
+                    resetTitle: 'Restablecer ajustes del juego',
+                    resetBody: "Seguro que quieres restablecer todos los ajustes de {{game}}? Esto borrara la ruta de instalacion y las preferencias del juego, pero NO eliminara los archivos del juego.",
+                    resetDoneTitle: 'Ajustes restablecidos',
+                    resetDoneBody: 'Los ajustes de {{game}} se han restablecido a sus valores predeterminados!',
+                    resetFailedTitle: 'Error al restablecer',
+                    resetFailedBody: 'No se pudo restablecer los ajustes. Intentalo de nuevo.'
+                },
+                manageInstall: {
+                    titleWithGame: 'Gestionar instalacion - {{game}}',
+                    setupTitleWithGame: 'Finalizar configuracion - {{game}}',
+                    setupNote: 'Ultimate Legends nunca descarga ni modifica los archivos de tu juego. Al terminar la configuracion se instala el parche del launcher (como el arreglo del mando) en la carpeta del juego.',
+                    manageNote: 'Ultimate Legends nunca descarga ni modifica los archivos de tu juego. Actualizar parche vuelve a revisar el parche del launcher en la carpeta del juego y descarga lo que falte o este desactualizado.',
+                    folder: 'Carpeta del juego',
+                    patch: 'Parche',
+                    patchDefault: 'Parche del launcher',
+                    noPatch: 'Ninguno',
+                    notSet: 'Sin definir',
+                    folderMissing: 'No se encontro {{game}} en esta carpeta. Elige la carpeta correcta en los ajustes del juego.',
+                    updatePatch: 'Actualizar parche',
+                    loadError: 'No se pudo cargar la informacion de instalacion. Intentalo de nuevo.',
+                    uninstall: 'Desinstalar',
+                    confirmUninstallTitle: 'Confirmar desinstalacion',
+                    confirmUninstallBody: 'Quitar {{game}} de Ultimate Legends?\n\nSe eliminaran los archivos de parche del launcher de la carpeta del juego y se olvidara la carpeta. El juego en si no se borra.',
+                    uninstalling: 'Desinstalando {{game}}...',
+                    errorTitle: 'Error'
+                },
+                setup: {
+                    title: 'Configurar {{game}}',
+                    alreadyInstalledTitle: 'Ya tengo el juego instalado',
+                    alreadyInstalledBody: 'Selecciona la carpeta donde {{game}} esta instalado en tu equipo.',
+                    invalidGamePathTitle: 'Ruta de juego invalida',
+                    invalidGamePathBody: 'La carpeta seleccionada no contiene archivos validos de {{game}}. Selecciona la carpeta de instalacion correcta del juego.',
+                    foundInstallTitle: '{{game}} encontrado',
+                    foundInstallBody: '{{game}} esta instalado en tu biblioteca de Steam, en {{path}}. Usar esta carpeta?',
+                    useThisFolder: 'Usar esta carpeta',
+                    chooseAnotherFolder: 'Elegir otra carpeta',
+                }
+            },
+            dialog: {
+                resetAllSettingsTitle: 'Restablecer todos los ajustes',
+                resetAllSettingsBody: 'Seguro que quieres restablecer todos los ajustes del launcher y de los juegos a sus valores predeterminados? Esto borrara todos los ajustes, incluidas las rutas de instalacion de los juegos.',
+                resetDoneTitle: 'Ajustes restablecidos',
+                resetDoneBody: 'Todos los ajustes se han restablecido a sus valores predeterminados!',
+                resetFailedTitle: 'Error al restablecer',
+                resetFailedBody: 'No se pudo restablecer los ajustes. Intentalo de nuevo.',
+                stopGameFailedTitle: 'Error al detener el juego',
+                stopGameFailedBody: 'No se pudo detener {{game}}. Es posible que el juego ya este cerrado.'
+            },
+            errors: {
+                gameNotConfiguredTitle: '{{game}} no configurado',
+                gameNotConfiguredBody: 'No has configurado la ruta de instalacion de {{game}}.',
+                cannotLaunchTitle: 'No se puede iniciar ahora',
+                cannotLaunchBody: 'Otro juego se esta actualizando. Espera a que termine o cancela la operacion antes de iniciar otro juego.'
+            }
+        },
+        ru: {
+            app: {
+                title: 'Ultimate Legends'
+            },
+            window: {
+                minimize: 'Свернуть',
+                maximize: 'Развернуть',
+                restore: 'Восстановить',
+                close: 'Закрыть'
+            },
+            brand: {
+                launcher: 'Лаунчер'
+            },
+            nav: {
+                home: 'Главная',
+                library: 'Библиотека',
+                downloads: 'Загрузки',
+                support: 'Поддержка',
+                settings: 'Настройки',
+            },
+            downloads: {
+                title: 'Загрузки',
+                subtitle: 'Установка, обновление и удаление патчей: текущие и в очереди.',
+                empty: 'Нет активных загрузок.',
+                statusVerifying: 'Проверка',
+                statusInstalling: 'Установка',
+                statusUninstalling: 'Удаление',
+                statusActive: 'Выполняется',
+                statusQueued: 'В очереди — #{{position}}',
+                statusPaused: 'Приостановлено',
+                statusPausedAt: 'Приостановлено — {{percent}}%',
+                pause: 'Пауза',
+                resume: 'Продолжить',
+                etaLeft: '{{time}}'
+            },
+            toasts: {
+                queued: '{{game}} добавлена в очередь',
+                queuedVerify: '{{game}} поставлена в очередь на проверку/обновление',
+                queuedInstall: '{{game}}: установка патча поставлена в очередь',
+                queuedUninstall: '{{game}} поставлена в очередь на удаление',
+                cancelledVerify: 'Проверка/обновление {{game}} отменены',
+                cancelledInstall: 'Установка патча {{game}} отменена',
+                cancelledUninstall: 'Удаление {{game}} отменено',
+                cancelled: '{{game}} отменена',
+                shortcutCreated: 'Ярлык создан для {{game}}',
+                shortcutFailed: 'Не удалось создать ярлык для {{game}}'
+            },
+            offline: {
+                titleSuffix: '(ОФЛАЙН)',
+                blockTitle: 'Офлайн-режим',
+                blockBody: 'Лаунчер работает в офлайн-режиме, поэтому загрузки, обновления и проверка файлов отключены. Перезапустить онлайн для продолжения?',
+                relaunchOnline: 'Перезапустить онлайн'
+            },
+            deepLink: {
+                unknownGame: 'Неизвестная игра в ссылке: {{game}}',
+                unknownAction: 'Неизвестное действие ссылки: {{action}}'
+            },
+            common: {
+                ok: 'ОК',
+                cancel: 'Отмена',
+                play: 'Играть',
+                verify: 'Проверить файлы',
+                install: 'Установить',
+                installing: 'Установка',
+                verifying: 'Проверка',
+                uninstalling: 'Удаление',
+                queued: 'В очереди',
+                reinstall: 'Переустановить',
+                manageInstall: 'Управление установкой',
+                setup: 'Настройка',
+                finishSetup: 'Завершить настройку',
+                setUp: 'Настроить',
+                stop: 'Остановить',
+                uninstall: 'Удалить',
+                browse: 'Обзор',
+                browseLocalFiles: 'Просмотр локальных файлов',
+                saveSettings: 'Сохранить настройки',
+                resetSettings: 'Сбросить настройки',
+                continue: 'Продолжить',
+                loading: 'Загрузка...',
+                error: 'Ошибка',
+                pinToHome: 'Закрепить на главной',
+                unpinFromHome: 'Открепить от главной',
+                hideFromLibrary: 'Скрыть игру',
+                unhideGame: 'Показать игру',
+                gameDetails: 'Подробности игры',
+                createShortcut: 'Создать ярлык',
+                comingSoon: 'Скоро'
+            },
+            home: {
+                readyToPlay: 'Готово к игре',
+                heroEyebrow: 'Рекомендуем',
+                pinnedTitle: 'Закреплённое',
+                heroPrev: 'Предыдущий',
+                heroNext: 'Следующий',
+                welcomeTitle: 'Добро пожаловать в Ultimate Legends',
+                welcomeBody: 'Добро пожаловать в Ultimate Legends — лаунчер сообщества для Marvel: Ultimate Alliance и X-Men Legends на ПК. Укажите игры, которые у вас уже установлены, и лаунчер будет держать их пропатченными и готовыми к игре. Перейдите в <strong>Библиотеку</strong>, чтобы настроить игру, или на вкладку <strong>Поддержка</strong>, если нужна помощь.',
+                disclaimer: 'Ultimate Legends — неофициальный фанатский проект. Он не связан с Activision, Marvel или Disney и не одобрен ими, а также никогда не скачивает игры: вам нужны собственные копии. Основан на лаунчере CB Servers.'
+            },
+            library: {
+                title: 'Библиотека',
+                subtitle: 'Игры, в которые можно играть через Ultimate Legends.',
+                comingSoonHint: 'Поддержка этой игры в разработке.',
+                comingSoonToast: '{{game}} скоро появится: её пока нельзя настроить или запустить.',
+                filterAll: 'Все',
+                filterInstalled: 'Установленные',
+                filterHidden: 'Скрытые',
+                filterNotInstalled: 'Не установленные',
+                searchPlaceholder: 'Поиск игр...',
+                clearSearch: 'Очистить поиск',
+                noMatches: 'Нет игр, соответствующих этому фильтру.'
+            },
+            support: {
+                title: 'Поддержка',
+                subtitle: 'Устранение неполадок, распространяемые компоненты и помощь сообщества.',
+                launcherFaqTitle: 'Часто задаваемые вопросы о лаунчере',
+                launcherFaqBody: 'Привязка лаунчера к установленным играм, обновление патчей и игры, которые не запускаются.',
+                launcherFaqCta: 'Открыть FAQ лаунчера',
+                reportBug: 'Сообщить об ошибке',
+                openLogs: 'Открыть папку с логами',
+                redistTitle: 'Распространяемые компоненты',
+                redistBody: 'Установите среды выполнения Visual C++ и DirectX, необходимые для старых игр.',
+                manageRedist: 'Управление распространяемыми компонентами',
+                redistSummary: '{{installed}} из {{total}} установлено',
+                installAllMissing: 'Установить все недостающие',
+                reinstallAll: 'Переустановить всё',
+                redistStatusInstalled: 'Установлено',
+                redistStatusMissing: 'Отсутствует',
+                redistStatusDownloading: 'Загрузка',
+                redistStatusInstalling: 'Установка',
+                redistStatusFailed: 'Ошибка',
+                popup: {
+                    title: 'Управление распространяемыми компонентами',
+                    reinstallAllTitle: 'Переустановить все распространяемые компоненты?',
+                    reinstallAllBody: 'Это переустановит все {{total}} пакетов распространяемых компонентов, включая уже установленные. Windows покажет один запрос разрешения администратора (UAC). Продолжить?'
+                },
+                noteBody: 'Ultimate Legends — неофициальный фанатский проект. Он не связан с Activision, Marvel или Disney и не одобрен ими, а также никогда не скачивает игры: вам нужны собственные копии. Основан на лаунчере CB Servers.',
+                github: 'GitHub Ultimate Legends'
+            },
+            installer: {
+                missingRedistTitle: 'Отсутствуют необходимые компоненты',
+                missingRedistBody: 'Для {{gameName}} требуются следующие компоненты:',
+                installAndLaunch: 'Установить и запустить',
+                launchAnyway: 'Запустить в любом случае',
+                dontCheckRedistAgain: 'Больше не проверять отсутствующие распространяемые компоненты',
+                installingComponents: 'Установка необходимых компонентов…',
+                installingNamed: 'Установка {{name}}…',
+                redistInstallFailed: 'Не удалось установить необходимые компоненты. Откройте страницу Поддержки и воспользуйтесь пунктом Управление распространяемыми компонентами.'
+            },
+            settings: {
+                title: 'Настройки',
+                subtitle: 'Предпочтения лаунчера.',
+                appearance: 'Внешний вид',
+                startup: 'Запуск',
+                advanced: 'Дополнительно',
+                launcher: 'Лаунчер',
+                language: 'Язык',
+                languageBody: 'Выберите язык интерфейса лаунчера. Эта настройка влияет только на интерфейс лаунчера, а не на язык в игре.',
+                languageEnglish: 'Английский',
+                languageFrench: 'Французский',
+                languageSpanish: 'Испанский',
+                languageRussian: 'Русский',
+                closeLauncherAfterLaunch: 'Закрывать лаунчер после запуска игры',
+                closeLauncherAfterLaunchBody: 'При включении лаунчер будет автоматически закрываться после запуска игры.',
+                skipClientUpdate: 'Пропускать обновление патчей при запуске',
+                skipClientUpdateBody: 'При включении обновления патчей будут пропускаться при запуске. Полезно при устранении неполадок, но патчи могут оказаться устаревшими.',
+                reduceMotion: 'Уменьшить анимацию',
+                reduceMotionBody: 'При включении лаунчер отключает свои анимации и переходы.',
+                grayscaleUninstalled: 'Обесцвечивать неустановленные игры',
+                grayscaleUninstalledBody: 'Показывает неустановленные игры в библиотеке чёрно-белыми. Отключите, чтобы сохранить их обложки в цвете.',
+                skipRedistCheck: 'Пропускать проверку распространяемых компонентов при запуске',
+                skipRedistCheckBody: 'При включении лаунчер не будет проверять наличие недостающих распространяемых компонентов перед запуском игры. Игры могут не запуститься, если отсутствуют необходимые компоненты.',
+                restartOffline: 'Перезапустить автономно',
+                restartOnline: 'Перезапустить онлайн',
+                portableMode: 'Портативный режим',
+                portableModeBody: 'Хранит данные и настройки лаунчера в папке ultimate-legends рядом с exe вместо AppData. То же, что флаг -portable. При переключении данные переносятся в новое место и лаунчер перезапускается.',
+                portableMoveAndRestart: 'Перенести данные и перезапустить',
+                portableMoveBackAndRestart: 'Вернуть данные и перезапустить',
+                portableNotWritable: 'Папка лаунчера недоступна для записи, поэтому портативный режим нельзя включить отсюда. Сначала переместите лаунчер в папку с правом записи.',
+                portableBusy: 'Дождитесь завершения загрузок и запущенных игр перед переключением.',
+                portableConfirmTitle: 'Сменить расположение данных',
+                portableConfirmBody: 'Настройки и патчи будут перенесены в новое место, и лаунчер перезапустится. Кэши создадутся заново при первом использовании. Продолжить?',
+                portableFailed: 'Не удалось перенести данные лаунчера. Ничего не изменено.',
+                offlineMode: 'Автономный режим',
+                offlineModeBody: 'При включении лаунчер запускается без выхода в сеть: без обновлений патчей и загрузок. То же, что флаг -offline. Вступает в силу при следующем запуске лаунчера.',
+                autoShortcuts: 'Создавать ярлыки лаунчера',
+                autoShortcutsBody: 'Поддерживает ярлык на рабочем столе и в меню Пуск.',
+                commandLine: 'Аргументы командной строки',
+                commandLineBody: 'Флаги, которые принимает лаунчер при запуске из ярлыка или терминала.',
+                commandLineShow: 'Показать',
+                commandLineHide: 'Скрыть',
+                cliLaunch: "Запустить игру при старте (mua, mua2, xml2 или любой id из библиотеки)",
+                cliInstall: "Открыть установку игры при старте",
+                cliOffline: "Запуск без сетевых функций (без обновлений патчей и загрузок)",
+                cliPortable: "Хранить данные и настройки рядом с exe лаунчера",
+                maintenance: 'Обслуживание',
+                theme: 'Тема',
+                themeTactical: 'Тактическая оранжевая',
+                themeTacticalGreen: 'Тактическая зеленая',
+                themeNavy: 'Тёмно-синяя',
+                themeDark: 'Тёмная',
+                themeNavyGradient: 'Градиент тёмно-синий',
+                resetAllSettings: 'Сбросить все настройки',
+                showConsole: 'Показать консоль',
+                hideConsole: 'Скрыть консоль',
+                source: 'Исходный код',
+                basedOn: 'Основан на <a href="https://github.com/CBServers/cb-launcher" target="_blank">CB Servers Launcher</a> (GPL-3.0)',
+                versionLoading: 'Версия: Загрузка...',
+                versionUnknown: 'Версия: Неизвестно',
+                versionValue: 'Версия: {{version}}',
+                themeBody: 'Переключайтесь между доступными цветовыми темами лаунчера.'
+            },
+            progress: {
+                readyToPlay: 'Готово к игре',
+                launching: 'Запуск {{game}}...',
+                verifying: 'Проверка {{game}}...',
+                installingPatch: 'Установка патча для {{game}}...',
+                launchComplete: 'Запуск завершён!',
+                verificationComplete: 'Проверка завершена!',
+                uninstallComplete: 'Удаление завершено!'
+            },
+            detail: {
+                clientSettings: 'Настройки',
+                credits: 'Авторы',
+                note: 'Примечание',
+                noteBody: 'Ultimate Legends — неофициальный фанатский проект, не связанный с Activision, Marvel или Disney и не одобренный ими. Сообщайте о проблемах лаунчера на нашем <a href="https://github.com/ChronoRixun/ultimate-legends/issues" target="_blank">GitHub</a>.',
+                client: 'Игра',
+                provider: 'Поставщик',
+            },
+            popup: {
+                gameSettings: {
+                    titleWithGame: 'Настройки {{game}}',
+                    installationPath: 'Путь установки',
+                    installationFolderWithGame: 'Папка установки {{game}}:',
+                    installationPlaceholder: 'Выберите папку установки...',
+                    gameOptions: 'Игровые опции',
+                    launchAdmin: 'Запускать от имени администратора',
+                    advanced: 'Дополнительно',
+                    launchOptions: 'Параметры запуска:',
+                    invalidGamePathTitle: 'Неверный путь к игре',
+                    invalidGamePathBody: 'Выбранная папка не содержит действительных файлов игры {{game}}. Пожалуйста, выберите правильную папку установки игры.',
+                    saveFailedTitle: 'Ошибка сохранения',
+                    saveFailedBody: 'Не удалось сохранить настройки. Попробуйте снова.',
+                    resetTitle: 'Сбросить настройки игры',
+                    resetBody: 'Вы уверены, что хотите сбросить все настройки для {{game}}? Это очистит путь установки и игровые предпочтения, но НЕ УДАЛИТ игровые файлы.',
+                    resetDoneTitle: 'Настройки сброшены',
+                    resetDoneBody: 'Настройки {{game}} сброшены к значениям по умолчанию!',
+                    resetFailedTitle: 'Ошибка сброса',
+                    resetFailedBody: 'Не удалось сбросить настройки. Попробуйте снова.'
+                },
+                manageInstall: {
+                    titleWithGame: 'Управление установкой - {{game}}',
+                    setupTitleWithGame: 'Завершение настройки - {{game}}',
+                    setupNote: 'Ultimate Legends никогда не скачивает и не изменяет файлы игры. Завершение настройки установит патч лаунчера (например, исправление для контроллера) в папку игры.',
+                    manageNote: 'Ultimate Legends никогда не скачивает и не изменяет файлы игры. «Обновить патч» заново проверяет патч лаунчера в папке игры и скачивает недостающие или устаревшие файлы.',
+                    folder: 'Папка игры',
+                    patch: 'Патч',
+                    patchDefault: 'Патч лаунчера',
+                    noPatch: 'Нет',
+                    notSet: 'Не задана',
+                    folderMissing: '{{game}} не найдена в этой папке. Выберите правильную папку в настройках игры.',
+                    updatePatch: 'Обновить патч',
+                    loadError: 'Не удалось загрузить сведения об установке. Попробуйте снова.',
+                    uninstall: 'Удалить',
+                    confirmUninstallTitle: 'Подтверждение удаления',
+                    confirmUninstallBody: 'Убрать {{game}} из Ultimate Legends?\n\nФайлы патча лаунчера будут удалены из папки игры, а сама папка забыта. Сама игра не удаляется.',
+                    uninstalling: 'Удаление {{game}}...',
+                    errorTitle: 'Ошибка'
+                },
+                setup: {
+                    title: 'Настройка {{game}}',
+                    alreadyInstalledTitle: 'Игра уже установлена',
+                    alreadyInstalledBody: 'Выберите папку, в которую установлена {{game}} на вашем компьютере.',
+                    invalidGamePathTitle: 'Неверный путь к игре',
+                    invalidGamePathBody: 'Выбранная папка не содержит действительных файлов игры {{game}}. Пожалуйста, выберите правильную папку установки игры.',
+                    foundInstallTitle: 'Найдена игра {{game}}',
+                    foundInstallBody: '{{game}} установлена в вашей библиотеке Steam: {{path}}. Использовать эту папку?',
+                    useThisFolder: 'Использовать эту папку',
+                    chooseAnotherFolder: 'Выбрать другую папку',
+                }
+            },
+            dialog: {
+                resetAllSettingsTitle: 'Сбросить все настройки',
+                resetAllSettingsBody: 'Вы уверены, что хотите сбросить все настройки лаунчера и игр к значениям по умолчанию? Это очистит все настройки, включая пути установки игр.',
+                resetDoneTitle: 'Настройки сброшены',
+                resetDoneBody: 'Все настройки сброшены к значениям по умолчанию!',
+                resetFailedTitle: 'Ошибка сброса',
+                resetFailedBody: 'Не удалось сбросить настройки. Попробуйте снова.',
+                stopGameFailedTitle: 'Ошибка остановки игры',
+                stopGameFailedBody: 'Не удалось остановить {{game}}. Возможно, игра уже закрыта.'
+            },
+            errors: {
+                gameNotConfiguredTitle: '{{game}} не настроена',
+                gameNotConfiguredBody: 'Вы не настроили путь установки для {{game}}.',
+                cannotLaunchTitle: 'Невозможно запустить сейчас',
+                cannotLaunchBody: 'Другая игра обновляется. Пожалуйста, дождитесь завершения или отмените обновление перед запуском другой игры.'
+            }
+        }
+    };
+
+    let currentLanguage = 'en';
+
+    function lookup(path, language) {
+        return String(path || '')
+            .split('.')
+            .reduce((value, segment) => (value && value[segment] !== undefined ? value[segment] : undefined), translations[language]);
+    }
+
+    function interpolate(template, variables) {
+        if (!variables) return template;
+
+        return template.replace(/\{\{(.*?)\}\}/g, (match, key) => {
+            const value = variables[key.trim()];
+            return value === undefined || value === null ? '' : String(value);
+        });
+    }
+
+    function t(key, variables) {
+        const value = lookup(key, currentLanguage) ?? lookup(key, 'en');
+        if (typeof value !== 'string') return key;
+        return interpolate(value, variables);
+    }
+
+    function setLanguage(language) {
+        currentLanguage = translations[language] ? language : 'en';
+        document.documentElement.lang = currentLanguage;
+        return currentLanguage;
+    }
+
+    function getLanguage() {
+        return currentLanguage;
+    }
+
+    function getGameText(gameId, field, fallback) {
+        const value = lookup(`game.${gameId}.${field}`, currentLanguage) ?? lookup(`game.${gameId}.${field}`, 'en');
+        return typeof value === 'string' ? value : fallback;
+    }
+
+    function applyStaticTranslations() {
+        document.title = t('app.title');
+
+        document.querySelectorAll('[data-i18n]').forEach(element => {
+            element.textContent = t(element.dataset.i18n);
+        });
+
+        document.querySelectorAll('[data-i18n-html]').forEach(element => {
+            element.innerHTML = t(element.dataset.i18nHtml);
+        });
+
+        document.querySelectorAll('[data-i18n-placeholder]').forEach(element => {
+            element.placeholder = t(element.dataset.i18nPlaceholder);
+        });
+
+        document.querySelectorAll('[data-i18n-title]').forEach(element => {
+            element.title = t(element.dataset.i18nTitle);
+        });
+
+        const versionElement = document.getElementById('version-footer');
+        if (versionElement && (!versionElement.dataset.versionLoaded || versionElement.dataset.versionLoaded === 'false')) {
+            versionElement.textContent = t('settings.versionLoading');
+        }
+    }
+
+    window.LauncherI18n = {
+        t,
+        setLanguage,
+        getLanguage,
+        getGameText,
+        applyStaticTranslations
+    };
+})();

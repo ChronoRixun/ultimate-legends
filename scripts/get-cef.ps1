@@ -1,0 +1,104 @@
+if ($args.Count -lt 1) {
+    Write-Output "Usage: <cef-version>"
+    exit 1
+}
+
+$cefVersion = $args[0]
+
+#-------------------------------------------------
+Write-Output 'Deleting old CEF binaries...'
+#-------------------------------------------------
+
+$destinationPart = 'cef.tar'
+$destination = "$destinationPart.bz2"
+
+$cefPath = 'deps/cef'
+Remove-Item $destinationPart -ErrorAction Ignore
+Remove-Item $destination -ErrorAction Ignore
+Remove-Item -LiteralPath $cefPath -Force -Recurse -ErrorAction Ignore
+
+#-------------------------------------------------
+Write-Output 'Locating 7Zip'
+#-------------------------------------------------
+
+function Get-SzRegistry {
+    $reg = [Microsoft.Win32.RegistryKey]::OpenBaseKey([Microsoft.Win32.RegistryHive]::LocalMachine, [Microsoft.Win32.RegistryView]::Registry64)
+
+    if ($null -eq $reg) {
+        return $null
+    }
+
+    $szKey = $reg.OpenSubKey('SOFTWARE')
+    if ($null -eq $szKey) {
+        return $null
+    }
+
+    $szKey = $szKey.OpenSubKey('7-Zip')
+    if ($null -eq $szKey) {
+        return $null
+    }
+
+    return $szKey.GetValue('Path') + '7z.exe'
+}
+
+function Get-SzDefaultPaths {
+    $path = "$env:ProgramFiles\7-Zip\7z.exe"
+
+    if(-Not(Test-Path -Path $path -PathType Leaf)) {
+        $path = "$env:ProgramW6432\7-Zip\7z.exe"
+    }
+
+    if(-Not(Test-Path -Path $path -PathType Leaf)) {
+        $path = "${env:ProgramFiles(x86)}\7-Zip\7z.exe"
+    }
+
+    if(-Not(Test-Path -Path $path -PathType Leaf)) {
+        return $null
+    }
+
+    return $path
+}
+
+$sz = Get-SzRegistry
+
+if ($null -eq $sz) {
+    $sz = Get-SzDefaultPaths
+}
+
+# Windows 10 and later ship tar.exe (libarchive), which unpacks .tar.bz2 directly.
+$tar = Join-Path $env:SystemRoot 'System32\tar.exe'
+
+if (($null -eq $sz) -and -Not(Test-Path -Path $tar -PathType Leaf)) {
+    Write-Error -Message 'Could not locate 7Zip or tar.exe. Install 7Zip and try again.'
+    exit 1
+}
+
+#-------------------------------------------------
+Write-Output 'Downloading CEF...'
+#-------------------------------------------------
+
+$source = "https://cef-builds.spotifycdn.com/$cefVersion.tar.bz2"
+Invoke-WebRequest -Uri $source -OutFile $destination -UserAgent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+#-------------------------------------------------
+Write-Output 'Unpacking CEF...'
+#-------------------------------------------------
+
+if ($null -ne $sz) {
+    & "$sz" x $destination -aoa
+    & "$sz" x $destinationPart -aoa
+} else {
+    & "$tar" -xjf $destination
+}
+
+Move-Item -Path $cefVersion -Destination $cefPath
+
+#-------------------------------------------------
+Write-Output 'Doing cleanup...'
+#-------------------------------------------------
+
+Remove-Item $destinationPart -ErrorAction Ignore
+Remove-Item $destination
+
+#-------------------------------------------------
+Write-Output 'Done!'

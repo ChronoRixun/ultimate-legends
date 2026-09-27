@@ -1,0 +1,83 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - "*"
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - "*"
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration:
+          - Release
+    steps:
+      - name: Set Git to use LF line endings
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+
+      - name: Check out files
+        uses: actions/checkout@v7
+        with:
+          submodules: true
+          fetch-depth: 0 # premake derives the version from git history
+
+      - name: Add msbuild to PATH
+        uses: microsoft/setup-msbuild@v3
+
+      # Tag checkouts are detached HEAD; pin the branch name premake writes into the version header.
+      - name: Pin branch name for tag builds
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: git switch --force-create main
+
+      # CEF is a 260 MB download; premake skips it when deps/cef already has the right version.
+      - name: Cache CEF
+        uses: actions/cache@v6
+        with:
+          path: deps/cef
+          key: cef-${{ hashFiles('deps/premake/cef.lua') }}
+
+      - name: Generate project files
+        run: tools/premake5 vs2022
+
+      - name: Build ${{ matrix.configuration }}
+        run: msbuild /m /v:minimal /p:Configuration=${{ matrix.configuration }} /p:Platform=x64 build/ultimate-legends.sln
+
+      - name: Upload ${{ matrix.configuration }} binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.configuration }} binary
+          path: |
+            build/bin/x64/${{ matrix.configuration }}/ultimate-legends.exe
+            build/bin/x64/${{ matrix.configuration }}/ultimate-legends.pdb
+
+      - name: Upload ${{ matrix.configuration }} CEF runtime
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.configuration }} CEF runtime
+          path: build/runtime/x64/${{ matrix.configuration }}/cef
+
+      - name: Upload launcher UI
+        if: matrix.configuration == 'Release'
+        uses: actions/upload-artifact@v7
+        with:
+          name: Launcher UI
+          path: src/launcher-ui

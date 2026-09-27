@@ -4283,3 +4283,36 @@ html:not([data-color-uninstalled]) .library-card:not(.is-installed):not(.is-comi
     color: var(--accent);
     font-size: 12px;
 }
+
+/* ---- Mods section of a game's page (mods-view.js) ---- */
+.detail-mods { margin-top: 24px; }
+.detail-mods-title { margin: 0 0 12px; font-size: 16px; letter-spacing: 0.02em; text-transform: uppercase; }
+.ul-mods { display: flex; flex-direction: column; gap: 12px; }
+.ul-mods-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.ul-mods-add, .ul-mods-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+.ul-mods-toolbar .secondary-action, .ul-mod-actions .secondary-action { width: auto; min-height: 36px; padding: 8px 14px; }
+.ul-mods-hint { margin: 0; font-size: 12px; opacity: 0.7; }
+.ul-mods-status { padding: 8px 12px; border-radius: 6px; font-size: 13px; background: rgba(255, 255, 255, 0.06); }
+.ul-mods-status.is-error { background: rgba(255, 77, 99, 0.15); color: #ff8a9a; }
+.ul-mods-status.is-info { background: rgba(54, 197, 238, 0.12); }
+.ul-mods-empty { padding: 32px 16px; text-align: center; opacity: 0.7; border: 1px dashed rgba(255, 255, 255, 0.15); border-radius: 8px; }
+.ul-mods-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ul-mod { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; background: rgba(255, 255, 255, 0.04); }
+.ul-mod.is-disabled .ul-mod-info { opacity: 0.5; }
+.ul-mod-info { min-width: 0; }
+.ul-mod-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ul-mod-folder { font-weight: 400; font-size: 12px; opacity: 0.6; }
+.ul-mod-details { font-size: 12px; opacity: 0.7; }
+.ul-mod-description { font-size: 12px; opacity: 0.8; margin-top: 2px; }
+.ul-mod-order { display: flex; flex-direction: column; gap: 2px; }
+.ul-mod-icon-button { width: 26px; height: 18px; padding: 0; font-size: 10px; line-height: 1; border: 0; border-radius: 4px; background: rgba(255, 255, 255, 0.08); color: inherit; cursor: pointer; }
+.ul-mod-icon-button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.16); }
+.ul-mod-icon-button:disabled { opacity: 0.25; cursor: default; }
+.ul-mod-actions { display: flex; gap: 6px; }
+.ul-mod-toggle { position: relative; display: inline-block; width: 36px; height: 20px; cursor: pointer; }
+.ul-mod-toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+.ul-mod-switch { position: absolute; inset: 0; border-radius: 10px; background: rgba(255, 255, 255, 0.18); transition: background 0.15s; }
+.ul-mod-switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform 0.15s; }
+.ul-mod-toggle input:checked + .ul-mod-switch { background: var(--accent-color, #ffc23d); }
+.ul-mod-toggle input:checked + .ul-mod-switch::after { transform: translateX(16px); }
+.ul-mod-toggle input:focus-visible + .ul-mod-switch { outline: 2px solid var(--accent-color, #ffc23d); outline-offset: 2px; }

@@ -7,7 +7,14 @@
 
 namespace utils::com
 {
+    struct file_filter
+    {
+        std::string name;
+        std::string pattern;
+    };
+
     bool select_folder(std::string& out_folder, const std::string& title = "Select a Folder", const std::string& selected_folder = {});
+    bool select_file(std::string& out_file, const std::string& title = "Select a File", const std::vector<file_filter>& filters = {}, const std::string& selected_folder = {});
 
     std::filesystem::path get_desktop_path();
     std::filesystem::path get_start_menu_programs_path();

@@ -34,7 +34,7 @@ namespace utils::com
     namespace
     {
         bool show_open_dialog(std::string& out_path, const std::string& title, const std::string& selected_folder,
-                              const FILEOPENDIALOGOPTIONS extra_options)
+                              const FILEOPENDIALOGOPTIONS extra_options, const std::vector<file_filter>& filters)
         {
             CComPtr<IFileOpenDialog> file_dialog{};
             if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&file_dialog))))
@@ -57,6 +57,24 @@ namespace utils::com
             if (FAILED(file_dialog->SetTitle(wide_title.data())))
             {
                 throw std::runtime_error("Failed to set title");
+            }
+
+            std::vector<std::wstring> wide_filters{};
+            std::vector<COMDLG_FILTERSPEC> specs{};
+            if (!filters.empty())
+            {
+                wide_filters.reserve(filters.size() * 2);
+                for (const auto& filter : filters)
+                {
+                    wide_filters.push_back(string::convert(filter.name));
+                    wide_filters.push_back(string::convert(filter.pattern));
+                    specs.push_back({wide_filters[wide_filters.size() - 2].data(), wide_filters.back().data()});
+                }
+
+                if (FAILED(file_dialog->SetFileTypes(static_cast<UINT>(specs.size()), specs.data())))
+                {
+                    throw std::runtime_error("Failed to set file types");
+                }
             }
 
             if (!selected_folder.empty())
@@ -121,7 +139,12 @@ namespace utils::com
 
     bool select_folder(std::string& out_folder, const std::string& title, const std::string& selected_folder)
     {
-        return show_open_dialog(out_folder, title, selected_folder, FOS_PICKFOLDERS);
+        return show_open_dialog(out_folder, title, selected_folder, FOS_PICKFOLDERS, {});
+    }
+
+    bool select_file(std::string& out_file, const std::string& title, const std::vector<file_filter>& filters, const std::string& selected_folder)
+    {
+        return show_open_dialog(out_file, title, selected_folder, FOS_FILEMUSTEXIST | FOS_FORCEFILESYSTEM, filters);
     }
 
     namespace

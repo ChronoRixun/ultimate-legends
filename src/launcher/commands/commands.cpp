@@ -6,6 +6,7 @@
 #include "property_commands.hpp"
 #include "info_commands.hpp"
 #include "game_commands.hpp"
+#include "mod_commands.hpp"
 
 namespace commands
 {
@@ -31,5 +32,6 @@ namespace commands
         property_commands::register_commands(cef_ui, ctx);
         info_commands::register_commands(cef_ui, ctx);
         game_commands::register_commands(cef_ui, ctx);
+        mod_commands::register_commands(cef_ui, ctx);
     }
 }

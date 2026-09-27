@@ -12,6 +12,7 @@
 #include <game_config.hpp>
 
 #include "updater/updater.hpp"
+#include "mods/game_mods.hpp"
 #include "updater/client_updater.hpp"
 #include "updater/game_updater.hpp"
 #include "updater/ui_progress_listener.hpp"
@@ -210,6 +211,13 @@ namespace commands::game_commands
             const auto game_exe = game_directory / exe_name;
             if (utils::io::file_exists(game_exe))
             {
+                // Record mods copied into <game>\mods by hand in its load order (enabled), so the
+                // game's mod loader and the Mods section agree.
+                if (utils::io::directory_exists(game_mods::mods_folder(game_directory)))
+                {
+                    game_mods::list(game_directory);
+                }
+
                 const auto launch_args = trim_ws(config.get_launch_options().value_or(""));
 
                 printf("Launching %s with args: %s\n", exe_name.data(), launch_args.data());

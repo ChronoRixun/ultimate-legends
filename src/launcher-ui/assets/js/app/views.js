@@ -1029,10 +1029,22 @@
                         ${descriptionSection}
                         ${actionsAside}
                     </div>
+                    ${!comingSoon && window.ModsView && window.ModsView.supports(config.uiId)
+                        ? `<section class="detail-mods">
+                        <h3 class="detail-mods-title">${escapeHtml(t('mods.title'))}</h3>
+                        <div id="${escapeHtml(config.uiId)}-mods-panel"></div>
+                    </section>`
+                        : ''}
                 </div>
             </div>
         `;
         }).join('');
+
+        if (window.ModsView) {
+            GameUtils.getAllGameConfigs()
+                .filter(config => !config.comingSoon && window.ModsView.supports(config.uiId))
+                .forEach(config => window.ModsView.render(config.uiId));
+        }
 
         host.querySelectorAll('.detail-browse-files-action').forEach(button => {
             button.addEventListener('click', async () => {

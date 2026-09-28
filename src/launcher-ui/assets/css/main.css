@@ -1453,7 +1453,8 @@ html[data-theme="dark"] .setup-button {
 /* Toggle group */
 
 .settings-content .toggle-group,
-.game-settings-popup .toggle-group {
+.game-settings-popup .toggle-group,
+.ul-display .toggle-group {
     display: flex;
     border: 1px solid var(--border-hi);
     border-radius: 10px;
@@ -1465,12 +1466,14 @@ html[data-theme="dark"] .setup-button {
 }
 
 .settings-content .toggle-group.small,
-.game-settings-popup .toggle-group.small {
+.game-settings-popup .toggle-group.small,
+.ul-display .toggle-group.small {
     width: 110px;
 }
 
 .settings-content .toggle-btn,
-.game-settings-popup .toggle-btn {
+.game-settings-popup .toggle-btn,
+.ul-display .toggle-btn {
     flex: 1;
     background: transparent;
     border: none;
@@ -1486,13 +1489,15 @@ html[data-theme="dark"] .setup-button {
 }
 
 .settings-content .toggle-btn:hover,
-.game-settings-popup .toggle-btn:hover {
+.game-settings-popup .toggle-btn:hover,
+.ul-display .toggle-btn:hover {
     color: #fff;
     background: var(--surface-hi);
 }
 
 .settings-content .toggle-btn.active,
-.game-settings-popup .toggle-btn.active {
+.game-settings-popup .toggle-btn.active,
+.ul-display .toggle-btn.active {
     background: var(--accent-grad);
     color: #fff;
     box-shadow: 0 2px 12px var(--accent-soft);
@@ -3711,6 +3716,7 @@ html:not([data-theme]) #message-box .mb-buttons button,
 html:not([data-theme]) .chip,
 html:not([data-theme]) .settings-content .toggle-btn,
 html:not([data-theme]) .game-settings-popup .toggle-btn,
+html:not([data-theme]) .ul-display .toggle-btn,
 html:not([data-theme]) .game-settings-popup .input-group input,
 html:not([data-theme]) .game-settings-popup .launch-options-input {
     border-radius: 2px;
@@ -3725,6 +3731,7 @@ html:not([data-theme]) .toggle-group,
 html:not([data-theme]) .setup-option,
 html:not([data-theme]) .install-info-section,
 html:not([data-theme]) .settings-content .setting-item.inline-setting,
+html:not([data-theme]) .ul-display-row,
 html:not([data-theme]) .redist-row {
     border-radius: var(--radius-sm);
 }
@@ -3777,6 +3784,7 @@ html:not([data-theme]) .btn-setup-continue:hover,
 html:not([data-theme]) .btn-apply:hover,
 html:not([data-theme]) .settings-content .toggle-btn.active,
 html:not([data-theme]) .game-settings-popup .toggle-btn.active,
+html:not([data-theme]) .ul-display .toggle-btn.active,
 html:not([data-theme]) .support-action,
 html:not([data-theme]) .support-action:hover,
 html:not([data-theme]) #support-page a[href],
@@ -4029,7 +4037,8 @@ html:not([data-theme]) .chip.active {
 }
 
 html:not([data-theme]) .settings-content .toggle-btn.active,
-html:not([data-theme]) .game-settings-popup .toggle-btn.active {
+html:not([data-theme]) .game-settings-popup .toggle-btn.active,
+html:not([data-theme]) .ul-display .toggle-btn.active {
     background: var(--accent);
     color: var(--accent-contrast);
 }
@@ -4316,3 +4325,26 @@ html:not([data-color-uninstalled]) .library-card:not(.is-installed):not(.is-comi
 .ul-mod-toggle input:checked + .ul-mod-switch { background: var(--accent-color, #ffc23d); }
 .ul-mod-toggle input:checked + .ul-mod-switch::after { transform: translateX(16px); }
 .ul-mod-toggle input:focus-visible + .ul-mod-switch { outline: 2px solid var(--accent-color, #ffc23d); outline-offset: 2px; }
+
+/* ---- Display section of a game's page (display-view.js) ---- */
+.detail-display { margin-top: 24px; }
+.detail-display-title { margin: 0 0 12px; font-size: 16px; letter-spacing: 0.02em; text-transform: uppercase; }
+.ul-display { display: flex; flex-direction: column; gap: 10px; }
+.ul-display-intro { margin: 0 0 2px; font-size: 12px; opacity: 0.7; line-height: 1.5; }
+.ul-display-status { padding: 8px 12px; border-radius: 6px; font-size: 13px; background: rgba(255, 255, 255, 0.06); }
+.ul-display-status.is-error { background: rgba(255, 77, 99, 0.15); color: #ff8a9a; }
+.ul-display-status.is-info { background: rgba(54, 197, 238, 0.12); }
+.ul-display-body { display: flex; flex-direction: column; gap: 8px; }
+.ul-display-empty { padding: 20px 16px; text-align: center; opacity: 0.7; border: 1px dashed rgba(255, 255, 255, 0.15); border-radius: 8px; font-size: 13px; }
+.ul-display-row { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 12px 16px; background: var(--surface-lo); border: 1px solid var(--border); border-radius: 12px; }
+.ul-display-row:hover { border-color: var(--border-hi); background: var(--surface-hi); }
+.ul-display-row.is-disabled .ul-display-info { opacity: 0.55; }
+.ul-display-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ul-display-label { color: #fff; font-size: 13.5px; font-weight: 500; }
+.ul-display-description { color: var(--text-muted); font-size: 12px; line-height: 1.5; margin-top: 4px; }
+.ul-display-note { color: var(--accent); font-size: 11px; margin-top: 2px; }
+.ul-display-control { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.ul-display .setting-select { min-width: 240px; }
+.ul-display .setting-select:disabled { cursor: default; opacity: 0.55; }
+.ul-display .setting-select:disabled:hover { border-color: var(--border-hi); background-color: var(--surface-lo); }
+.ul-display-footer { margin: 4px 0 0; font-size: 11px; opacity: 0.55; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

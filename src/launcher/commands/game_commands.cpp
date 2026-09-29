@@ -16,6 +16,7 @@
 #include "updater/client_updater.hpp"
 #include "updater/game_updater.hpp"
 #include "updater/ui_progress_listener.hpp"
+#include "xml1/xml1_port.hpp"
 
 namespace commands::game_commands
 {
@@ -317,6 +318,22 @@ namespace commands::game_commands
                 return;
             }
 
+            // A built game starts only from a finished build, and never while its builder writes the folder.
+            if (config->built && xml1_port::is_working())
+            {
+                cef_ui.show_message_box("Game Launch Error", config->display_name + " is being built. Wait for the build to finish, or cancel it, before playing.");
+                return;
+            }
+            if (config->built)
+            {
+                const auto folder = config->get_install_path();
+                if (!folder || !xml1_port::is_playable(*folder))
+                {
+                    cef_ui.show_message_box("Game Launch Error", config->display_name + " has not finished building. Resume the build on its page first.");
+                    return;
+                }
+            }
+
             if (!try_lock_launch_barrier())
             {
                 const auto running_id = tracked_game_id();
@@ -431,8 +448,11 @@ namespace commands::game_commands
                 {
                     const auto patch_fetched = client_updater::run(config, progress_listener.get());
 
-                    // Installed means the patch files are in place.
-                    if (patch_fetched)
+                    // Installed means the patch files are in place (and, for a built game, that
+                    // the build in its folder finished).
+                    const auto folder = config.get_install_path();
+                    const auto complete = !config.built || (folder && game_config::validate_game_path(config.game_key, *folder));
+                    if (patch_fetched && complete)
                     {
                         config.set_installed(true);
                     }
@@ -500,6 +520,17 @@ namespace commands::game_commands
                 {
                     const client_updater::client_updater client_updater(config, progress_listener.get());
                     client_updater.delete_client();
+
+                    // A built game's folder is the launcher's to tidy once the builder has deleted
+                    // the build (xml1-clean) and the patch is gone: remove it when nothing is left.
+                    if (config.built)
+                    {
+                        std::error_code error;
+                        if (const auto folder = config.get_install_path(); folder && std::filesystem::is_empty(*folder, error) && !error)
+                        {
+                            std::filesystem::remove(*folder, error);
+                        }
+                    }
 
                     // Clear installation status
                     config.reset();

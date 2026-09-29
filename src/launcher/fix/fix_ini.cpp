@@ -12,8 +12,9 @@ namespace fix_ini
         // hold tells the two apart.
         constexpr auto absent_marker = L"\x01";
 
-        // The XML2 Fix (github.com/ChronoRixun/xml2-fix). The X-Men Legends port will run on the
-        // same fix: its entry gets the same fix, with the sections its build supports.
+        // The XML2 Fix (github.com/ChronoRixun/xml2-fix). The X-Men Legends port runs on the same
+        // fix, with its own xml2-fix.ini in the built folder: the builder writes the port's
+        // [Game] and [Limits] keys there, the launcher the player's [Display] and [Discord].
         const fix xml2_fix{
             .name = "XML2 Fix",
             .dll = L"dinput.dll",
@@ -26,6 +27,7 @@ namespace fix_ini
         {
             static const std::map<std::string, const fix*> table{
                 {"xml2", &xml2_fix},
+                {"xml1", &xml2_fix},
             };
             return table;
         }

@@ -543,6 +543,23 @@ namespace utils::cryptography
         return string::dump_hex(hash, "");
     }
 
+    sha256::stream::stream()
+    {
+        sha256_init(&this->state_);
+    }
+
+    void sha256::stream::update(const void* data, const size_t length)
+    {
+        sha256_process(&this->state_, static_cast<const unsigned char*>(data), ul(length));
+    }
+
+    std::string sha256::stream::finish_hex()
+    {
+        uint8_t buffer[32] = {0};
+        sha256_done(&this->state_, buffer);
+        return string::to_lower(string::dump_hex(std::string(cs(buffer), sizeof(buffer)), ""));
+    }
+
     std::string sha512::compute(const std::string& data, const bool hex)
     {
         return compute(cs(data.data()), data.size(), hex);

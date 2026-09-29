@@ -88,6 +88,19 @@ namespace utils::cryptography
     {
         std::string compute(const std::string& data, bool hex = false);
         std::string compute(const uint8_t* data, size_t length, bool hex = false);
+
+        // SHA-256 of data that arrives in pieces (a download streamed to disk).
+        class stream final
+        {
+        public:
+            stream();
+            void update(const void* data, size_t length);
+            // Lower-case hex; the stream can't be updated afterwards.
+            std::string finish_hex();
+
+        private:
+            hash_state state_{};
+        };
     }
 
     namespace sha512

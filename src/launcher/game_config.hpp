@@ -62,6 +62,11 @@ namespace game_config
         // Steam app ID used to find an existing install in the user's Steam libraries. Empty = not a Steam game.
         std::string steam_app_id;
 
+        // The game is built on the player's PC (the X-Men Legends port, by xml1-builder) rather than
+        // found in an existing install: its setup is the build flow, and a folder is only valid when
+        // it holds every one of valid_game_files.
+        bool built = false;
+
         // Helper to construct full property key (public to maintain aggregate status)
         std::string make_property_key(const std::string& suffix) const;
     };

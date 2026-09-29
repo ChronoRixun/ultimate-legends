@@ -119,11 +119,13 @@ namespace game_config
     }
 
     // Game configurations
-    // The games Ultimate Legends supports. All of them run from an install the user already
+    // The games Ultimate Legends supports. MUA, MUA2 and XML2 run from an install the user already
     // has; the launcher only installs its patch files into it and never downloads, repairs or
-    // deletes the game itself. Marvel: Ultimate Alliance (2006 PC) and X-Men Legends are listed
-    // in the UI as coming soon and get entries here once their executables have been checked
-    // against real installs.
+    // deletes the game itself. X-Men Legends is a community port that the player's PC builds from
+    // their own Xbox disc image and their XML2 install (xml1-builder, xml1/xml1_port.hpp); the
+    // builder is the only code that writes or deletes its files, and it runs on the XML2 engine
+    // with the same XML2 Fix. Marvel: Ultimate Alliance (2006 PC) is listed in the UI as coming
+    // soon and gets an entry here once its executable has been checked against real installs.
     const std::unordered_map<std::string, game_config_t> game_configs_ = {
         {
             "mua",
@@ -168,6 +170,23 @@ namespace game_config
                 .check_running_exes = {"XMen2.exe"}
             }
         },
+        {
+            "xml1",
+            {
+                .game_key = "xml1",
+                .display_name = "X-Men Legends",
+                .id = "xml1",
+                // XML2's engine: the port runs XMen2.exe too, from its own folder (so the running
+                // check and Stop go by path, game_config_t::running_images).
+                .exe_name = "XMen2.exe",
+                .update_manifest_url = XML2_FIX_RELEASE "ultimate-legends.json",
+                .update_folder_url = XML2_FIX_RELEASE,
+                // A folder the builder finished: the exe and its stamp, written last.
+                .valid_game_files = {"XMen2.exe", "_build/stamp.json"},
+                .check_running_exes = {"XMen2.exe"},
+                .built = true
+            }
+        },
     };
 
     std::optional<game_config_t> get_game_config(const std::string& game)
@@ -175,6 +194,17 @@ namespace game_config
         const auto it = game_configs_.find(game);
         if (it != game_configs_.end())
         {
+#ifdef _DEBUG
+            // Debug builds only: the CDP tests serve a stand-in patch from a local server
+            // (<game>-patch-manifest = its manifest URL; the files sit next to it).
+            if (const auto manifest = it->second.get(property_keys::DEV_PATCH_MANIFEST); manifest && !manifest->empty())
+            {
+                auto config = it->second;
+                config.update_manifest_url = *manifest;
+                config.update_folder_url = manifest->substr(0, manifest->rfind('/') + 1);
+                return config;
+            }
+#endif
             return it->second;
         }
         return std::nullopt;
@@ -201,17 +231,17 @@ namespace game_config
             return false;
         }
 
-        // Check if any of the valid game executables exist
-        for (const auto& exe : config->valid_game_files)
+        // A built game's folder needs all of its files (an XML2 folder has an XMen2.exe too, but
+        // no build stamp); an existing install needs any one of its executables.
+        const auto has = [&](const std::string& file)
         {
-            const auto exe_path = path / exe;
-            if (utils::io::file_exists(exe_path))
-            {
-                return true;
-            }
+            return utils::io::file_exists(path / utils::string::utf8_to_path(file));
+        };
+        if (config->built)
+        {
+            return !config->valid_game_files.empty() && std::all_of(config->valid_game_files.begin(), config->valid_game_files.end(), has);
         }
-
-        return false;
+        return std::any_of(config->valid_game_files.begin(), config->valid_game_files.end(), has);
     }
 
     bool is_game_process_running(const std::string& game, const unsigned int max_age_ms)

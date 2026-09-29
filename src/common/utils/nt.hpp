@@ -130,6 +130,21 @@ namespace utils::nt
     bool is_any_process_running(const std::vector<std::string>& process_names,
                                 unsigned int max_age_ms = 0);
     bool stop_process(const std::string& processName);
+
+    // Processes by the full path of their executable, not just its name: two games can run an
+    // exe of the same name (X-Men Legends II and the X-Men Legends port both run XMen2.exe) from
+    // different folders. One process-table snapshot (reused like is_any_process_running's when
+    // max_age_ms allows); only processes whose name matches one of `images` have their image
+    // path read. Paths compare as the same file (case, "..", 8.3 names, junctions and subst
+    // drives don't matter). A process whose path can't be read is not a match.
+    std::vector<unsigned long> find_processes_by_image(const std::vector<std::filesystem::path>& images,
+                                                       unsigned int max_age_ms = 0);
+    bool is_any_image_running(const std::vector<std::filesystem::path>& images, unsigned int max_age_ms = 0);
+    // Terminates every process running one of `images`; true when at least one was stopped.
+    bool stop_processes_by_image(const std::vector<std::filesystem::path>& images);
+    // Whether the two paths name the same file (the same string once normalised, or the same
+    // volume and file id).
+    bool is_same_file(const std::filesystem::path& a, const std::filesystem::path& b);
     // Terminates through a handle already owned (e.g. from an elevated launch), which needs no OpenProcess and so no UAC prompt.
     bool terminate_process_handle(HANDLE process);
     void relaunch_self(std::string command_line = GetCommandLineA());

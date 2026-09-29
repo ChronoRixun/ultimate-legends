@@ -28,6 +28,11 @@ namespace game_config
         // Every exe this game can run as: launch exe and known child/companion exes.
         std::vector<std::string> collect_exes() const;
 
+        // The full paths of those exes in the game's install folder; empty when the game has no
+        // folder yet. The running check and Stop match processes by these paths, never by name
+        // alone: X-Men Legends II and the X-Men Legends port both run an XMen2.exe.
+        std::vector<std::filesystem::path> running_images() const;
+
         // Reset all properties for this game
         void reset() const;
 
@@ -69,7 +74,8 @@ namespace game_config
     // Lookup by wire id (game_config.id, e.g. "mua"), as tracked for the running game.
     std::optional<game_config_t> get_game_config_by_id(const std::string& id);
     bool validate_game_path(const std::string& game, const std::filesystem::path& path);
-    // OS-level check: any of the game's executables is running. `game` is the wire id (game_config.id).
+    // OS-level check: any of the game's executables is running from the game's install folder
+    // (running_images). `game` is the wire id (game_config.id).
     // max_age_ms lets a polling caller reuse a recent process snapshot; 0 always takes a fresh one,
     // which is what anything acting on the answer must use.
     bool is_game_process_running(const std::string& game, unsigned int max_age_ms = 0);

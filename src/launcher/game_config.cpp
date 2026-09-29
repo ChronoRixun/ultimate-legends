@@ -85,6 +85,30 @@ namespace game_config
         return exes;
     }
 
+    std::vector<std::filesystem::path> game_config_t::running_images() const
+    {
+        std::vector<std::filesystem::path> images;
+        const auto folder = this->get_install_path();
+        if (!folder || folder->empty())
+        {
+            return images;
+        }
+
+        for (const auto& exe : this->collect_exes())
+        {
+            if (exe.empty())
+            {
+                continue;
+            }
+            auto image = *folder / utils::string::utf8_to_path(exe);
+            if (std::find(images.begin(), images.end(), image) == images.end())
+            {
+                images.push_back(std::move(image));
+            }
+        }
+        return images;
+    }
+
     void game_config_t::reset() const
     {
         // Clear all properties for this game
@@ -198,7 +222,7 @@ namespace game_config
             return false;
         }
 
-        return utils::nt::is_any_process_running(config->collect_exes(), max_age_ms);
+        return utils::nt::is_any_image_running(config->running_images(), max_age_ms);
     }
 
     void reset_all_games()

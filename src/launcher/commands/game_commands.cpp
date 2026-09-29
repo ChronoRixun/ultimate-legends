@@ -93,14 +93,12 @@ namespace commands::game_commands
             });
         }
 
-        // TerminateProcess can't reach an elevated game from a non-elevated launcher, so stop those via elevated taskkill.
+        // Stops only the processes running this game's exes from its own folder (never another
+        // game's exe of the same name). TerminateProcess can't reach an elevated game from a
+        // non-elevated launcher, so those are stopped by process id through an elevated taskkill.
         bool stop_game_processes(const game_config::game_config_t& config)
         {
-            std::vector<std::string> exes{ config.exe_name };
-            for (const auto& exe : config.check_running_exes)
-            {
-                exes.push_back(exe);
-            }
+            const auto images = config.running_images();
 
             // Covers configured elevation and the runtime 740 fallback (exe manifest demanded elevation).
             const auto launched_elevated = get_tracked_launch().access<bool>([&](const tracked_launch& t)
@@ -110,10 +108,16 @@ namespace commands::game_commands
 
             if ((config.launch_elevated() || launched_elevated) && !utils::nt::is_elevated())
             {
-                std::string args = "/F";
-                for (const auto& exe : exes)
+                const auto pids = utils::nt::find_processes_by_image(images, 0);
+                if (pids.empty())
                 {
-                    if (!exe.empty()) args += " /IM \"" + exe + "\"";
+                    return false;
+                }
+
+                std::string args = "/F";
+                for (const auto pid : pids)
+                {
+                    args += " /PID " + std::to_string(pid);
                 }
 
                 wchar_t system32[MAX_PATH];
@@ -122,15 +126,7 @@ namespace commands::game_commands
                 return utils::nt::launch_process_elevated(taskkill, args, {}) != 0;
             }
 
-            bool stopped = false;
-            for (const auto& exe : exes)
-            {
-                if (!exe.empty() && utils::nt::stop_process(exe))
-                {
-                    stopped = true;
-                }
-            }
-            return stopped;
+            return utils::nt::stop_processes_by_image(images);
         }
 
         std::string tracked_game_id()
@@ -141,16 +137,11 @@ namespace commands::game_commands
             });
         }
 
-        // Some games exit the launched PID and continue under a child with a different PID, so poll the full exe list.
+        // Some games exit the launched PID and continue under a child with a different PID, so poll
+        // the full exe list (by path, in the game's folder).
         void spawn_exit_watchdog(unsigned long pid, const game_config::game_config_t& config, const uint64_t generation)
         {
-            std::vector<std::string> tracked_exes{ config.exe_name };
-            for (const auto& exe : config.check_running_exes)
-            {
-                tracked_exes.push_back(exe);
-            }
-
-            std::thread([pid, generation, tracked_exes = std::move(tracked_exes)]()
+            std::thread([pid, generation, tracked_images = config.running_images()]()
             {
                 utils::nt::wait_for_process(pid);
 
@@ -162,16 +153,7 @@ namespace commands::game_commands
                 {
                     std::this_thread::sleep_for(std::chrono::seconds(1));
 
-                    bool any_running = false;
-                    for (const auto& exe : tracked_exes)
-                    {
-                        if (!exe.empty() && utils::nt::is_process_running(exe))
-                        {
-                            any_running = true;
-                            break;
-                        }
-                    }
-
+                    const bool any_running = utils::nt::is_any_image_running(tracked_images, 0);
                     empty_ticks = any_running ? 0 : empty_ticks + 1;
                 }
 
@@ -501,21 +483,8 @@ namespace commands::game_commands
                 return;
             }
 
-            // Check if game is running
-            bool is_running = utils::nt::is_process_running(config->exe_name);
-            if (!config->check_running_exes.empty())
-            {
-                for (const auto& exe : config->check_running_exes)
-                {
-                    if (utils::nt::is_process_running(exe))
-                    {
-                        is_running = true;
-                        break;
-                    }
-                }
-            }
-
-            if (is_running)
+            // Check if the game is running (from its own folder)
+            if (game_config::is_game_process_running(config->id))
             {
                 cef_ui.show_message_box("Cannot Uninstall", "Please close the game before uninstalling.");
                 return;

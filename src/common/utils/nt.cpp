@@ -10,6 +10,7 @@
 #include <chrono>
 #include <algorithm>
 #include <vector>
+#include <optional>
 
 #include "finally.hpp"
 
@@ -422,31 +423,40 @@ namespace utils::nt
             CloseHandle(process);
         });
 
-        wchar_t buffer[MAX_PATH]{};
-        DWORD size = MAX_PATH;
-        if (!QueryFullProcessImageNameW(process, 0, buffer, &size))
+        // Long enough for a long path (up to 32767 characters).
+        std::wstring buffer(32768, L'\0');
+        DWORD size = static_cast<DWORD>(buffer.size());
+        if (!QueryFullProcessImageNameW(process, 0, buffer.data(), &size))
         {
             return {};
         }
 
-        return std::filesystem::path(std::wstring(buffer, size));
+        buffer.resize(size);
+        return std::filesystem::path(buffer);
     }
 
     namespace
     {
+        struct process_entry
+        {
+            unsigned long pid{};
+            std::string name; // lowercased
+        };
+
         std::mutex process_names_mutex;
-        std::vector<std::string> cached_process_names;
+        std::vector<process_entry> cached_processes;
         std::chrono::steady_clock::time_point cached_process_time{};
 
-        // Every running executable name, lowercased. One snapshot, reused by every name tested.
-        std::vector<std::string> snapshot_process_names()
+        // Every running process (id and lowercased executable name). One snapshot, reused by every
+        // name tested.
+        std::vector<process_entry> snapshot_processes()
         {
-            std::vector<std::string> names;
+            std::vector<process_entry> processes;
 
             HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
             if (snapshot == INVALID_HANDLE_VALUE)
             {
-                return names;
+                return processes;
             }
 
             PROCESSENTRY32 entry;
@@ -456,13 +466,148 @@ namespace utils::nt
             {
                 do
                 {
-                    names.push_back(string::to_lower(entry.szExeFile));
+                    processes.push_back({entry.th32ProcessID, string::to_lower(entry.szExeFile)});
                 } while (Process32Next(snapshot, &entry));
             }
 
             CloseHandle(snapshot);
-            return names;
+            return processes;
         }
+
+        // The process table, taken now or reused when the last snapshot is younger than max_age_ms.
+        std::vector<process_entry> running_processes(const unsigned int max_age_ms)
+        {
+            std::lock_guard lock(process_names_mutex);
+            const auto now = std::chrono::steady_clock::now();
+            const auto age = std::chrono::duration_cast<std::chrono::milliseconds>(now - cached_process_time);
+            if (max_age_ms == 0 || cached_processes.empty() || age.count() > static_cast<long long>(max_age_ms))
+            {
+                cached_processes = snapshot_processes();
+                cached_process_time = now;
+            }
+            return cached_processes;
+        }
+
+        std::wstring normalised_path(const std::filesystem::path& path)
+        {
+            auto text = path.lexically_normal().make_preferred().wstring();
+            while (text.size() > 3 && (text.back() == L'\\' || text.back() == L'/'))
+            {
+                text.pop_back();
+            }
+            CharLowerBuffW(text.data(), static_cast<DWORD>(text.size()));
+            return text;
+        }
+
+        struct file_identity
+        {
+            DWORD volume{};
+            DWORD index_high{};
+            DWORD index_low{};
+
+            bool operator==(const file_identity&) const = default;
+        };
+
+        std::optional<file_identity> identify(const std::filesystem::path& path)
+        {
+            // FILE_FLAG_BACKUP_SEMANTICS opens directories too; no access rights are needed to read
+            // the file id, and every share mode lets a running exe be opened.
+            const auto file = CreateFileW(path.wstring().c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                          nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+            if (file == INVALID_HANDLE_VALUE)
+            {
+                return std::nullopt;
+            }
+
+            BY_HANDLE_FILE_INFORMATION info{};
+            const auto ok = GetFileInformationByHandle(file, &info);
+            CloseHandle(file);
+            if (!ok)
+            {
+                return std::nullopt;
+            }
+            return file_identity{info.dwVolumeSerialNumber, info.nFileIndexHigh, info.nFileIndexLow};
+        }
+    }
+
+    bool is_same_file(const std::filesystem::path& a, const std::filesystem::path& b)
+    {
+        if (a.empty() || b.empty())
+        {
+            return false;
+        }
+        if (normalised_path(a) == normalised_path(b))
+        {
+            return true;
+        }
+
+        const auto first = identify(a);
+        const auto second = first ? identify(b) : std::nullopt;
+        return first && second && *first == *second;
+    }
+
+    std::vector<unsigned long> find_processes_by_image(const std::vector<std::filesystem::path>& images, const unsigned int max_age_ms)
+    {
+        std::vector<unsigned long> found;
+
+        std::vector<std::string> names;
+        for (const auto& image : images)
+        {
+            if (!image.empty())
+            {
+                names.push_back(string::to_lower(string::convert(image.filename().wstring())));
+            }
+        }
+        if (names.empty())
+        {
+            return found;
+        }
+
+        for (const auto& process : running_processes(max_age_ms))
+        {
+            if (std::find(names.begin(), names.end(), process.name) == names.end())
+            {
+                continue;
+            }
+
+            // Same name: only the full path says whose it is.
+            const auto path = get_process_path(process.pid);
+            if (path.empty())
+            {
+                continue;
+            }
+
+            for (const auto& image : images)
+            {
+                if (!image.empty() && is_same_file(path, image))
+                {
+                    found.push_back(process.pid);
+                    break;
+                }
+            }
+        }
+
+        return found;
+    }
+
+    bool is_any_image_running(const std::vector<std::filesystem::path>& images, const unsigned int max_age_ms)
+    {
+        return !find_processes_by_image(images, max_age_ms).empty();
+    }
+
+    bool stop_processes_by_image(const std::vector<std::filesystem::path>& images)
+    {
+        bool terminated = false;
+        for (const auto pid : find_processes_by_image(images, 0))
+        {
+            const auto process = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
+            if (process)
+            {
+                terminated = TerminateProcess(process, 0) != FALSE || terminated;
+                CloseHandle(process);
+            }
+        }
+        return terminated;
     }
 
     // Walks the process table once and tests every name against it. Callers used to ask per name,
@@ -475,18 +620,7 @@ namespace utils::nt
             return false;
         }
 
-        std::vector<std::string> running;
-        {
-            std::lock_guard lock(process_names_mutex);
-            const auto now = std::chrono::steady_clock::now();
-            const auto age = std::chrono::duration_cast<std::chrono::milliseconds>(now - cached_process_time);
-            if (max_age_ms == 0 || cached_process_names.empty() || age.count() > static_cast<long long>(max_age_ms))
-            {
-                cached_process_names = snapshot_process_names();
-                cached_process_time = now;
-            }
-            running = cached_process_names;
-        }
+        const auto running = running_processes(max_age_ms);
 
         for (const auto& wanted : process_names)
         {
@@ -496,7 +630,11 @@ namespace utils::nt
             }
 
             const auto lowered = string::to_lower(wanted);
-            if (std::find(running.begin(), running.end(), lowered) != running.end())
+            const auto match = std::find_if(running.begin(), running.end(), [&](const process_entry& process)
+            {
+                return process.name == lowered;
+            });
+            if (match != running.end())
             {
                 return true;
             }

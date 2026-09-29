@@ -65,10 +65,11 @@ XML1_PROPS = ["install", "is-installed", "iso", "movies", "keep-cache", "link-ba
               "builder-content", "builder-manifest", "builder-exe", "patch-manifest"]
 DEBUG_TOOLS = pathlib.Path(os.environ["LOCALAPPDATA"]) / "ultimate-legends_debug" / "tools" / "xml1-builder"
 DEV_BUILDER = HERE / "xml1-builder-src.cmd"
-# Real mode's inputs (read only). The defaults are the layout of the PC the port is developed on.
-REAL_ISO = os.environ.get("XML1_REAL_ISO", r"D:\Safe\X-Men Legends (World)\X-Men Legends (World).iso")
-REAL_XML2 = os.environ.get("XML1_REAL_XML2", r"D:\Games\X-Men Legends II")
-REAL_CACHE = os.environ.get("XML1_REAL_CACHE", r"D:\Projects\xml1-port\build\_p1_cache")
+# Real mode's inputs (read only): your own disc image, your XML2 install and a warm prepare cache, from the
+# environment (XML1_REAL_ISO, XML1_REAL_XML2, XML1_REAL_CACHE) or the --iso / --xml2 / --cache options.
+REAL_ISO = os.environ.get("XML1_REAL_ISO", "")
+REAL_XML2 = os.environ.get("XML1_REAL_XML2", "")
+REAL_CACHE = os.environ.get("XML1_REAL_CACHE", "")
 
 
 class Quiet(http.server.SimpleHTTPRequestHandler):

@@ -15,14 +15,14 @@ Ultimate Legends never downloads or distributes game files. Every game runs from
 |------|----|---------|----------------------------|
 | Marvel: Ultimate Alliance | `mua` | 2016 PC (Steam app 433300) | Finds your Steam install; installs the [MUA Controller Fix](https://github.com/ChronoRixun/mua-controller-fix) for native Xbox controller support |
 | Marvel: Ultimate Alliance 2 | `mua2` | 2016 PC (Steam app 433320) | Finds your Steam install; installs the [MUA Controller Fix](https://github.com/ChronoRixun/mua-controller-fix) |
-| X-Men Legends II: Rise of Apocalypse | `xml2` | 2005 PC | Launches your existing install; installs the [XML2 Fix](https://github.com/ChronoRixun/xml2-fix) for native Xbox controller support (online play through OpenSpy is in progress); a Display section edits the fix's window mode, resolution, frame rate limit and VSync, and a Discord section turns its Rich Presence on or off (on by default; `xml2-fix.ini` next to the game) |
+| X-Men Legends II: Rise of Apocalypse | `xml2` | 2005 PC | Launches your existing install; installs the [XML2 Fix](https://github.com/ChronoRixun/xml2-fix) for native Xbox controller support and online play through OpenSpy; a Display section edits the fix's window mode, resolution, frame rate limit and VSync, and a Discord section turns its Rich Presence on or off (on by default; `xml2-fix.ini` next to the game) |
 | Marvel: Ultimate Alliance (2006 PC) | `muac` | 2006 PC | Coming soon |
-| X-Men Legends | `xml1` | Community port | Coming soon: builds a PC version on your PC from your own Xbox disc image and your X-Men Legends II install ([details](#x-men-legends-community-port)) |
+| X-Men Legends | `xml1` | Community port ([Legends Classic](https://github.com/ChronoRixun/legends-classic)) | Builds a PC version on your PC from your own Xbox disc image and your X-Men Legends II install, then runs it with the XML2 Fix ([details](#x-men-legends-community-port)) |
 
 ## X-Men Legends (community port)
 
-X-Men Legends (2004) never came to PC. A community port rebuilds it on the engine of X-Men Legends II's PC
-version, and Ultimate Legends will set it up for you:
+X-Men Legends (2004) never came to PC. [Legends Classic](https://github.com/ChronoRixun/legends-classic), a
+community port, rebuilds it on the engine of X-Men Legends II's PC version, and Ultimate Legends sets it up for you:
 
 1. Set up X-Men Legends II first.
 2. On the X-Men Legends card, choose **Set up**, pick a disc image of **your own** X-Men Legends Xbox disc and a
@@ -37,11 +37,16 @@ and Mods work as for X-Men Legends II. Uninstalling removes the built game and, 
 saves in `Documents\Activision\X-Men Legends` are kept.
 
 Nothing from the games is downloaded: the builder uses only your disc image and your XML2 install, and it never
-connects to the internet. Until the builder's first release, the setup says it has not been released yet.
+connects to the internet. The first build takes about 6-8 minutes on a current PC and needs about 8 GB free.
 
 ## Download
 
-There is no public release yet. Until there is, [build it from source](#build-from-source).
+Get `ultimate-legends-<version>-win64-portable.zip` from [Releases](https://github.com/ChronoRixun/ultimate-legends/releases)
+(check it against `SHA256SUMS.txt`), unzip it anywhere and run `ultimate-legends.exe`. It is a portable build: its
+settings, its browser runtime and its UI live in the `ultimate-legends` folder next to the executable, so moving or
+deleting that folder moves or removes the launcher and nothing else. The release is not code-signed yet, so Windows
+SmartScreen may warn about it on first start; compare the SHA-256 with the release page, or
+[build it from source](#build-from-source).
 
 ## Command line arguments
 

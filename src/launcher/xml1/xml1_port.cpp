@@ -261,6 +261,98 @@ namespace xml1_port
             return document;
         }
 
+        // What the launcher and the player own at the top of the port's folder, which the builder
+        // never touches (BUILDER_DESIGN.md F3): dinput.dll, xml2-fix.* and mods\.
+        bool launcher_owned(const std::filesystem::path& name)
+        {
+            const auto text = utils::string::to_lower(utils::string::path_to_utf8(name));
+            return text == "dinput.dll" || text == "mods" || text.rfind("xml2-fix.", 0) == 0;
+        }
+
+        // The disc the build in `out` was made from (its stamp, or the build under way): the name of
+        // its folder in the build cache, or "" when unknown.
+        std::string build_disc_id(const std::filesystem::path& out)
+        {
+            for (const auto* name : {L"stamp.json", L"building.json"})
+            {
+                const auto document = read_json(out / L"_build" / name);
+                if (!document)
+                {
+                    continue;
+                }
+                const auto inputs = document->FindMember("inputs");
+                if (inputs == document->MemberEnd() || !inputs->value.IsObject())
+                {
+                    continue;
+                }
+                const auto disc = inputs->value.FindMember("disc");
+                if (disc == inputs->value.MemberEnd() || !disc->value.IsObject())
+                {
+                    continue;
+                }
+                const auto id = disc->value.FindMember("disc_id");
+                if (id == disc->value.MemberEnd() || !id->value.IsString())
+                {
+                    continue;
+                }
+                std::string text = id->value.GetString();
+                // A folder name, never a path.
+                if (!text.empty() && text.size() <= 64 &&
+                    std::all_of(text.begin(), text.end(), [](const char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '-'; }))
+                {
+                    return text;
+                }
+            }
+            return {};
+        }
+
+        // The last `count` lines of a text file (it reads at most its last 256 KB).
+        std::vector<std::string> tail_lines(const std::filesystem::path& file, const std::size_t count)
+        {
+            std::vector<std::string> lines;
+            std::ifstream stream(file, std::ios::binary);
+            if (!stream)
+            {
+                return lines;
+            }
+            stream.seekg(0, std::ios::end);
+            const auto size = static_cast<std::uint64_t>(stream.tellg());
+            constexpr std::uint64_t window = 256 * 1024;
+            const auto start = size > window ? size - window : 0;
+            stream.seekg(static_cast<std::streamoff>(start), std::ios::beg);
+            std::string text(static_cast<std::size_t>(size - start), '\0');
+            stream.read(text.data(), static_cast<std::streamsize>(text.size()));
+            text.resize(static_cast<std::size_t>(stream.gcount()));
+
+            std::size_t position = 0;
+            if (start > 0)
+            {
+                // The first line of the window is cut off.
+                const auto newline = text.find('\n');
+                position = newline == std::string::npos ? text.size() : newline + 1;
+            }
+            while (position < text.size())
+            {
+                auto newline = text.find('\n', position);
+                if (newline == std::string::npos)
+                {
+                    newline = text.size();
+                }
+                auto line = text.substr(position, newline - position);
+                if (!line.empty() && line.back() == '\r')
+                {
+                    line.pop_back();
+                }
+                lines.push_back(std::move(line));
+                position = newline + 1;
+            }
+            if (lines.size() > count)
+            {
+                lines.erase(lines.begin(), lines.end() - static_cast<std::ptrdiff_t>(count));
+            }
+            return lines;
+        }
+
         // Writes the play-build display defaults the first time a build finishes (design 3.5):
         // borderless at the desktop's size, running in the background. Never over the player's own.
         void write_display_defaults(const std::filesystem::path& out)
@@ -293,6 +385,78 @@ namespace xml1_port
             std::lock_guard lock(mutex_);
             change(check_);
         }
+    }
+
+    folder_facts inspect_folder(const std::filesystem::path& folder)
+    {
+        folder_facts facts{};
+        std::error_code error;
+        facts.exists = std::filesystem::is_directory(folder, error);
+        if (!facts.exists)
+        {
+            return facts;
+        }
+        facts.builder = utils::io::file_exists(folder / L"_build" / L"stamp.json") || utils::io::file_exists(folder / L"_build" / L"building.json");
+        bool any = false;
+        bool only_owned = true;
+        for (std::filesystem::directory_iterator it(folder, std::filesystem::directory_options::skip_permission_denied, error), end;
+             !error && it != end; it.increment(error))
+        {
+            any = true;
+            const auto name = it->path().filename();
+            // _build without a stamp or a build under way holds nothing of a build either.
+            if (launcher_owned(name) || (!facts.builder && utils::string::to_lower(utils::string::path_to_utf8(name)) == "_build"))
+            {
+                continue;
+            }
+            only_owned = false;
+        }
+        facts.empty = !any;
+        facts.launcher_only = any && only_owned && !facts.builder;
+        return facts;
+    }
+
+    report_sources read_report_sources(const std::size_t log_lines)
+    {
+        report_sources sources{};
+        if (const auto out = output_folder())
+        {
+            const auto file = *out / L"_build" / L"verify-report.json";
+            std::string text;
+            if (utils::io::read_file(file, &text))
+            {
+                sources.verify_report = std::move(text);
+                sources.verify_report_path = file;
+            }
+        }
+        if (const auto log = build_log())
+        {
+            sources.log_tail = tail_lines(*log, log_lines);
+            sources.log_path = *log;
+        }
+        return sources;
+    }
+
+    std::optional<std::filesystem::path> save_report(const std::string& text, std::string& error)
+    {
+        const auto folder = utils::properties::get_appdata_path() / L"reports";
+        std::error_code fs_error;
+        std::filesystem::create_directories(folder, fs_error);
+        if (fs_error)
+        {
+            error = fs_error.message();
+            return std::nullopt;
+        }
+        SYSTEMTIME now{};
+        GetLocalTime(&now);
+        const auto file = folder / std::format(L"xml1-report-{:04}{:02}{:02}-{:02}{:02}{:02}.txt", now.wYear, now.wMonth, now.wDay,
+                                               now.wHour, now.wMinute, now.wSecond);
+        if (!utils::io::write_file(file, text, false))
+        {
+            error = "the report could not be written";
+            return std::nullopt;
+        }
+        return file;
     }
 
     bool is_playable(const std::filesystem::path& folder)
@@ -448,7 +612,9 @@ namespace xml1_port
             error = {"L_XML2_NOT_SET_UP", "Set up X-Men Legends II in the launcher first."};
             return std::nullopt;
         }
-        if (options.iso.empty() || options.out.empty())
+        // Without a disc image the builder takes the disc from the build cache (it keeps it after a
+        // first build, design 2.6), and says so (E_USAGE / E_CACHE_*) when it can't.
+        if (options.out.empty())
         {
             error = {"L_USAGE", "Choose a disc image and a folder first."};
             return std::nullopt;
@@ -471,14 +637,21 @@ namespace xml1_port
         const auto game = config();
         game.set_install_path(options.out);
         game.set_installed(false);
-        game.set(property_keys::BUILD_ISO, utils::string::path_to_utf8(options.iso));
+        if (!options.iso.empty())
+        {
+            game.set(property_keys::BUILD_ISO, utils::string::path_to_utf8(options.iso)); // (a build from the cache keeps the old one)
+        }
         game.set(property_keys::BUILD_MOVIES, options.movies ? "true" : "false");
         game.set(property_keys::BUILD_KEEP_CACHE, options.keep_cache ? "true" : "false");
         game.set(property_keys::BUILD_LINK_BASE, options.link_base ? "true" : "false");
 
-        std::vector<std::wstring> args{L"--iso", options.iso.wstring(), L"--xml2", xml2->wstring(), L"--out", options.out.wstring(),
-                                       L"--cache", cache_folder().wstring(), options.movies ? L"--movies" : L"--no-movies",
-                                       options.keep_cache ? L"--keep-cache" : L"--drop-cache"};
+        std::vector<std::wstring> args;
+        if (!options.iso.empty())
+        {
+            args.insert(args.end(), {L"--iso", options.iso.wstring()});
+        }
+        args.insert(args.end(), {L"--xml2", xml2->wstring(), L"--out", options.out.wstring(), L"--cache", cache_folder().wstring(),
+                                 options.movies ? L"--movies" : L"--no-movies", options.keep_cache ? L"--keep-cache" : L"--drop-cache"});
         if (options.link_base)
         {
             args.emplace_back(L"--link-base");
@@ -705,12 +878,14 @@ namespace xml1_port
         }
 
         const auto folder = output_folder();
-        std::error_code fs_error;
-        const auto exists = folder && std::filesystem::is_directory(*folder, fs_error);
-        const auto empty = !exists || std::filesystem::is_empty(*folder, fs_error);
+        const auto facts = folder ? inspect_folder(*folder) : folder_facts{};
+        const auto exists = facts.exists;
+        const auto empty = !exists || facts.empty;
         const auto iso = iso_path();
         out.AddMember("install", make_string(path_text(folder), allocator), allocator);
         out.AddMember("exists", exists && !empty, allocator);
+        // Only the XML2 Fix / its settings / mods in it: nothing is built there (the builder takes it).
+        out.AddMember("launcherOnly", facts.launcher_only, allocator);
         out.AddMember("isInstalled", game.is_installed(), allocator);
         out.AddMember("iso", make_string(path_text(iso), allocator), allocator);
         out.AddMember("isoExists", iso && utils::io::file_exists(*iso), allocator);
@@ -718,6 +893,14 @@ namespace xml1_port
         out.AddMember("keepCache", flag(game, property_keys::BUILD_KEEP_CACHE, true), allocator);
         out.AddMember("linkBase", flag(game, property_keys::BUILD_LINK_BASE, false), allocator);
         out.AddMember("cache", make_string(utils::string::path_to_utf8(cache_folder()), allocator), allocator);
+        // The build cache still holds the disc of the build in the folder: a rebuild, a repair or a
+        // resume works without the disc image (the builder reads the disc from the cache).
+        {
+            const auto disc_id = folder ? build_disc_id(*folder) : std::string{};
+            out.AddMember("discId", make_string(disc_id, allocator), allocator);
+            out.AddMember("cacheHasDisc", !disc_id.empty() && utils::io::file_exists(cache_folder() / disc_id / L"disc" / L"stage.json"),
+                          allocator);
+        }
         out.AddMember("defaultOut", make_string(path_text(default_output()), allocator), allocator);
         out.AddMember("running", folder.has_value() && utils::nt::is_any_image_running({*folder / L"XMen2.exe"}, 1000), allocator);
 
@@ -854,7 +1037,7 @@ namespace xml1_port
         {
             state = "not-setup";
         }
-        else if (!exists || empty)
+        else if (!exists || empty || facts.launcher_only)
         {
             state = "absent";
         }

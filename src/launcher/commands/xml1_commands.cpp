@@ -112,6 +112,19 @@ namespace commands::xml1_commands
             }
             out.AddMember("errors", errors, allocator);
 
+            rapidjson::Value notices(rapidjson::kArrayType);
+            for (const auto& notice : job.notices)
+            {
+                rapidjson::Value item(rapidjson::kObjectType);
+                item.AddMember("stage", make_string(notice.stage, allocator), allocator);
+                item.AddMember("code", make_string(notice.code, allocator), allocator);
+                item.AddMember("msg", make_string(notice.msg, allocator), allocator);
+                item.AddMember("count", notice.count, allocator);
+                item.AddMember("detail", parse_json(notice.detail, allocator), allocator);
+                notices.PushBack(item, allocator);
+            }
+            out.AddMember("notices", notices, allocator);
+
             out.AddMember("result", job.result.empty() ? rapidjson::Value(rapidjson::kNullType) : parse_json(job.result, allocator), allocator);
 
             rapidjson::Value tail(rapidjson::kArrayType);
@@ -233,6 +246,63 @@ namespace commands::xml1_commands
             };
             add("game", sizes.game);
             add("cache", sizes.cache);
+        });
+
+        // { path } -> { exists, empty, builder, launcherOnly }: what a destination folder holds.
+        cef_ui.add_command("xml1-folder", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+            const auto path = json_path(value, "path");
+            const auto facts = path ? xml1_port::inspect_folder(*path) : xml1_port::folder_facts{};
+            response.AddMember("exists", facts.exists, allocator);
+            response.AddMember("empty", facts.empty, allocator);
+            response.AddMember("builder", facts.builder, allocator);
+            response.AddMember("launcherOnly", facts.launcher_only, allocator);
+        });
+
+        // -> { verifyReport (text or null), verifyReportPath, logTail [lines], logPath }: what "Report
+        // a problem" attaches, unmasked (the page masks it).
+        cef_ui.add_command("xml1-report-sources", [](const rapidjson::Value&, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+            const auto sources = xml1_port::read_report_sources(80);
+            const auto text_or_null = [&](const std::optional<std::string>& text)
+            {
+                return text ? make_string(*text, allocator) : rapidjson::Value(rapidjson::kNullType);
+            };
+            const auto path_or_null = [&](const std::optional<std::filesystem::path>& path)
+            {
+                return path ? make_string(utils::string::path_to_utf8(*path), allocator) : rapidjson::Value(rapidjson::kNullType);
+            };
+            response.AddMember("verifyReport", text_or_null(sources.verify_report), allocator);
+            response.AddMember("verifyReportPath", path_or_null(sources.verify_report_path), allocator);
+            rapidjson::Value tail(rapidjson::kArrayType);
+            for (const auto& line : sources.log_tail)
+            {
+                tail.PushBack(make_string(line, allocator), allocator);
+            }
+            response.AddMember("logTail", tail, allocator);
+            response.AddMember("logPath", path_or_null(sources.log_path), allocator);
+        });
+
+        // { text, reveal } -> { success, path, error }: saves a (masked) report for an issue and, with
+        // reveal, shows it selected in Explorer so it can be dragged into the issue.
+        cef_ui.add_command("xml1-save-report", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+            std::string error;
+            const auto file = xml1_port::save_report(json_string(value, "text"), error);
+            response.AddMember("success", file.has_value(), allocator);
+            response.AddMember("path", make_string(file ? utils::string::path_to_utf8(*file) : std::string{}, allocator), allocator);
+            response.AddMember("error", make_string(error, allocator), allocator);
+            if (file && json_bool(value, "reveal", false))
+            {
+                const auto parameters = L"/select,\"" + file->wstring() + L"\"";
+                ShellExecuteW(nullptr, L"open", L"explorer.exe", parameters.c_str(), nullptr, SW_SHOWNORMAL);
+            }
         });
 
         // Opens the builder's latest log in the default text editor; false when there is none.

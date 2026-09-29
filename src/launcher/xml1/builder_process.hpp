@@ -36,6 +36,16 @@ namespace xml1
         std::string detail; // JSON object text
     };
 
+    // A warning event (W_*): the page shows the ones a player should know about.
+    struct builder_notice
+    {
+        std::string stage;
+        std::string code;
+        std::string msg;
+        int count = 1;
+        std::string detail; // JSON object text
+    };
+
     struct builder_snapshot
     {
         int id{};
@@ -60,6 +70,7 @@ namespace xml1
         std::string message; // the last log line
 
         int warnings{};
+        std::vector<builder_notice> notices; // the warning events, in order (at most max_notices)
         std::vector<builder_error> errors;
         std::string result; // the result event (JSON text), empty until it arrives
         std::deque<std::string> log_tail; // the last lines of stderr and of log/warning/error events
@@ -95,6 +106,7 @@ namespace xml1
 
         static constexpr auto kill_after_cancel = std::chrono::seconds(15);
         static constexpr std::size_t log_tail_lines = 40;
+        static constexpr std::size_t max_notices = 32;
 
     private:
         struct shared;

@@ -27,10 +27,17 @@
 
     const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-    // Profile paths never leave the PC in copied details (the builder masks its own the same way).
+    // Profile paths never leave the PC in copied details or reports (the builder masks its own the
+    // same way). JSON text escapes backslashes, so "C:\\Users\\name" is masked too.
     function maskPaths(text) {
-        return String(text || '').replace(/([A-Za-z]:[\\/]+Users[\\/]+)[^\\/\r\n"]+/g, '%USERPROFILE%');
+        return String(text || '').replace(/([A-Za-z]:(?:\\\\|[\\/])+Users(?:\\\\|[\\/])+)[^\\/\r\n"]+/g, '%USERPROFILE%');
     }
+
+    // Warnings (W_*) a player should hear about after a build or a disc check. W_PIPELINE (the
+    // pipeline's own notes, counted per stage) stays in the log and report.json.
+    const NOTICES = ['W_XML2_UNKNOWN_EXE', 'W_XML2_MODIFIED', 'W_EXTRA_FILES', 'W_LINK_BASE', 'W_ISO_UNKNOWN_DUMP'];
+    // The verification groups that make a build "damaged" (the builder's REPAIRS).
+    const REPAIRS = ['missing', 'changed', 'unreadable'];
 
     const Xml1Port = {
         status: null,
@@ -44,6 +51,7 @@
 
         REPORT_URL,
         DUMPING_URL,
+        REPAIRS,
         maskPaths,
 
         emit() {
@@ -172,8 +180,38 @@
         async primaryAction() {
             const state = this.state();
             if (state === 'needs-fix') return this.installFix();
-            if (state === 'incomplete' && this.status.isoExists) return this.resume();
+            if (state === 'incomplete' && this.canRebuild()) return this.resume();
             if (window.Xml1Setup) window.Xml1Setup.show();
+        },
+
+        // A build into the folder can run now: with the disc image, or - once a build prepared it -
+        // with the disc from the build cache (the image may be deleted or unmounted after that).
+        canRebuild() {
+            const s = this.status;
+            return !!(s && s.install && (s.isoExists || s.cacheHasDisc));
+        },
+
+        // Files a verification found missing, changed or unreadable (its counts: the reasons and
+        // the files listed per group are capped, the counts are not).
+        damageCount(verify) {
+            const counts = (verify && verify.counts) || {};
+            return REPAIRS.reduce((sum, code) => sum + (Number(counts[code]) || 0), 0);
+        },
+
+        // The warnings of a run worth showing, translated: [{ code, text, files }].
+        noticesOf(job) {
+            const seen = new Set();
+            const notices = job && Array.isArray(job.notices) ? job.notices : [];
+            return notices.filter(notice => notice && NOTICES.includes(notice.code) && !seen.has(notice.code) && seen.add(notice.code))
+                .map(notice => {
+                    const detail = notice.detail && typeof notice.detail === 'object' ? notice.detail : {};
+                    const files = Array.isArray(detail.files) ? detail.files.map(String) : [];
+                    const msg = typeof notice.msg === 'string' ? notice.msg : '';
+                    const count = parseInt(msg, 10) || files.length || notice.count || 1;
+                    const key = `xml1.warnings.${notice.code}`;
+                    const text = has(key) ? t(key, { count, first: files[0] || '' }) : msg;
+                    return { code: notice.code, text, files };
+                });
         },
 
         async startBuild(options) {
@@ -188,14 +226,16 @@
             return started;
         },
 
-        // A build with the choices of the last one (Resume, Rebuild, Repair).
+        // A build with the choices of the last one (Resume, Rebuild, Repair, Update). Without the disc
+        // image the builder reads the disc from the build cache.
         async resume() {
             const s = this.status || await this.refresh();
-            if (!s.iso || !s.isoExists || !s.install) {
+            if (!this.canRebuild()) {
                 if (window.Xml1Setup) window.Xml1Setup.show();
                 return null;
             }
-            const started = await this.startBuild({ iso: s.iso, out: s.install, movies: s.movies, keepCache: s.keepCache, linkBase: s.linkBase });
+            const iso = s.isoExists ? s.iso : '';
+            const started = await this.startBuild({ iso, out: s.install, movies: s.movies, keepCache: s.keepCache, linkBase: s.linkBase });
             if (started && !started.success) this.showStartError(started);
             return started;
         },
@@ -322,18 +362,30 @@
         // A builder or launcher error as the player reads it: the translated text for its code
         // (the builder's English text when the code is new), and the specifics from its detail.
         describe(error) {
-            const code = (error && error.code) || '';
-            const detail = (error && error.detail) || {};
-            const key = `xml1.errors.${code}`;
+            // The builder's fields are read defensively: a new builder may send other shapes.
+            const code = error && typeof error.code === 'string' ? error.code : '';
+            const detail = error && error.detail && typeof error.detail === 'object' && !Array.isArray(error.detail) ? error.detail : {};
+            // A code of a known family without its own text (a new E_CACHE_*, say) reads as its family.
+            const family = ['E_CACHE_'].find(prefix => code.startsWith(prefix));
+            const key = has(`xml1.errors.${code}.msg`) || !family ? `xml1.errors.${code}` : `xml1.errors.${family}`;
             const title = has(`${key}.msg`) ? t(`${key}.msg`) : (error && error.msg) || t('xml1.errors.unknown.msg');
             const hint = has(`${key}.hint`) ? t(`${key}.hint`) : (error && error.hint) || '';
             const facts = [];
-            if (detail.title) facts.push(t('xml1.detailFound', { title: detail.title }));
-            if (detail.missing && detail.missing.length) facts.push(t('xml1.detailMissing', { files: detail.missing.join(', ') }));
-            if (detail.need != null && detail.free != null) {
+            if (detail.title) facts.push(t('xml1.detailFound', { title: String(detail.title) }));
+            if (Array.isArray(detail.missing) && detail.missing.length) facts.push(t('xml1.detailMissing', { files: detail.missing.map(String).join(', ') }));
+            if (Number.isFinite(detail.need) && Number.isFinite(detail.free)) {
                 facts.push(t('xml1.detailSpace', { need: GameUtils.formatBytes(detail.need), free: GameUtils.formatBytes(detail.free), volume: detail.volume || '' }));
             }
-            return { code, title, hint, facts, builderText: (error && error.msg) || '' };
+            // A failed step (E_PIPELINE: a content module, or a prepare stage with its own code).
+            if (detail.module) {
+                facts.push(detail.code ? t('xml1.detailStepCode', { step: String(detail.module), code: String(detail.code) }) : t('xml1.detailStep', { step: String(detail.module) }));
+            }
+            if (Array.isArray(detail.first) && detail.first.length) {
+                facts.push(t('xml1.detailFirst', { text: maskPaths(String(detail.first[0])).slice(0, 240) }));
+            }
+            if (typeof detail.path === 'string' && detail.path && !detail.title) facts.push(t('xml1.detailFile', { path: maskPaths(detail.path) }));
+            if (Number.isInteger(detail.pid)) facts.push(t('xml1.detailPid', { pid: detail.pid }));
+            return { code, title: String(title), hint: String(hint || ''), facts, builderText: error && typeof error.msg === 'string' ? error.msg : '' };
         },
 
         // The error of a finished run: its first error, else what its exit code means.
@@ -346,23 +398,60 @@
         // "Copy details" (section 4.7): builder version, stage, code, the last log lines, no
         // profile paths, never any game file.
         details(job) {
-            const error = this.jobError(job);
             const s = this.status || {};
             const lines = [
                 `X-Men Legends port build report`,
                 `Builder: ${(job && job.version) || (s.builder && s.builder.version) || '?'} (content ${(job && job.contentVersion) || '?'})`,
-                `Command: ${(job && job.command) || '?'}, exit ${job ? job.exitCode : '?'}${job && job.killed ? ' (ended by the launcher)' : ''}`,
-                `Stage: ${(job && job.stage) || '-'}`,
-                `Error: ${error.code} ${error.builderText || error.title}`,
-                `Launcher: ${this.launcherVersion || '?'}; ${navigator.userAgent.match(/Windows NT [\d.]+/) || ''}`,
-                '',
-                'Last log lines:',
-                ...((job && job.logTail) || [])
+                `Launcher: ${this.launcherVersion || '?'}; ${navigator.userAgent.match(/Windows NT [\d.]+/) || ''}`
             ];
+            if (job) {
+                const error = this.jobError(job);
+                lines.push(`Command: ${job.command || '?'}, exit ${job.exitCode}${job.killed ? ' (ended by the launcher)' : ''}`,
+                    `Stage: ${job.stage || '-'}`);
+                if (job.exitCode !== 0) {
+                    lines.push(`Error: ${error.code} ${error.builderText || error.title}`);
+                    const detail = job.errors && job.errors[0] && job.errors[0].detail;
+                    if (detail && Object.keys(detail).length) lines.push(`Detail: ${JSON.stringify(detail)}`);
+                }
+                (job.notices || []).filter(n => n.code !== 'W_PIPELINE').forEach(n => lines.push(`Warning: ${n.code} ${n.msg}`));
+            }
+            const verify = this.verify;
+            if (verify) {
+                lines.push(`Verify: ${verify.state}; ${JSON.stringify(verify.counts || {})}`);
+                (verify.groups || []).forEach(group => {
+                    lines.push(`  ${group.code} (${group.count}): ${(group.files || []).slice(0, 5).map(file => file.path || file.problem || '').join(', ')}`);
+                });
+            }
+            lines.push('', 'Last log lines:', ...((job && job.logTail) || []));
             return maskPaths(lines.join('\n'));
         },
 
-        async copyDetails(job) {
+        // "Report a problem" (design 4.7): a file with the details above, the last verification
+        // (_build\verify-report.json: relative paths, sizes, hashes, codes - never game content) and
+        // the end of the build log, profile paths masked, saved in the launcher's reports folder for
+        // the player to attach to an issue. -> { success, path, error }.
+        async saveReport(job, reveal) {
+            let sources = {};
+            try {
+                sources = await run('xml1-report-sources') || {};
+            } catch (_) { /* the details alone still help */ }
+            const parts = [this.details(job)];
+            if (sources.verifyReport) {
+                let text = sources.verifyReport;
+                try {
+                    text = JSON.stringify(JSON.parse(text), null, 1);
+                } catch (_) { /* as it is */ }
+                parts.push('', `=== verify-report.json (${sources.verifyReportPath || ''}) ===`, text);
+            } else {
+                parts.push('', '=== verify-report.json: none yet (no build or verify has finished) ===');
+            }
+            if (sources.logTail && sources.logTail.length) {
+                parts.push('', `=== build log, last ${sources.logTail.length} lines (${sources.logPath || ''}) ===`, ...sources.logTail);
+            }
+            return run('xml1-save-report', { text: maskPaths(parts.join('\n')) + '\n', reveal: !!reveal });
+        },
+
+        async copyDetails(job, quiet) {
             const text = this.details(job);
             let copied = false;
             try {
@@ -378,15 +467,32 @@
                 try { copied = document.execCommand('copy'); } catch (_) { copied = false; }
                 area.remove();
             }
-            window.showToast(copied ? t('xml1.detailsCopied') : t('xml1.copyFailed'), copied ? 'success' : 'error');
+            if (!quiet) window.showToast(copied ? t('xml1.detailsCopied') : t('xml1.copyFailed'), copied ? 'success' : 'error');
             return copied;
         },
 
-        report(job) {
-            const error = this.jobError(job);
+        // Saves the report file (shown selected in Explorer), copies the details, and opens a new
+        // issue whose text says what to attach.
+        async report(job) {
+            const failed = job && job.finished && job.exitCode !== 0;
+            const error = failed ? this.jobError(job) : null;
             const version = (job && job.version) || (this.status && this.status.builder && this.status.builder.version) || '';
-            const title = `Build failed: ${error.code}${version ? ` (builder ${version})` : ''}`;
-            run('open-url', { url: `${REPORT_URL}?title=${encodeURIComponent(title)}` });
+            const damaged = this.verify && this.verify.state === 'damaged';
+            const title = error ? `Build failed: ${error.code}${version ? ` (builder ${version})` : ''}`
+                : damaged ? `Build damaged: ${this.damageCount(this.verify)} files${version ? ` (builder ${version})` : ''}` : `Problem report${version ? ` (builder ${version})` : ''}`;
+            const saved = await this.saveReport(job, true);
+            const file = saved && saved.success ? saved.path.split(/[\\/]/).pop() : '';
+            const body = [
+                'What happened (what you did, what you saw):', '', '',
+                '---',
+                file ? `Attach the report the launcher saved: ${file} (it just opened in Explorer; drag it into this box). ` +
+                    'It has the build\'s file list checks and the end of the build log, no game files.' : null,
+                `Builder ${version || '?'}, launcher ${this.launcherVersion || '?'}${error ? `, error ${error.code}` : ''}`
+            ].filter(line => line !== null).join('\n');
+            await this.copyDetails(job, true);
+            run('open-url', { url: `${REPORT_URL}?title=${encodeURIComponent(title)}&body=${encodeURIComponent(maskPaths(body))}` });
+            window.showToast(saved && saved.success ? t('xml1.reportSaved', { file }) : t('xml1.reportFailed'), saved && saved.success ? 'success' : 'error', 9000);
+            return saved;
         },
 
         openLog() {

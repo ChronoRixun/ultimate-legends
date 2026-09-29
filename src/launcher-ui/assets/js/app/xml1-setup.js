@@ -190,7 +190,7 @@
             else if (builder.code) builderText = this.port().describe({ code: builder.code, msg: builder.error }).title;
             else builderText = t('xml1.builderUnknown');
             const resumeNote = s.state === 'incomplete'
-                ? `<p class="xml1-note is-info">${escapeHtml(t(s.isoExists ? 'xml1.resumeNote' : 'xml1.resumeNeedsDisc'))}</p>` : '';
+                ? `<p class="xml1-note is-info">${escapeHtml(t(s.isoExists || s.cacheHasDisc ? 'xml1.resumeNote' : 'xml1.resumeNeedsDisc'))}</p>` : '';
 
             return `
                 <p class="install-note xml1-intro">${escapeHtml(t('xml1.intro'))}</p>
@@ -284,13 +284,21 @@
 
             this.busy = t('xml1.checking');
             this.render();
-            const job = await port.runJob('xml1-info', { iso: this.form.iso.trim(), out: this.form.out.trim() });
+            const out = this.form.out.trim();
+            const job = await port.runJob('xml1-info', { iso: this.form.iso.trim(), out });
             this.busy = '';
             const info = job && job.result && job.result.info;
             if (!job || job.exitCode !== 0 || !info) {
                 this.check = { job, error: port.jobError(job) };
             } else {
-                this.check = { job, info, warnings: (job.logTail || []).filter(line => line.startsWith('warning ')) };
+                // The builder's `info` calls a folder "foreign" as soon as it holds files without a
+                // build, but its `build` takes one that holds only the launcher's and the player's
+                // (dinput.dll, xml2-fix.*, mods\): so does the wizard.
+                let folder = null;
+                try {
+                    folder = await run('xml1-folder', { path: out });
+                } catch (_) { /* the builder's word stands */ }
+                this.check = { job, info, folder, launcherOnly: !!(folder && folder.launcherOnly && info.out && info.out.state === 'foreign') };
             }
             this.render();
         }
@@ -315,7 +323,7 @@
             const space = (info.space && info.space.out) || null;
             const cacheSpace = (info.space && info.space.cache) || null;
             const estimate = info.estimate || {};
-            const foreign = out.state === 'foreign';
+            const foreign = out.state === 'foreign' && !check.launcherOnly;
             const spaceOk = !space || space.ok;
             const minutes = Math.max(1, Math.round((estimate.first_build_s || 0) / 60));
             const f = this.form;
@@ -330,7 +338,16 @@
                 </div>`;
 
             const outDetail = foreign ? t('xml1.outForeign')
+                : check.launcherOnly ? t('xml1.outLauncherOnly', { folder: f.out })
                 : (out.state === 'absent' ? f.out : t('xml1.outExisting', { folder: f.out }));
+            // X-Men Legends II as the builder found it: files that differ from a retail install are
+            // used as they are (W_XML2_MODIFIED in the build).
+            const modified = Number(xml2.modified_count) || 0;
+            const firstModified = (xml2.modified && xml2.modified[0]) || '';
+            const notices = [
+                ...(modified ? [t('xml1.xml2Modified', { count: modified, first: firstModified })] : []),
+                ...this.port().noticesOf(check.job).filter(notice => notice.code !== 'W_ISO_UNKNOWN_DUMP').map(notice => notice.text)
+            ];
             const spaceDetail = space ? t(spaceOk ? 'xml1.spaceOk' : 'xml1.spaceLow', {
                 need: bytes(space.need + (cacheSpace && cacheSpace.volume === space.volume ? cacheSpace.need : 0)),
                 free: bytes(space.free), volume: space.volume
@@ -343,6 +360,7 @@
                     ${row(!foreign, t('xml1.reqDestination'), outDetail)}
                     ${space ? row(spaceOk, t('xml1.spaceTitle'), spaceDetail) : ''}
                 </div>
+                ${notices.map(text => `<p class="xml1-note is-warn xml1-check-notice">${escapeHtml(text)}</p>`).join('')}
                 <p class="xml1-estimate">${escapeHtml(t(estimate.first_build_s ? 'xml1.estimate' : 'xml1.estimateUnknown', { minutes, cores: estimate.cores || '?' }))}</p>
                 <details class="xml1-advanced">
                     <summary>${escapeHtml(t('xml1.advanced'))}</summary>
@@ -433,6 +451,7 @@
             }
             return `
                 <p class="xml1-ready">${escapeHtml(t('xml1.readyBody', { time: GameUtils.formatDuration(job.seconds || 0) || '-' }))}</p>
+                ${port.noticesOf(job).map(notice => `<p class="xml1-note is-warn xml1-notice" data-code="${escapeHtml(notice.code)}">${escapeHtml(notice.text)}</p>`).join('')}
                 <div class="popup-actions">
                     <button type="button" class="btn-cancel" data-act="open-folder">${escapeHtml(t('xml1.openFolder'))}</button>
                     <button type="button" class="btn-apply" data-act="play">${escapeHtml(t('common.play'))}</button>
@@ -578,7 +597,7 @@
                     if (!await port.openLog()) window.showToast(t('xml1.noLog'), 'info');
                     break;
                 case 'report':
-                    port.report(port.build || (this.check && this.check.job));
+                    await port.report(port.build || (this.check && this.check.job));
                     break;
                 default:
                     break;

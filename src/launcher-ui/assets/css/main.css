@@ -4384,6 +4384,17 @@ html:not([data-color-uninstalled]) .library-card:not(.is-installed):not(.is-comi
 .xml1-error-hint { color: var(--text-muted); font-size: 12.5px; line-height: 1.5; }
 .xml1-error-code { font-family: var(--font-mono, 'Consolas', monospace); font-size: 11px; opacity: 0.55; }
 .xml1-error-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.xml1-verify { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.xml1-verify-group { padding: 10px 14px; border-radius: 10px; background: var(--surface-lo); border: 1px solid var(--border); border-left: 3px solid rgba(255, 255, 255, 0.2); }
+.xml1-verify-group.is-damage { border-left-color: var(--danger); background: rgba(255, 77, 99, 0.06); }
+.xml1-verify-group.is-info { border-left-color: var(--warn); }
+.xml1-verify-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.xml1-verify-label { color: #fff; font-size: 13px; font-weight: 600; }
+.xml1-verify-count { flex-shrink: 0; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text-muted); }
+.xml1-verify-cause { margin-top: 4px; color: var(--text-muted); font-size: 12px; line-height: 1.45; }
+.xml1-verify-files { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.xml1-verify-files li { font-family: var(--font-mono, 'Consolas', monospace); font-size: 11.5px; color: #d9dbe4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.xml1-verify-files .xml1-verify-more { font-family: inherit; color: var(--text-dim); }
 .xml1-facts { margin: 0; }
 .xml1-facts .xml1-row { display: grid; grid-template-columns: 120px minmax(0, 1fr) auto; gap: 12px; }
 .xml1-row-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }

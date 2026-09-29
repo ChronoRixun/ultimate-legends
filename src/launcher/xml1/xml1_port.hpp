@@ -70,6 +70,32 @@ namespace xml1_port
     // (_build\building.json, design 2.7), so the port may start from it.
     bool is_playable(const std::filesystem::path& folder);
 
+    // What a folder holds, as a destination for a build. launcher_only: only what the launcher and
+    // the player own (dinput.dll, xml2-fix.*, mods\ - the builder never touches them), so nothing
+    // is built there and the builder accepts it (its `info` still calls it "foreign").
+    struct folder_facts
+    {
+        bool exists{};
+        bool empty{};
+        bool builder{};       // _build\stamp.json or _build\building.json: the builder made it
+        bool launcher_only{};
+    };
+    folder_facts inspect_folder(const std::filesystem::path& folder);
+
+    // What "Report a problem" offers (design 4.7): the last verification (_build\verify-report.json:
+    // relative paths, sizes, hashes, codes - no game content) and the end of the build log. Raw:
+    // the page masks profile paths before anything leaves the PC.
+    struct report_sources
+    {
+        std::optional<std::string> verify_report;
+        std::optional<std::filesystem::path> verify_report_path;
+        std::vector<std::string> log_tail;
+        std::optional<std::filesystem::path> log_path;
+    };
+    report_sources read_report_sources(std::size_t log_lines);
+    // Saves a report the player can attach to an issue: <launcher data>\reports\xml1-report-<time>.txt.
+    std::optional<std::filesystem::path> save_report(const std::string& text, std::string& error);
+
     // Bytes in the built game's folder and in the build cache (nullopt when there is none), for
     // the uninstall dialog.
     struct sizes

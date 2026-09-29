@@ -48,15 +48,48 @@
         switch (state) {
             case 'not-setup': return t('xml1.state.notSetUp');
             case 'absent': return t('xml1.state.absent', { folder: s.install });
-            case 'incomplete': return t(s.isoExists ? 'xml1.state.incomplete' : 'xml1.state.incompleteNeedsDisc');
+            case 'incomplete': return t(s.isoExists || s.cacheHasDisc ? 'xml1.state.incomplete' : 'xml1.state.incompleteNeedsDisc');
             case 'building': return port.build && port.build.cancelRequested ? t('xml1.cancelling') : port.progressMessage(port.build);
             case 'finishing': return t('xml1.finishingBody');
             case 'needs-fix': return t('xml1.state.needsFix');
-            case 'damaged': return t('xml1.state.damaged', { count: port.verify ? (port.verify.reasons || []).length : 0 });
+            case 'damaged': return t('xml1.state.damaged', { count: port.damageCount(port.verify) });
             case 'stale': return t('xml1.state.stale');
             case 'ready': return t('xml1.state.ready');
             default: return t('xml1.loading');
         }
+    }
+
+    // What the last verification found, group by group (BUILDER_DESIGN.md 2.9: missing, changed,
+    // unreadable, extra, xml2_changed, ...): its count, the builder's cause hint and the first files.
+    function verifyHTML(port) {
+        const verify = port.verify;
+        const groups = verify && Array.isArray(verify.groups) ? verify.groups.filter(group => group && typeof group.code === 'string') : [];
+        if (!groups.length) return '';
+        const items = groups.map(group => {
+            const files = (Array.isArray(group.files) ? group.files : [])
+                .map(file => (file && typeof file === 'object' ? file.path || file.problem : file) || '').map(String).filter(Boolean);
+            const shown = files.slice(0, 3);
+            const count = Number(group.count) || 0;
+            const more = Math.max(0, count - shown.length);
+            const repair = port.REPAIRS.includes(group.code);
+            const label = t(`xml1.verifyGroup.${group.code}`) !== `xml1.verifyGroup.${group.code}` ? t(`xml1.verifyGroup.${group.code}`) : group.code;
+            return `
+                <li class="xml1-verify-group ${repair ? 'is-damage' : 'is-info'}" data-code="${escapeHtml(group.code)}" data-count="${escapeHtml(count)}">
+                    <div class="xml1-verify-head"><span class="xml1-verify-label">${escapeHtml(label)}</span>
+                        <span class="xml1-verify-count">${escapeHtml(t('xml1.verifyFiles', { count }))}</span></div>
+                    ${typeof group.cause_hint === 'string' && group.cause_hint ? `<div class="xml1-verify-cause">${escapeHtml(group.cause_hint)}</div>` : ''}
+                    ${shown.length ? `<ul class="xml1-verify-files">${shown.map(path => `<li title="${escapeHtml(path)}">${escapeHtml(path)}</li>`).join('')}
+                        ${more ? `<li class="xml1-verify-more">${escapeHtml(t('xml1.verifyMore', { count: more }))}</li>` : ''}</ul>` : ''}
+                </li>`;
+        }).join('');
+        return `<ul class="xml1-verify" data-state="${escapeHtml(String(verify.state || ''))}">${items}</ul>`;
+    }
+
+    // The last build's warnings a player should know about (W_XML2_MODIFIED, W_EXTRA_FILES, ...).
+    function noticesHTML(port, job) {
+        if (!job || job.command !== 'build' || !job.finished) return '';
+        return port.noticesOf(job).map(notice =>
+            `<div class="xml1-note is-warn xml1-notice" data-code="${escapeHtml(notice.code)}">${escapeHtml(notice.text)}</div>`).join('');
     }
 
     function render(gameId) {
@@ -133,10 +166,12 @@
         const cacheValue = cache ? (cache.bytes > 0 ? bytes(cache.bytes) : t('xml1.cacheEmpty')) : '…';
         const working = port.isWorking();
 
+        const discValue = !s.iso ? (s.cacheHasDisc ? t('xml1.discInCache') : t('xml1.none'))
+            : s.isoExists ? s.iso : t(s.cacheHasDisc ? 'xml1.discMissingCached' : 'xml1.discMissing', { path: s.iso });
         const rows = s.install ? `
             <div class="install-info-section xml1-facts">
                 ${row(t('xml1.rowFolder'), s.install, s.exists ? button('open-folder', t('xml1.open')) : '')}
-                ${row(t('xml1.rowDisc'), s.iso ? (s.isoExists ? s.iso : t('xml1.discMissing', { path: s.iso })) : t('xml1.none'), button('change-disc', t('xml1.changeDisc'), working ? 'disabled' : ''))}
+                ${row(t('xml1.rowDisc'), discValue, button('change-disc', t('xml1.changeDisc'), working ? 'disabled' : ''))}
                 ${row(t('xml1.rowBuild'), buildValue)}
                 ${row(t('xml1.rowFix'), fixValue)}
                 ${row(t('xml1.rowBuilder'), builderValue, !builder.installed && !builder.installing ? button('install-builder', t('xml1.installBuilder')) : '')}
@@ -149,7 +184,7 @@
             actions.push(button('show-progress', t('xml1.showProgress')));
         } else if (s.install) {
             if (state === 'incomplete') actions.push(button('resume', t('xml1.resume')));
-            else if (state === 'damaged') actions.push(button('rebuild', t('xml1.repair')));
+            else if (state === 'damaged') actions.push(button('rebuild', t('xml1.repair')), button('report', t('xml1.reportProblem')));
             else if (state === 'absent') actions.push(button('setup', t('xml1.build')));
             else if (state === 'needs-fix') actions.push(button('install-fix', t('xml1.installFix')));
             if (['ready', 'stale', 'needs-fix'].includes(state)) actions.push(button('rebuild', t('xml1.rebuild'), working ? 'disabled' : ''));
@@ -168,6 +203,8 @@
                 ${progress}
                 ${error}
                 ${fixNote}
+                ${state !== 'building' ? verifyHTML(port) : ''}
+                ${state !== 'building' && !failed ? noticesHTML(port, job) : ''}
                 ${rows}
                 <div class="xml1-actions">${actions.join('')}</div>
             </div>`;
@@ -190,7 +227,7 @@
                 await port.primaryAction();
                 break;
             case 'rebuild': {
-                if (!s.isoExists) {
+                if (!port.canRebuild()) {
                     window.Xml1Setup.show();
                     break;
                 }
@@ -215,7 +252,7 @@
                 if (!verify) {
                     window.showToast(port.jobError(job).title, 'error');
                 } else if (verify.state === 'damaged') {
-                    window.showToast(t('xml1.verifyDamaged', { count: (verify.reasons || []).length }), 'error', 8000);
+                    window.showToast(t('xml1.verifyDamaged', { count: port.damageCount(verify) }), 'error', 8000);
                 } else {
                     window.showToast(t('xml1.verifyOk', { count: verify.files || 0 }), 'success');
                 }
@@ -238,7 +275,7 @@
                 await port.copyDetails(port.build);
                 break;
             case 'report':
-                port.report(port.build);
+                await port.report(port.build);
                 break;
             default:
                 break;

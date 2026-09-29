@@ -6,6 +6,7 @@
 
 #include <rapidjson/writer.h>
 
+#include <cmath>
 #include <thread>
 
 namespace xml1
@@ -44,6 +45,14 @@ namespace xml1
             return member != object.MemberEnd() && member->value.IsNumber() ? member->value.GetDouble() : fallback;
         }
 
+        // A number field as a count / seconds: finite, clamped to [low, high] (a builder of another
+        // version may send anything; a float outside the integer's range must never be cast).
+        double member_clamped(const rapidjson::Value& object, const char* key, const double fallback, const double low, const double high)
+        {
+            const auto value = member_number(object, key, fallback);
+            return std::isfinite(value) ? std::clamp(value, low, high) : fallback;
+        }
+
         void add_tail(builder_snapshot& snapshot, std::string line)
         {
             snapshot.log_tail.push_back(std::move(line));
@@ -68,7 +77,7 @@ namespace xml1
             if (ev == "hello")
             {
                 snapshot.builder_version = member_string(event, "builder");
-                snapshot.content_version = static_cast<int>(member_number(event, "content_version"));
+                snapshot.content_version = static_cast<int>(member_clamped(event, "content_version", 0, 0, 1e6));
             }
             else if (ev == "plan")
             {
@@ -84,7 +93,7 @@ namespace xml1
                         builder_stage stage{};
                         stage.id = member_string(item, "id");
                         stage.title = member_string(item, "title");
-                        stage.weight = member_number(item, "weight", 1);
+                        stage.weight = member_clamped(item, "weight", 1, 0, 1e6);
                         stage.cached = item.HasMember("cached") && item["cached"].IsBool() && item["cached"].GetBool();
                         snapshot.stages.push_back(std::move(stage));
                     }
@@ -112,19 +121,19 @@ namespace xml1
                     else if (state == "done")
                     {
                         stage.state = "done";
-                        stage.seconds = member_number(event, "seconds");
+                        stage.seconds = member_clamped(event, "seconds", 0, 0, 1e7);
                     }
                 }
             }
             else if (ev == "progress")
             {
                 snapshot.stage = member_string(event, "stage");
-                snapshot.done = static_cast<std::uint64_t>(member_number(event, "done"));
-                snapshot.total = static_cast<std::uint64_t>(member_number(event, "total"));
+                snapshot.done = static_cast<std::uint64_t>(member_clamped(event, "done", 0, 0, 1e15));
+                snapshot.total = static_cast<std::uint64_t>(member_clamped(event, "total", 0, 0, 1e15));
                 snapshot.unit = member_string(event, "unit");
-                snapshot.stage_pct = member_number(event, "pct");
-                snapshot.overall = std::clamp(member_number(event, "overall", snapshot.overall), 0.0, 100.0);
-                snapshot.eta_s = static_cast<long long>(member_number(event, "eta_s", -1));
+                snapshot.stage_pct = member_clamped(event, "pct", 0, 0, 100);
+                snapshot.overall = member_clamped(event, "overall", snapshot.overall, 0, 100);
+                snapshot.eta_s = static_cast<long long>(member_clamped(event, "eta_s", -1, -1, 1e7));
             }
             else if (ev == "log")
             {
@@ -133,8 +142,19 @@ namespace xml1
             }
             else if (ev == "warning")
             {
-                snapshot.warnings += std::max(1, static_cast<int>(member_number(event, "count", 1)));
+                const auto count = static_cast<int>(member_clamped(event, "count", 1, 1, 1e6));
+                snapshot.warnings += count;
                 add_tail(snapshot, "warning " + member_string(event, "code") + ": " + member_string(event, "msg"));
+                if (snapshot.notices.size() < builder_process::max_notices)
+                {
+                    builder_notice notice{};
+                    notice.stage = member_string(event, "stage");
+                    notice.code = member_string(event, "code");
+                    notice.msg = member_string(event, "msg");
+                    notice.count = count;
+                    notice.detail = event.HasMember("detail") && event["detail"].IsObject() ? json_text(event["detail"]) : "{}";
+                    snapshot.notices.push_back(std::move(notice));
+                }
             }
             else if (ev == "error")
             {
@@ -401,7 +421,16 @@ namespace xml1
             read_lines(stdout_read, [&](const std::string& line)
             {
                 std::lock_guard lock(state->mutex);
-                handle_event(state->snapshot, line);
+                try
+                {
+                    handle_event(state->snapshot, line);
+                }
+                catch (const std::exception& e)
+                {
+                    // An event of an unexpected shape (rapidjson_config.hpp throws): kept as text.
+                    utils::logger::write("xml1-builder: unexpected event ({}): {}", e.what(), line);
+                    add_tail(state->snapshot, line);
+                }
                 if (line.find("\"ev\":\"progress\"") == std::string::npos && line.find("\"ev\": \"progress\"") == std::string::npos)
                 {
                     utils::logger::write("xml1-builder: {}", line);

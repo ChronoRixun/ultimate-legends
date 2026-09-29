@@ -10,8 +10,8 @@
     'use strict';
 
     const GAME = 'xml1';
-    const REPORT_URL = 'https://github.com/ChronoRixun/xml1-port/issues/new';
-    const DUMPING_URL = 'https://github.com/ChronoRixun/xml1-port/blob/main/docs/DUMPING.md';
+    const REPORT_URL = 'https://github.com/ChronoRixun/legends-classic/issues/new';
+    const DUMPING_URL = 'https://github.com/ChronoRixun/legends-classic/blob/main/docs/DUMPING.md';
 
     function t(key, variables) {
         return window.LauncherI18n ? window.LauncherI18n.t(key, variables) : key;

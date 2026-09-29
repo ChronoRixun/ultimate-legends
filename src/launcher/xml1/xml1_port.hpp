@@ -21,7 +21,7 @@ namespace xml1_port
     constexpr auto game_key = "xml1";
 
     // Where the builder's release lives. The repo name is the design's working name (Q7).
-    constexpr auto builder_manifest_url = "https://github.com/ChronoRixun/xml1-port/releases/latest/download/xml1-builder.json";
+    constexpr auto builder_manifest_url = "https://github.com/ChronoRixun/legends-classic/releases/latest/download/xml1-builder.json";
 
     // A launcher-side failure, before or instead of a builder run: L_* codes (the UI translates them).
     struct failure

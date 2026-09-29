@@ -445,20 +445,36 @@ namespace cef
         }
 
         CefPostData::ElementVector vector{};
-        request->GetPostData()->GetElements(vector);
-
-        assert(vector.size() == 1);
-        const auto& element = vector.front();
+        if (const auto post_data = request->GetPostData())
+        {
+            post_data->GetElements(vector);
+        }
 
         std::string json{};
-        json.resize(element->GetBytesCount());
-        element->GetBytes(json.size(), json.data());
+        if (!vector.empty())
+        {
+            const auto& element = vector.front();
+            json.resize(element->GetBytesCount());
+            element->GetBytes(json.size(), json.data());
+        }
 
         rapidjson::Document doc{};
         doc.Parse(json.data(), json.size());
 
-        const auto& command = doc[CEF_COMMAND];
-        const auto& data = doc[CEF_DATA];
+        // A request of another shape (no body, not an object, no "data") reads as null, never as a
+        // missing member (which throws, rapidjson_config.hpp).
+        static const rapidjson::Value null_value{};
+        const auto member = [&doc](const char* key) -> const rapidjson::Value&
+        {
+            if (!doc.IsObject())
+            {
+                return null_value;
+            }
+            const auto found = doc.FindMember(key);
+            return found == doc.MemberEnd() ? null_value : found->value;
+        };
+        const auto& command = member(CEF_COMMAND);
+        const auto& data = member(CEF_DATA);
 
         rapidjson::Document response{};
         response.SetObject();

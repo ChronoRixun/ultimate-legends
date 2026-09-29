@@ -1,3 +1,4 @@
+#include "rapidjson_config.hpp"
 #include "properties.hpp"
 
 #include "finally.hpp"

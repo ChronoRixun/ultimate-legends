@@ -29,6 +29,7 @@
 
 #include <optional>
 
+#include <utils/rapidjson_config.hpp>
 #include <rapidjson/document.h>
 #include <rapidjson/prettywriter.h>
 #include <rapidjson/stringbuffer.h>

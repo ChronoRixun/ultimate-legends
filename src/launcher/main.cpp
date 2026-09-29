@@ -13,6 +13,8 @@
 #include <utils/nt.hpp>
 #include <utils/com.hpp>
 
+#include <crtdbg.h>
+
 namespace
 {
     void set_working_directory()
@@ -239,6 +241,19 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
     // Harden DLL search before anything else runs: System32 + AddDllDirectory entries only.
     // Prevents planting via stray DLLs in the launcher's own directory.
     SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32 | LOAD_LIBRARY_SEARCH_USER_DIRS);
+
+#ifdef _DEBUG
+    // Test runs (tools\run-test-debug.bat passes -no-assert-dialogs): a failed assertion must never
+    // leave a modal dialog on the desktop that stops a launcher thread until someone clicks it. It
+    // goes to the debugger output instead and the process ends (exit code 3), which the test sees.
+    if (utils::flags::has_flag("no-assert-dialogs"))
+    {
+        _set_error_mode(_OUT_TO_STDERR);
+        _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_DEBUG);
+        _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_DEBUG);
+        _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+    }
+#endif
 
     try
     {

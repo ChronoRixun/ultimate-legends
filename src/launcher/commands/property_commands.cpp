@@ -1,7 +1,9 @@
 #include "std_include.hpp"
+#include <rapidjson/writer.h>
 #include "property_commands.hpp"
 #include "cef/cef_ui.hpp"
 #include <utils/io.hpp>
+#include <utils/logger.hpp>
 #include <utils/properties.hpp>
 #include <utils/string.hpp>
 #include <game_config.hpp>
@@ -9,6 +11,32 @@
 
 namespace commands::property_commands
 {
+    namespace
+    {
+        // A string member of the page's arguments, or nullopt (missing, null, a number, ...).
+        std::optional<std::string> string_member(const rapidjson::Value& value, const char* key)
+        {
+            if (!value.IsObject())
+            {
+                return std::nullopt;
+            }
+            const auto member = value.FindMember(key);
+            if (member == value.MemberEnd() || !member->value.IsString())
+            {
+                return std::nullopt;
+            }
+            return std::string{member->value.GetString(), member->value.GetStringLength()};
+        }
+
+        std::string json_text(const rapidjson::Value& value)
+        {
+            rapidjson::StringBuffer buffer;
+            rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+            value.Accept(writer);
+            return {buffer.GetString(), buffer.GetSize()};
+        }
+    }
+
     void register_commands(cef::cef_ui& cef_ui, command_context&)
     {
         cef_ui.add_command("get-property", [](const rapidjson::Value& value, rapidjson::Document& response)
@@ -55,44 +83,42 @@ namespace commands::property_commands
 
         cef_ui.add_command("set-game-property", [](const rapidjson::Value& value, auto&)
         {
-            if (!value.IsObject() || !value.HasMember("game") ||
-                !value.HasMember("suffix") || !value.HasMember("value"))
+            const auto game = string_member(value, "game");
+            const auto suffix = string_member(value, "suffix");
+            const auto val = string_member(value, "value");
+            if (!game || !suffix || !val)
             {
+                utils::logger::write("set-game-property: ignored, game / suffix / value are not all strings: {}", json_text(value));
                 return;
             }
 
-            const auto game = std::string{ value["game"].GetString() };
-            const auto suffix = std::string{ value["suffix"].GetString() };
-            const auto val = std::string{ value["value"].GetString() };
-
-            const auto config = game_config::get_game_config(game);
+            const auto config = game_config::get_game_config(*game);
             if (!config)
             {
                 return; // Invalid game
             }
 
-            config->set(suffix, val);
+            config->set(*suffix, *val);
         });
 
         cef_ui.add_command("get-game-property", [](const rapidjson::Value& value, rapidjson::Document& response)
         {
-            if (!value.IsObject() || !value.HasMember("game") || !value.HasMember("suffix"))
+            const auto game = string_member(value, "game");
+            const auto suffix = string_member(value, "suffix");
+            if (!game || !suffix)
             {
                 response.SetNull();
                 return;
             }
 
-            const auto game = std::string{ value["game"].GetString() };
-            const auto suffix = std::string{ value["suffix"].GetString() };
-
-            const auto config = game_config::get_game_config(game);
+            const auto config = game_config::get_game_config(*game);
             if (!config)
             {
                 response.SetNull();
                 return;
             }
 
-            const auto result = config->get(suffix);
+            const auto result = config->get(*suffix);
             if (result.has_value())
             {
                 response.SetString(result->data(), static_cast<rapidjson::SizeType>(result->length()), response.GetAllocator());
@@ -164,7 +190,7 @@ namespace commands::property_commands
 
         cef_ui.add_command("reset-game-settings", [](const rapidjson::Value& value, auto&)
         {
-            if (!value.IsObject() || !value.HasMember("game"))
+            if (!value.IsObject() || !value.HasMember("game") || !value["game"].IsString())
             {
                 return;
             }

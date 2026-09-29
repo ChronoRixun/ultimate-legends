@@ -27,35 +27,45 @@ What is real here - the real builder's rules, so a test passes against either:
   the end of the image is E_ISO_READ), default.xbe's title ID (another title is E_ISO_WRONG_GAME with its
   title), the required files (E_ISO_INCOMPLETE), the zip; disc_id = xbe md5 + the zip's digest;
 - the destination: an empty folder, one the builder made, or one that holds only what the launcher and
-  the player own (dinput.dll, xml2-fix.*, mods/) - which `info` still calls "foreign", as the real one does;
+  the player own (dinput.dll, xml2-fix.*, mods/, a _build/ without a stamp) - which `info` and `verify`
+  call "absent", as the real one does (one rule for build, info and verify);
 - the cache layout (<cache>/<disc_id>/disc/stage.json, prepared/<stage>-v1-<key>/stage.json, disc.json),
   and `build` without --iso when the cache holds the disc (the one of the folder's stamp / building.json);
 - _build/manifest.json (every file: size, sha1, kind base/built), `verify` against it with the real
   groups (missing, changed, unreadable, extra, xml2_not_retail), counts and cause hints, and
   _build/verify-report.json written by every build and verify; `finish` copies again a damaged copy;
 - warnings W_ISO_UNKNOWN_DUMP, W_XML2_MODIFIED (the stand-in XML2 against its reference list),
-  W_EXTRA_FILES, W_LINK_BASE, W_PIPELINE (a count per stage);
-- the sweep: a rebuild deletes every file of the game folders that it neither copied nor wrote (one
-  another program holds open stays and is named by W_EXTRA_FILES); dinput.dll / xml2-fix.* / mods in
-  <out> are kept (F3); the port's ini keys are merged without touching the launcher's (3.5); clean
-  deletes only what the build made.
+  W_EXTRA_FILES, W_LINK_BASE, W_PIPELINE (a count per stage); every warning has detail.count (how many
+  files; W_PIPELINE's number of pipeline warnings, also its top-level count);
+- the sweep: a rebuild deletes every file of the game folders that it neither copied nor wrote; one
+  another program holds open stays and the build still succeeds: W_EXTRA_FILES names it (detail
+  not_removed, cause "held"); dinput.dll / xml2-fix.* / mods in <out> are kept (F3); the port's ini
+  keys are merged without touching the launcher's (3.5); clean deletes only what the build made;
+- OS-level I/O errors (a file the build must write that another program holds open, a full or failing
+  drive): E_IO, exit 6, "A file could not be read or written: <file> (<cause>).", detail {path (relative
+  to its folder), where (out / cache / xml2), cause (held / read_only / denied / disk_full /
+  drive_read_only / disk_error / drive_gone / too_long / other), errno, winerror} and a hint per cause
+  (the real builder's xml1builder/errors.py).
 
 What is fake: the work. The "XML2 install" is any small folder with XMen2.exe, Data/herostat.engb and
 Sounds/eng; the build copies it into <out> and writes a few made-up content files, nothing in it is
 game data. The fake refuses folders or images larger than 64 MB, so it never works on a real install.
 A test image's z/assetsfb.zip carries fake.json, which steers a run: {"speed": seconds multiplier,
-"fail_stage": id, "crash_stage": id, "io_error_stage": id, "need_bytes": n, "cache_need_bytes": n,
-"ignore_cancel": true, "warnings": n, "validate_errors": n} - the real builder has none of these
-(fail_stage and ignore_cancel only work here: xml1_cdp.py --real finds other ways, or skips them).
+"fail_stage": id, "crash_stage": id, "io_error_stage": id, "io_error_cause": cause (default held),
+"need_bytes": n, "cache_need_bytes": n, "ignore_cancel": true, "warnings": n, "validate_errors": n} -
+the real builder has none of these (fail_stage and ignore_cancel only work here: xml1_cdp.py --real
+finds other ways, or skips them).
 """
 import argparse
 import datetime
+import errno
 import fnmatch
 import hashlib
 import io
 import json
 import os
 import pathlib
+import re
 import shutil
 import struct
 import sys
@@ -117,6 +127,33 @@ CAUSES = {  # the real builder's cause hints (xml1builder/manifest.py)
 }
 REPAIRS = ("missing", "changed", "unreadable")
 
+# OS-level I/O errors (the real builder's xml1builder/errors.py): detail.cause and its words / hints.
+IO_CAUSES = {
+    "held": "another program has it open",
+    "read_only": "it is read-only",
+    "denied": "access to it was denied",
+    "disk_full": "the disk is full",
+    "drive_read_only": "the drive is write-protected",
+    "disk_error": "the disk reported an error",
+    "drive_gone": "the drive is not available",
+    "too_long": "its path is too long",
+}
+IO_HINTS = {
+    "held": "Close the program that has the file open (X-Men Legends, an editor, a file manager or an antivirus "
+            "scan), then try again.",
+    "disk_full": "Free up some space on that drive, then try again.",
+    "disk_error": "Check the drive for errors, then try again.",
+    "drive_gone": "Reconnect the drive, then try again.",
+    "too_long": "Choose a folder with a shorter path.",
+}
+IO_HINT = "Close X-Men Legends if it is running and check the folder is writable, then try again."
+IO_WINERRORS = {32: "held", 33: "held", 5: "denied", 112: "disk_full", 39: "disk_full", 19: "drive_read_only",
+                23: "disk_error", 483: "disk_error", 1117: "disk_error", 21: "drive_gone", 55: "drive_gone",
+                64: "drive_gone", 206: "too_long"}
+IO_ERRNOS = {errno.EACCES: "denied", errno.EPERM: "denied", errno.EBUSY: "held", errno.ENOSPC: "disk_full",
+             errno.EROFS: "drive_read_only", errno.EIO: "disk_error", errno.ENAMETOOLONG: "too_long"}
+TMP_RX = re.compile(r"\.tmp\d+(_\d+)?$", re.IGNORECASE)   # the atomic writers' temp files
+
 CURRENT = {"stage": "probe"}
 
 
@@ -128,6 +165,63 @@ class Failure(Exception):
     def __init__(self, exit_code, code, msg, hint="", detail=None, stage=None):
         super().__init__(msg)
         self.exit_code, self.code, self.msg, self.hint, self.detail, self.stage = exit_code, code, msg, hint, detail or {}, stage
+
+
+def io_target(error):
+    """The file an OSError is about: the destination of a rename (os.replace(temp, file): filename2),
+    else filename, without an atomic writer's temp suffix."""
+    for name in (getattr(error, "filename2", None), getattr(error, "filename", None)):
+        if isinstance(name, (str, os.PathLike)) and os.fspath(name):
+            return TMP_RX.sub("", os.fspath(name))
+    return None
+
+
+def io_cause(error, path=None):
+    """The cause code of an OS-level I/O failure (IO_CAUSES), or None. A denied access to an existing
+    file is refined, as the real builder does: read-only, or another program's open handle (Windows
+    answers os.replace onto / unlink of a file open elsewhere with WinError 5 or 32)."""
+    if not isinstance(error, OSError):
+        return None
+    winerror = getattr(error, "winerror", None)
+    cause = IO_WINERRORS.get(winerror) if winerror else None
+    if cause is None:
+        cause = IO_ERRNOS.get(error.errno)
+    path = path if path is not None else io_target(error)
+    if cause == "denied" and path is not None:
+        try:
+            if os.path.isfile(path):
+                cause = "read_only" if not os.access(path, os.W_OK) else "held" if os.name == "nt" else cause
+        except (OSError, ValueError):
+            pass
+    return cause
+
+
+def io_failure(stage, cause, path=None, roots=(), errno_=None, winerror=None, words=None):
+    """E_IO (exit 6) as the real builder reports it: the file relative to its folder (roots: [(folder,
+    "out" | "cache" | "xml2")]; a file elsewhere keeps its masked path), detail {path, where, cause,
+    errno, winerror}, a hint per cause."""
+    name = rel = where = None
+    if path:
+        full = os.path.normcase(os.path.abspath(path))
+        for folder, label in roots:
+            top = os.path.normcase(os.path.abspath(os.fspath(folder))) if folder else ""
+            if top and full.startswith(top.rstrip("\\/") + os.sep):
+                rel = os.path.relpath(os.path.abspath(path), os.path.abspath(os.fspath(folder))).replace(os.sep, "/")
+                where = label
+                name = {"cache": f"{rel} (in the build cache)", "xml2": f"{rel} (in X-Men Legends II's folder)"}.get(label, rel)
+                break
+        else:
+            name = rel = mask(path)
+    words = IO_CAUSES.get(cause) or words or "an error"
+    msg = f"A file could not be read or written: {name} ({words})." if name else f"A file could not be read or written ({words})."
+    return Failure(6, "E_IO", msg, IO_HINTS.get(cause, IO_HINT),
+                   {"path": rel, "where": where, "cause": cause or "other", "errno": errno_, "winerror": winerror}, stage)
+
+
+def io_error(error, stage, roots=()):
+    """The E_IO Failure of any OSError that reached the build (the real builder's non-strict io_error)."""
+    return io_failure(stage, io_cause(error), io_target(error), roots, error.errno, getattr(error, "winerror", None),
+                      error.strerror or type(error).__name__)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -392,6 +486,10 @@ class Output:
         return int((time.monotonic() - START) * 1000)
 
     def event(self, ev, **fields):
+        if ev == "warning":  # every warning says how many: detail.count (default 1), as the real builder's
+            detail = dict(fields.get("detail") or {})
+            detail.setdefault("count", fields.get("count", 1))
+            fields["detail"] = detail
         record = {"ev": ev, "t": self.t(), **fields}
         if self.jsonl:
             with self.lock:
@@ -757,6 +855,7 @@ def check_out(out, xml2=None, cache=None, iso=None):
                       {"out": mask(out), "conflict": mask(iso)})
     if out.exists() and not out.is_dir():
         raise Failure(2, "E_OUT_FOREIGN", "The destination is a file, not a folder.", "Choose an empty folder, or one the builder made before.", {"out": mask(out)})
+    # the same rule as info / verify (out_state): only the launcher's / the player's files = absent
     if out.exists() and not builder_folder(out) and area_files(out):
         raise Failure(2, "E_OUT_FOREIGN", "The destination folder already holds other files.",
                       "Choose an empty folder, or one the builder made before.", {"out": mask(out)})
@@ -785,14 +884,17 @@ def write_json(path, data, indent=1):
 
 def out_state(out, version, iso=None, xml2=None):
     """-> (state, reasons, stamp) per section 2.7 (without 'damaged', which is verify's). As the real
-    builder: a folder with files but no builder _build/ is "foreign", even one that holds only the
-    launcher's files (which `build` accepts)."""
+    builder (stamp.out_state): a folder holding only what the launcher and the player own (dinput.dll,
+    xml2-fix.*, mods/, a _build/ without a stamp) is "absent" - `build` accepts it; one with other files
+    but no builder _build/ is "foreign" - `build` refuses it (E_OUT_FOREIGN)."""
     out = pathlib.Path(out)
     if not out.exists() or (out.is_dir() and not any(out.iterdir())):
         return "absent", [], None
     if not out.is_dir():
         return "foreign", ["the destination is a file"], None
     if not builder_folder(out):
+        if not area_files(out):
+            return "absent", [], None
         return "foreign", ["files, but no build made by the builder (_build/stamp.json)"], None
     stamp = read_json(out / "_build" / "stamp.json")
     if (out / "_build" / "building.json").is_file() or not stamp:
@@ -1264,11 +1366,12 @@ def cmd_build(args, out, version, cancel):
     warnings = []
 
     def warn(code, msg, detail=None, stage="probe", count=None):
-        fields = {"stage": stage, "code": code, "msg": msg}
-        if detail:
-            fields["detail"] = detail
+        """A warning; detail.count = how many (files, ...; default 1). count: W_PIPELINE's number of
+        pipeline warnings (also the top-level count, as the real builder keeps it)."""
+        fields = {"stage": stage, "code": code, "msg": msg, "detail": dict(detail or {})}
         if count is not None:
             fields["count"] = count
+            fields["detail"].setdefault("count", count)
         out.event("warning", **fields)
         warnings.append(count if count is not None else 1)
 
@@ -1315,7 +1418,13 @@ def cmd_build(args, out, version, cancel):
         out.open_log(build / "builder.log")
         out.human(f"xml1-builder {version['version']} (fake) build: iso={mask(args.iso) if args.iso else '(from the cache)'} "
                   f"xml2={mask(args.xml2)} out={mask(target)}")
-        return run_build(args, out, version, cancel, iso, xml2, target, cache, movies, speed, fake, warn, warnings)
+        try:
+            return run_build(args, out, version, cancel, iso, xml2, target, cache, movies, speed, fake, warn, warnings)
+        except OSError as error:
+            # a file held open by another program, a full or failing drive: E_IO naming the file (the real
+            # builder's commands.failure), never E_INTERNAL
+            out.human(f"[build] {type(error).__name__}: {mask(error)}")
+            raise io_error(error, CURRENT["stage"], [(target, "out"), (cache, "cache"), (pathlib.Path(args.xml2).resolve(), "xml2")]) from error
     finally:
         if cache_lock:
             cache_lock.release()
@@ -1336,6 +1445,7 @@ def run_build(args, out, version, cancel, iso, xml2, target, cache, movies, spee
     files = {}
     stage_seconds = {}
     finish_extra = []
+    kept = {}  # {rel: cause}: files the sweep could not delete (another program has them open)
 
     def unit_time(stage_weight, count):
         return 0.12 * stage_weight * speed / max(count, 1)
@@ -1345,7 +1455,11 @@ def run_build(args, out, version, cancel, iso, xml2, target, cache, movies, spee
         dest.parent.mkdir(parents=True, exist_ok=True)
         temp = dest.with_name(dest.name + f".tmp{os.getpid()}")
         temp.write_bytes(data)
-        os.replace(temp, dest)
+        try:
+            os.replace(temp, dest)  # a file another program holds open: WinError 5 -> E_IO, cause held
+        except OSError:
+            temp.unlink(missing_ok=True)
+            raise
         journal.write(rel + "\n")
         journal.flush()
         files[rel] = {"size": len(data), "sha1": hashlib.sha1(data).hexdigest(), "kind": "built", "owner": owner}
@@ -1372,8 +1486,9 @@ def run_build(args, out, version, cancel, iso, xml2, target, cache, movies, spee
                     raise Failure(1, "E_PIPELINE", f"A step of the build failed: {title}.", "This is a bug in the builder: please report it.",
                                   {"module": stage_id, "failed": [stage_id], "errors": 1, "first": [f"[{stage_id}] fake failure"]}, stage_id)
                 if stage_id == fake.get("io_error_stage") and chunk == chunks // 2:
-                    raise Failure(6, "E_IO", f"A file could not be read or written: {mask(target)} is in use.",
-                                  "Close X-Men Legends if it is running and check the folder is writable, then try again.", {"path": mask(target)}, stage_id)
+                    cause = fake.get("io_error_cause") or "held"
+                    raise io_failure(stage_id, cause, target / next(iter(CONTENT_FILES)), [(target, "out")],
+                                     winerror=next((w for w, c in IO_WINERRORS.items() if c == cause), None))
                 if stage_id == fake.get("crash_stage") and chunk == chunks // 2:
                     raise RuntimeError(f"fake crash in {stage_id}")
                 if not is_cached:
@@ -1410,7 +1525,9 @@ def run_build(args, out, version, cancel, iso, xml2, target, cache, movies, spee
                         try:
                             (target / rel).unlink()
                         except OSError as error:
-                            out.human(f"[build] sweep: cannot remove {rel}: {error}")
+                            # it stays, and the build still succeeds: the game does not need it gone
+                            kept[rel] = io_cause(error, target / rel) or "other"
+                            out.human(f"[build] sweep: cannot remove {rel}: {mask(error)}")
                 remove_empty_dirs(target, keep_top=("mods",))
                 write_json(build / "registry.json", {"version": 1, "entries": {rel.lower(): {"rel": rel, "size": e["size"], "owner": e["owner"], "sha1": e["sha1"]}
                                                                               for rel, e in files.items() if e["kind"] == "built"}})
@@ -1435,12 +1552,23 @@ def run_build(args, out, version, cancel, iso, xml2, target, cache, movies, spee
                                   {"path": first["path"], "count": len(check["unreadable"])}, "finish")
                 extra = [x for x in check["extra"] if not x.get("temp")]
                 if extra:
-                    warn("W_EXTRA_FILES", f"{len(extra)} file(s) in the game folders that the build did not make (first: {extra[0]['path']})",
-                         {"files": [x["path"] for x in extra[:20]]}, stage="finish")
+                    # the sweep deleted every file the build did not make; one it could not delete (another
+                    # program has it open) stays, and the build still succeeds: named here
+                    msg = f"{len(extra)} file(s) in the game folders that the build did not make (first: {extra[0]['path']})"
+                    detail = {"files": [x["path"] for x in extra[:20]], "count": len(extra)}
+                    kept_low = {rel.lower(): cause for rel, cause in kept.items()}
+                    not_removed = [x["path"] for x in extra if x["path"].lower() in kept_low]
+                    if not_removed:
+                        cause = kept_low[not_removed[0].lower()]
+                        words = IO_CAUSES.get(cause, "it could not be deleted")
+                        msg += (f": the rebuild could not remove it because {words}" if len(extra) == 1 else
+                                f"; the rebuild could not remove {len(not_removed)} of them (first: {not_removed[0]}) because {words}")
+                        detail.update(not_removed=not_removed[:20], cause=cause)
+                    warn("W_EXTRA_FILES", msg, detail, stage="finish")
                 if xml2["modified_count"]:
                     warn("W_XML2_MODIFIED", f"{xml2['modified_count']} file(s) of X-Men Legends II differ from a retail install "
                                             f"(first: {xml2['modified'][0]}); the build used them as they are.",
-                         {"files": xml2["modified"][:20]}, stage="finish")
+                         {"files": xml2["modified"][:20], "count": xml2["modified_count"]}, stage="finish")
                 write_json(build / "manifest.json", {"format": 1, "builder": version["version"], "created": utc_now(),
                                                      "files": dict(sorted(files.items()))}, indent=0)
                 if not args.no_ini:

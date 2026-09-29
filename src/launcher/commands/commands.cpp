@@ -8,6 +8,7 @@
 #include "game_commands.hpp"
 #include "mod_commands.hpp"
 #include "display_commands.hpp"
+#include "presence_commands.hpp"
 
 namespace commands
 {
@@ -35,5 +36,6 @@ namespace commands
         game_commands::register_commands(cef_ui, ctx);
         mod_commands::register_commands(cef_ui, ctx);
         display_commands::register_commands(cef_ui, ctx);
+        presence_commands::register_commands(cef_ui, ctx);
     }
 }

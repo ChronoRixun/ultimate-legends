@@ -15,7 +15,7 @@ Ultimate Legends never downloads or distributes game files. Every game runs from
 |------|----|---------|----------------------------|
 | Marvel: Ultimate Alliance | `mua` | 2016 PC (Steam app 433300) | Finds your Steam install; installs the [MUA Controller Fix](https://github.com/ChronoRixun/mua-controller-fix) for native Xbox controller support |
 | Marvel: Ultimate Alliance 2 | `mua2` | 2016 PC (Steam app 433320) | Finds your Steam install; installs the [MUA Controller Fix](https://github.com/ChronoRixun/mua-controller-fix) |
-| X-Men Legends II: Rise of Apocalypse | `xml2` | 2005 PC | Launches your existing install; installs the [XML2 Fix](https://github.com/ChronoRixun/xml2-fix) for native Xbox controller support (online play through OpenSpy is in progress); a Display section edits the fix's window mode, resolution, frame rate limit and VSync (`xml2-fix.ini` next to the game) |
+| X-Men Legends II: Rise of Apocalypse | `xml2` | 2005 PC | Launches your existing install; installs the [XML2 Fix](https://github.com/ChronoRixun/xml2-fix) for native Xbox controller support (online play through OpenSpy is in progress); a Display section edits the fix's window mode, resolution, frame rate limit and VSync, and a Discord section turns its Rich Presence on or off (on by default; `xml2-fix.ini` next to the game) |
 | Marvel: Ultimate Alliance (2006 PC) | `muac` | 2006 PC | Coming soon |
 | X-Men Legends | `xml1` | Community port | Coming soon: the original never came to PC, and a port is in progress |
 

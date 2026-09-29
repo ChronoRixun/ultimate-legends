@@ -4348,3 +4348,10 @@ html:not([data-color-uninstalled]) .library-card:not(.is-installed):not(.is-comi
 .ul-display .setting-select:disabled { cursor: default; opacity: 0.55; }
 .ul-display .setting-select:disabled:hover { border-color: var(--border-hi); background-color: var(--surface-lo); }
 .ul-display-footer { margin: 4px 0 0; font-size: 11px; opacity: 0.55; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---- Discord section of a game's page (presence-view.js): the Display section's rows ---- */
+.detail-presence { margin-top: 24px; }
+.detail-presence-title { margin: 0 0 12px; font-size: 16px; letter-spacing: 0.02em; text-transform: uppercase; }
+.ul-presence-row.is-sub { margin-left: 28px; }
+.ul-presence-row.is-disabled .ul-display-control { opacity: 0.55; }
+.ul-display .toggle-btn:disabled { cursor: default; pointer-events: none; }

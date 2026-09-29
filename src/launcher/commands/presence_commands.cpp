@@ -1,22 +1,15 @@
 #include "std_include.hpp"
-#include "display_commands.hpp"
+#include "presence_commands.hpp"
 #include "cef/cef_ui.hpp"
-#include "display/xml2_display.hpp"
 #include "fix/fix_ini.hpp"
+#include "fix/presence_settings.hpp"
 
 #include <utils/string.hpp>
 
-namespace commands::display_commands
+namespace commands::presence_commands
 {
     namespace
     {
-        // The games whose fix has a [Display] section (fix_ini's table): X-Men Legends II's XML2
-        // Fix; MUA's controller fix has none.
-        bool supported(const fix_ini::location& where)
-        {
-            return where.info && where.info->display;
-        }
-
         rapidjson::Value make_string(const std::string& text, rapidjson::Document::AllocatorType& allocator)
         {
             rapidjson::Value value{};
@@ -24,26 +17,17 @@ namespace commands::display_commands
             return value;
         }
 
-        std::optional<int> to_int(const std::string& text)
+        bool supported(const fix_ini::location& where)
         {
-            try
-            {
-                std::size_t used{};
-                const auto value = std::stoi(text, &used);
-                return used == text.size() ? std::optional{value} : std::nullopt;
-            }
-            catch (...)
-            {
-                return std::nullopt;
-            }
+            return where.info && where.info->presence;
         }
 
-        // The ini's values as the UI wants them: Mode/FrameRate strings, Width/Height numbers,
-        // the flags booleans; null when the key is absent (game default).
+        // The keys as the UI wants them: true/false, null when the key is absent (on), or the
+        // text as written when it is not a flag.
         rapidjson::Value values_json(const std::map<std::string, std::string>& values, rapidjson::Document::AllocatorType& allocator)
         {
             rapidjson::Value object(rapidjson::kObjectType);
-            for (const auto& key : xml2_display::keys())
+            for (const auto& key : presence_settings::keys())
             {
                 rapidjson::Value name = make_string(key, allocator);
                 const auto it = values.find(key);
@@ -54,33 +38,13 @@ namespace commands::display_commands
                 }
 
                 std::string unused;
-                const auto normalised = xml2_display::normalise(key, it->second, unused);
-                if (key == "Width" || key == "Height")
+                if (const auto flag = presence_settings::normalise(key, it->second, unused))
                 {
-                    const auto number = normalised ? to_int(*normalised) : std::nullopt;
-                    if (number)
-                    {
-                        object.AddMember(name, *number, allocator);
-                    }
-                    else
-                    {
-                        object.AddMember(name, make_string(it->second, allocator), allocator); // unreadable: shown as is
-                    }
-                }
-                else if (key == "Topmost" || key == "RunInBackground" || key == "VSync")
-                {
-                    if (normalised)
-                    {
-                        object.AddMember(name, *normalised == "1", allocator);
-                    }
-                    else
-                    {
-                        object.AddMember(name, make_string(it->second, allocator), allocator);
-                    }
+                    object.AddMember(name, *flag == "1", allocator);
                 }
                 else
                 {
-                    object.AddMember(name, make_string(normalised.value_or(it->second), allocator), allocator);
+                    object.AddMember(name, make_string(it->second, allocator), allocator);
                 }
             }
             return object;
@@ -103,7 +67,7 @@ namespace commands::display_commands
             const auto where = fix_ini::locate(ctx.get_game_config_from_request(value));
             if (!supported(where))
             {
-                set_result(response, false, "This game has no display settings.");
+                set_result(response, false, "This game has no Discord settings.");
                 return std::nullopt;
             }
             if (!where.game_dir)
@@ -122,9 +86,9 @@ namespace commands::display_commands
 
     void register_commands(cef::cef_ui& cef_ui, command_context& ctx)
     {
-        // { supported, installed, fixInstalled, running, ini, values: { Mode, Width, Height, Topmost,
-        //   RunInBackground, FrameRate, VSync }, modes: [{ width, height }], desktop: { width, height, refresh } }
-        cef_ui.add_command("get-display-settings", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
+        // { supported, installed, fixInstalled, running, fix, file, ini,
+        //   values: { Enabled, ShowZone, ShowParty }, defaults: { same, all true } }
+        cef_ui.add_command("get-presence-settings", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
         {
             response.SetObject();
             auto& allocator = response.GetAllocator();
@@ -139,37 +103,33 @@ namespace commands::display_commands
             response.AddMember("installed", installed, allocator);
             response.AddMember("fixInstalled", fix_installed, allocator);
             response.AddMember("running", is_supported && game_config::is_game_process_running(config->id), allocator);
+            if (is_supported)
+            {
+                response.AddMember("fix", make_string(where.info->name, allocator), allocator);
+                response.AddMember("file", make_string(utils::string::convert(where.info->ini), allocator), allocator);
+            }
 
             std::map<std::string, std::string> values;
             if (fix_installed)
             {
                 const auto ini = *where.ini();
                 response.AddMember("ini", make_string(utils::string::path_to_utf8(ini), allocator), allocator);
-                values = xml2_display::read(ini);
+                values = presence_settings::read(ini);
             }
             response.AddMember("values", values_json(values, allocator), allocator);
 
-            rapidjson::Value modes(rapidjson::kArrayType);
-            for (const auto& mode : xml2_display::display_modes())
+            rapidjson::Value defaults(rapidjson::kObjectType);
+            for (const auto& key : presence_settings::keys())
             {
-                rapidjson::Value item(rapidjson::kObjectType);
-                item.AddMember("width", mode.width, allocator);
-                item.AddMember("height", mode.height, allocator);
-                modes.PushBack(item, allocator);
+                rapidjson::Value name = make_string(key, allocator);
+                defaults.AddMember(name, presence_settings::default_value, allocator);
             }
-            response.AddMember("modes", modes, allocator);
-
-            const auto desktop = xml2_display::desktop();
-            rapidjson::Value desktop_json(rapidjson::kObjectType);
-            desktop_json.AddMember("width", desktop.width, allocator);
-            desktop_json.AddMember("height", desktop.height, allocator);
-            desktop_json.AddMember("refresh", desktop.refresh, allocator);
-            response.AddMember("desktop", desktop_json, allocator);
+            response.AddMember("defaults", defaults, allocator);
         });
 
-        // { game, values: { Key: value | null, ... } }: writes the given keys (null removes one) and
-        // answers { success, error, values } with the ini's values afterwards.
-        cef_ui.add_command("set-display-settings", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
+        // { game, values: { Key: true | false | 1 | 0 | "1" | "0" | null, ... } }: writes the given
+        // keys (null removes one) and answers { success, error, values } with the ini's values after.
+        cef_ui.add_command("set-presence-settings", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
         {
             const auto ini = ini_or_fail(ctx, value, response);
             if (!ini)
@@ -177,26 +137,26 @@ namespace commands::display_commands
                 return;
             }
 
-            std::vector<xml2_display::change> changes;
+            std::vector<presence_settings::change> changes;
             if (value.HasMember("values") && value["values"].IsObject())
             {
                 // (Not GetObject(): windows.h turns that name into GetObjectA.)
                 const auto& values = value["values"];
                 for (auto it = values.MemberBegin(); it != values.MemberEnd(); ++it)
                 {
-                    xml2_display::change change{};
+                    presence_settings::change change{};
                     change.key = it->name.GetString();
-                    if (it->value.IsString())
-                    {
-                        change.value = it->value.GetString();
-                    }
-                    else if (it->value.IsBool())
+                    if (it->value.IsBool())
                     {
                         change.value = it->value.GetBool() ? "1" : "0";
                     }
-                    else if (it->value.IsNumber())
+                    else if (it->value.IsString())
                     {
-                        change.value = std::to_string(static_cast<long long>(it->value.GetDouble()));
+                        change.value = it->value.GetString();
+                    }
+                    else if (it->value.IsInt64())
+                    {
+                        change.value = std::to_string(it->value.GetInt64());
                     }
                     else if (!it->value.IsNull())
                     {
@@ -213,9 +173,9 @@ namespace commands::display_commands
             }
 
             std::string error;
-            const auto ok = xml2_display::write(*ini, changes, error);
+            const auto ok = presence_settings::write(*ini, changes, error);
             set_result(response, ok, error);
-            response.AddMember("values", values_json(xml2_display::read(*ini), response.GetAllocator()), response.GetAllocator());
+            response.AddMember("values", values_json(presence_settings::read(*ini), response.GetAllocator()), response.GetAllocator());
         });
     }
 }

@@ -1,7 +1,7 @@
 #include "std_include.hpp"
 #include "xml2_display.hpp"
+#include "fix/fix_ini.hpp"
 
-#include <utils/io.hpp>
 #include <utils/string.hpp>
 
 #include <algorithm>
@@ -12,24 +12,6 @@ namespace xml2_display
     namespace
     {
         constexpr auto section = L"Display";
-
-        // GetPrivateProfileStringW returns the default when the key is missing; a value no ini would
-        // hold tells the two apart (an empty value is reported as absent too).
-        constexpr auto absent_marker = L"\x01";
-
-        std::string trim(std::string text)
-        {
-            while (!text.empty() && std::isspace(static_cast<unsigned char>(text.back())))
-            {
-                text.pop_back();
-            }
-            std::size_t start = 0;
-            while (start < text.size() && std::isspace(static_cast<unsigned char>(text[start])))
-            {
-                ++start;
-            }
-            return text.substr(start);
-        }
 
         std::optional<int> parse_int(const std::string& text)
         {
@@ -45,21 +27,6 @@ namespace xml2_display
             }
             return value;
         }
-
-        // 0/1 (and true/false/on/off, for hand-edited files) -> "0" / "1".
-        std::optional<std::string> parse_flag(const std::string& text)
-        {
-            const auto lower = utils::string::to_lower(text);
-            if (lower == "1" || lower == "true" || lower == "on" || lower == "yes")
-            {
-                return "1";
-            }
-            if (lower == "0" || lower == "false" || lower == "off" || lower == "no")
-            {
-                return "0";
-            }
-            return std::nullopt;
-        }
     }
 
     const std::vector<std::string>& keys()
@@ -68,46 +35,14 @@ namespace xml2_display
         return list;
     }
 
-    std::filesystem::path ini_path(const std::filesystem::path& game_dir)
+    std::map<std::string, std::string> read(const std::filesystem::path& ini)
     {
-        return game_dir / ini_name;
-    }
-
-    bool fix_installed(const std::filesystem::path& game_dir)
-    {
-        return utils::io::file_exists(game_dir / fix_dll_name);
-    }
-
-    std::map<std::string, std::string> read(const std::filesystem::path& game_dir)
-    {
-        std::map<std::string, std::string> values;
-        const auto ini = ini_path(game_dir).wstring();
-        if (!utils::io::file_exists(ini))
-        {
-            return values;
-        }
-
-        for (const auto& key : keys())
-        {
-            wchar_t buffer[128]{};
-            GetPrivateProfileStringW(section, utils::string::convert(key).c_str(), absent_marker, buffer, static_cast<DWORD>(std::size(buffer)), ini.c_str());
-            const std::wstring wide{buffer};
-            if (wide == absent_marker)
-            {
-                continue;
-            }
-            const auto value = trim(utils::string::convert(wide));
-            if (!value.empty())
-            {
-                values[key] = value;
-            }
-        }
-        return values;
+        return fix_ini::read(ini, section, keys());
     }
 
     std::optional<std::string> normalise(const std::string& key, const std::string& raw, std::string& error)
     {
-        const auto value = trim(raw);
+        const auto value = fix_ini::trim(raw);
         if (key == "Mode")
         {
             const auto lower = utils::string::to_lower(value);
@@ -130,7 +65,7 @@ namespace xml2_display
         }
         if (key == "Topmost" || key == "RunInBackground" || key == "VSync")
         {
-            if (const auto flag = parse_flag(value))
+            if (const auto flag = fix_ini::parse_flag(value))
             {
                 return flag;
             }
@@ -156,9 +91,9 @@ namespace xml2_display
         return std::nullopt;
     }
 
-    bool write(const std::filesystem::path& game_dir, const std::vector<change>& changes, std::string& error)
+    bool write(const std::filesystem::path& ini, const std::vector<change>& changes, std::string& error)
     {
-        std::vector<std::pair<std::wstring, std::optional<std::wstring>>> prepared;
+        fix_ini::changes prepared;
         for (const auto& change : changes)
         {
             if (std::find(keys().begin(), keys().end(), change.key) == keys().end())
@@ -166,38 +101,18 @@ namespace xml2_display
                 error = "Unknown display setting: " + change.key;
                 return false;
             }
-            std::optional<std::wstring> value;
+            std::optional<std::string> value;
             if (change.value)
             {
-                const auto normalised = normalise(change.key, *change.value, error);
-                if (!normalised)
+                value = normalise(change.key, *change.value, error);
+                if (!value)
                 {
                     return false;
                 }
-                value = utils::string::convert(*normalised);
             }
-            prepared.emplace_back(utils::string::convert(change.key), std::move(value));
+            prepared.emplace_back(change.key, std::move(value));
         }
-
-        if (!utils::io::directory_exists(game_dir))
-        {
-            error = "The game folder is missing.";
-            return false;
-        }
-
-        const auto ini = ini_path(game_dir).wstring();
-        for (const auto& [key, value] : prepared)
-        {
-            // A null value deletes the key; other keys, sections and comments are kept.
-            if (!WritePrivateProfileStringW(section, key.c_str(), value ? value->c_str() : nullptr, ini.c_str()))
-            {
-                error = "xml2-fix.ini could not be written (error " + std::to_string(GetLastError()) + ").";
-                return false;
-            }
-        }
-        // Flush the profile cache so the game, or anything else, reads the file as written.
-        WritePrivateProfileStringW(nullptr, nullptr, nullptr, ini.c_str());
-        return true;
+        return fix_ini::write(ini, section, prepared, error);
     }
 
     std::vector<display_mode> display_modes()

@@ -296,6 +296,25 @@
                 topmostBody: 'Advanced: keeps the game above other windows (Borderless and Windowed).',
                 saveFailed: 'The display setting could not be saved.'
             },
+            presence: {
+                title: 'Discord',
+                loading: 'Loading Discord settings…',
+                intro: 'Rich Presence: while you play, your Discord profile shows it to your friends. The Discord app has to be running on this PC. Changes are saved as you make them; the game reads them when it starts.',
+                setUpFirst: 'Set up the game first, then choose what Discord shows here.',
+                installFix: 'Install the {{fix}} (Verify Files on this page) to show what you’re playing on Discord.',
+                theFix: 'game’s fix',
+                appliesNextLaunch: 'The game is running: changes apply the next time you start it.',
+                storedIn: 'Stored in {{file}}',
+                off: 'OFF',
+                on: 'ON',
+                enabled: 'Show what I’m playing on Discord',
+                enabledBody: 'Friends see the game, your zone and your party. No names or addresses.',
+                showZone: 'Show my zone',
+                showZoneBody: 'Where you are in the game.',
+                showParty: 'Show my party',
+                showPartyBody: 'Your party in the game.',
+                saveFailed: 'The Discord setting could not be saved.'
+            },
             detail: {
                 clientSettings: 'Settings',
                 credits: 'Credits',

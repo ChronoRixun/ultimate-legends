@@ -35,8 +35,10 @@ What is real here - the real builder's rules, so a test passes against either:
   _build/verify-report.json written by every build and verify; `finish` copies again a damaged copy;
 - warnings W_ISO_UNKNOWN_DUMP, W_XML2_MODIFIED (the stand-in XML2 against its reference list),
   W_EXTRA_FILES, W_LINK_BASE, W_PIPELINE (a count per stage);
-- keeping dinput.dll / xml2-fix.* / mods in <out> (F3), merging the port's ini keys without touching
-  the launcher's (3.5), and clean deleting only what the build made.
+- the sweep: a rebuild deletes every file of the game folders that it neither copied nor wrote (one
+  another program holds open stays and is named by W_EXTRA_FILES); dinput.dll / xml2-fix.* / mods in
+  <out> are kept (F3); the port's ini keys are merged without touching the launcher's (3.5); clean
+  deletes only what the build made.
 
 What is fake: the work. The "XML2 install" is any small folder with XMen2.exe, Data/herostat.engb and
 Sounds/eng; the build copies it into <out> and writes a few made-up content files, nothing in it is
@@ -1326,7 +1328,6 @@ def run_build(args, out, version, cancel, iso, xml2, target, cache, movies, spee
     write_json(build / "building.json", {"started": utc_now(), "builder": version,
                                          "inputs": {"disc": {"disc_id": iso["disc_id"]}}, "movies": movies})
     journal = open(build / "journal.txt", "a", encoding="utf-8")
-    previous = load_manifest(target)
     cached = cached_stages(cache, iso, movies)
     plan = [{"id": s[0], "title": s[1], "weight": s[2], "cached": s[0] in cached} for s in STAGES]
     out.event("plan", stages=plan)
@@ -1401,9 +1402,15 @@ def run_build(args, out, version, cancel, iso, xml2, target, cache, movies, spee
                     cancel.check()
                     write(rel, f"fake X-Men Legends port file {rel} (content {version['content_version']}); no game data\n".encode(), owner)
             elif stage_id == "sweep":
-                for rel in ((previous or {}).get("files") or {}):
-                    if rel not in files and not owned(rel):
-                        (target / rel).unlink(missing_ok=True)
+                # As the pipeline's sweep_stale: every file of the area that this build neither copied nor
+                # wrote goes (a file another program holds open stays, and finish names it: W_EXTRA_FILES).
+                keep = {rel.lower() for rel in files}
+                for low, rel in area_files(target).items():
+                    if low not in keep:
+                        try:
+                            (target / rel).unlink()
+                        except OSError as error:
+                            out.human(f"[build] sweep: cannot remove {rel}: {error}")
                 remove_empty_dirs(target, keep_top=("mods",))
                 write_json(build / "registry.json", {"version": 1, "entries": {rel.lower(): {"rel": rel, "size": e["size"], "owner": e["owner"], "sha1": e["sha1"]}
                                                                               for rel, e in files.items() if e["kind"] == "built"}})

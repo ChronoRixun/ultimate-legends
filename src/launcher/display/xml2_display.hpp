@@ -45,7 +45,8 @@ namespace xml2_display
     // The [Display] keys the fix reads, in the order the in-game menu shows them.
     const std::vector<std::string>& keys();
 
-    // The [Display] values present in the ini, by key (as written, trimmed). Missing = absent.
+    // The [Display] values present in the ini, by key (as written, without an inline comment,
+    // trimmed). Missing or empty = absent.
     std::map<std::string, std::string> read(const std::filesystem::path& ini);
 
     // Checks a value for a key and returns it normalised (lower-case mode, plain integers), or

@@ -16,7 +16,9 @@
 //   ShowParty = 1 | 0   ; ...and their party. Absent = 1
 //
 // Presence is on by default: the launcher shows an absent key as ON and writes 1 or 0 when the
-// player flips a toggle, one key at a time through fix_ini (the rest of the file is kept).
+// player flips a toggle, one key at a time through fix_ini (the rest of the file is kept). Values
+// are read as the fix reads them (fix_ini): an inline comment is ignored ("Enabled=0 ; x" is OFF),
+// and an empty or unreadable value is the default, ON.
 
 namespace presence_settings
 {
@@ -28,7 +30,8 @@ namespace presence_settings
     // What an absent key means: every key defaults to on.
     constexpr bool default_value = true;
 
-    // The [Discord] values present in the ini, by key (as written, trimmed). Missing = absent.
+    // The [Discord] values present in the ini, by key (as written, without an inline comment,
+    // trimmed). Missing or empty = absent.
     std::map<std::string, std::string> read(const std::filesystem::path& ini);
 
     // "1" / "0" for a known key and a flag value (1/0, true/false, on/off, yes/no), or nullopt with

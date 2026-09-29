@@ -29,6 +29,84 @@ namespace fix_ini
             };
             return table;
         }
+
+        // What starts an inline comment in a value, as in the fix: "Enabled=0   ; off for now".
+        constexpr auto comment_chars = L";#";
+
+        bool is_space(const wchar_t c)
+        {
+            return c == L' ' || c == L'\t' || c == L'\r' || c == L'\n';
+        }
+
+        // Everything after '=' as the profile API has it (the spaces around it trimmed, an inline
+        // comment kept), or nullopt when the key is missing. The buffer grows for a long comment,
+        // so a rewrite keeps all of it.
+        std::optional<std::wstring> raw_value(const std::wstring& file, const std::wstring& section, const std::wstring& key)
+        {
+            std::vector<wchar_t> buffer(256);
+            DWORD length{};
+            while (true)
+            {
+                length = GetPrivateProfileStringW(section.c_str(), key.c_str(), absent_marker, buffer.data(),
+                                                  static_cast<DWORD>(buffer.size()), file.c_str());
+                // A value that fills the buffer comes back as size - 1 characters: it may be longer.
+                if (length + 1 < buffer.size() || buffer.size() >= 64 * 1024)
+                {
+                    break;
+                }
+                buffer.resize(buffer.size() * 4);
+            }
+
+            std::wstring text(buffer.data(), length);
+            if (text == absent_marker)
+            {
+                return std::nullopt;
+            }
+            return text;
+        }
+
+        // The value part of `raw`: up to its inline comment, trimmed.
+        std::wstring value_part(const std::wstring& raw)
+        {
+            auto end = std::min(raw.find_first_of(comment_chars), raw.size());
+            while (end > 0 && is_space(raw[end - 1]))
+            {
+                --end;
+            }
+            std::size_t start = 0;
+            while (start < end && is_space(raw[start]))
+            {
+                ++start;
+            }
+            return raw.substr(start, end - start);
+        }
+
+        // The text to write for a key whose line now reads `raw`: the new value, followed by the old
+        // line's inline comment and the spaces before it ("0   ; off for now" -> "1   ; off for now").
+        std::wstring with_comment(const std::wstring& value, const std::optional<std::wstring>& raw)
+        {
+            if (!raw)
+            {
+                return value;
+            }
+            const auto comment = raw->find_first_of(comment_chars);
+            if (comment == std::wstring::npos)
+            {
+                return value;
+            }
+
+            auto value_end = comment;
+            while (value_end > 0 && is_space((*raw)[value_end - 1]))
+            {
+                --value_end;
+            }
+            if (value_end == 0)
+            {
+                // "Key=   ; note" had no value (the profile API drops the spaces before the ';').
+                return value + L" " + raw->substr(comment);
+            }
+            return value + raw->substr(value_end);
+        }
     }
 
     const fix* find(const std::string& game_key)
@@ -118,18 +196,16 @@ namespace fix_ini
 
         for (const auto& key : keys)
         {
-            wchar_t buffer[256]{};
-            GetPrivateProfileStringW(section.c_str(), utils::string::convert(key).c_str(), absent_marker, buffer,
-                                     static_cast<DWORD>(std::size(buffer)), file.c_str());
-            const std::wstring wide{buffer};
-            if (wide == absent_marker)
+            const auto raw = raw_value(file, section, utils::string::convert(key));
+            if (!raw)
             {
                 continue;
             }
-            const auto value = trim(utils::string::convert(wide));
+            // "Enabled=0   ; off for now" is 0, as the fix reads it; "Enabled=   ; note" is not set.
+            const auto value = value_part(*raw);
             if (!value.empty())
             {
-                values[key] = value;
+                values[key] = utils::string::convert(value);
             }
         }
         return values;
@@ -148,9 +224,14 @@ namespace fix_ini
         for (const auto& [key, value] : changes)
         {
             const auto wide_key = utils::string::convert(key);
-            const auto wide_value = value ? std::optional{utils::string::convert(*value)} : std::nullopt;
 
-            // A null value deletes the key; other keys, sections and comments are kept.
+            // A null value deletes the key (its line, comment and all); a new value replaces the old
+            // one and keeps the line's inline comment. Other keys, sections and comments are kept.
+            std::optional<std::wstring> wide_value;
+            if (value)
+            {
+                wide_value = with_comment(utils::string::convert(*value), raw_value(file, section, wide_key));
+            }
             if (!WritePrivateProfileStringW(section.c_str(), wide_key.c_str(), wide_value ? wide_value->c_str() : nullptr, file.c_str()))
             {
                 error = name + " could not be written (error " + std::to_string(GetLastError()) + ").";

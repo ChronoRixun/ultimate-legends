@@ -40,6 +40,17 @@ DISCORD_TEMPLATE = INI_TEMPLATE + (
     "LogNetwork=0\r\n"
 )
 
+# Inline comments, read as the fix reads them: the value is the text after '=' up to a ';' or '#',
+# trimmed. The first line is the XML2 Fix README's own example: OFF in the game, so OFF here too.
+README_ENABLED = "Enabled=0        ; no presence at all (0, false, no or off; anything else, or no key: on)"
+COMMENTED_TEMPLATE = INI_TEMPLATE + (
+    "\r\n"
+    "[Discord]\r\n"
+    f"{README_ENABLED}\r\n"
+    "ShowZone=   ; not decided yet\r\n"
+    "ShowParty=OFF # later\r\n"
+)
+
 SAVE_WAIT = 0.8  # the page writes 250 ms after the last click
 
 
@@ -157,6 +168,54 @@ def main():
             ini.write_bytes(DISCORD_TEMPLATE.replace("Enabled=0", "Enabled=maybe").encode("utf-8"))
             check(get()["values"]["Enabled"] == "maybe", "an unreadable value comes back as written")
 
+            print("inline comments, read as the fix reads them")
+            ini.write_bytes(COMMENTED_TEMPLATE.encode("utf-8"))
+            state = get()
+            check(state["values"] == {"Enabled": False, "ShowZone": None, "ShowParty": False},
+                  f"README line is OFF, empty-with-comment is the default, 'OFF # later' is OFF: {state['values']}")
+
+            def reads(line, key="Enabled"):
+                ini.write_bytes((INI_TEMPLATE + f"\r\n[Discord]\r\n{line}\r\n").encode("utf-8"))
+                return get()["values"][key]
+
+            check(reads("Enabled=1;tight") is True, "1;tight (no space before the ';')")
+            check(reads("Enabled=no\t; after a tab") is False, "no<tab>; comment")
+            check(reads("Enabled = False   # hash comment") is False, "spaces round '=', False # comment")
+            check(reads("Enabled=Yes ; comment") is True, "Yes ; comment")
+            check(reads("Enabled=on#x") is True, "on#x")
+            check(reads("Enabled=0 ; 1") is False, "a 1 in the comment doesn't count")
+            check(reads("Enabled=;") is None, "only a comment: the default")
+            check(reads("Enabled=maybe ; comment") == "maybe", "unreadable with a comment: the value alone comes back")
+
+            print("rewriting keeps the inline comment")
+            ini.write_bytes(COMMENTED_TEMPLATE.encode("utf-8"))
+            result = put({"Enabled": True, "ShowZone": False, "ShowParty": True})
+            check(result.get("success") is True and result["values"] == {"Enabled": True, "ShowZone": False, "ShowParty": True},
+                  f"three keys flipped {result.get('values')}")
+            expected = (COMMENTED_TEMPLATE.replace(README_ENABLED, README_ENABLED.replace("Enabled=0", "Enabled=1"))
+                        .replace("ShowZone=   ; not decided yet", "ShowZone=0 ; not decided yet")
+                        .replace("ShowParty=OFF # later", "ShowParty=1 # later"))
+            check(text() == expected, "each line's comment kept after its new value, spacing and all")
+            if text() != expected:
+                print(text())
+            check(put({"Enabled": False}).get("values", {}).get("Enabled") is False
+                  and f"{README_ENABLED}\r\n" in text(), "and back to the README's line exactly")
+
+            ini.write_bytes((INI_TEMPLATE + "\r\n[Discord]\r\nEnabled=1;tight\r\n").encode("utf-8"))
+            put({"Enabled": False})
+            check("Enabled=0;tight\r\n" in text(), "a tight comment stays tight")
+
+            long_comment = "; " + "long comment " * 60
+            ini.write_bytes((INI_TEMPLATE + f"\r\n[Discord]\r\nShowZone=1 {long_comment.strip()}\r\n").encode("utf-8"))
+            check(get()["values"]["ShowZone"] is True, f"read past a {len(long_comment.strip())}-character comment")
+            put({"ShowZone": False})
+            check(f"ShowZone=0 {long_comment.strip()}\r\n" in text(), "and the comment kept whole on a rewrite")
+
+            ini.write_bytes(COMMENTED_TEMPLATE.encode("utf-8"))
+            check(put({"Enabled": None}).get("success") is True and "Enabled" not in text()
+                  and "no presence at all" not in text(), "removing a key removes its line, comment and all")
+            check(text() == COMMENTED_TEMPLATE.replace(f"{README_ENABLED}\r\n", ""), "nothing else touched")
+
             print("a fresh file")
             ini.unlink()
             check(put({"ShowParty": False}).get("success") is True and text() == "[Discord]\r\nShowParty=0\r\n", "ini created when missing")
@@ -200,6 +259,16 @@ def main():
             launcher.evaluate("window.PresenceView.reload('xml2')")
             time.sleep(0.8)
             check(shown("Enabled") == "1", "an unreadable value shows the default, ON")
+
+            ini.write_bytes(COMMENTED_TEMPLATE.encode("utf-8"))
+            launcher.evaluate("window.PresenceView.reload('xml2')")
+            time.sleep(0.8)
+            check([shown(k) for k in ("Enabled", "ShowZone", "ShowParty")] == ["0", "1", "0"],
+                  "the README's 'Enabled=0 ; comment' shows OFF, as the game treats it")
+            check(disabled("ShowZone") and disabled("ShowParty"), "sub-options disabled by it")
+            check(click("Enabled", "1") == "clicked", "click ON")
+            time.sleep(SAVE_WAIT)
+            check(f"{README_ENABLED.replace('Enabled=0', 'Enabled=1')}\r\n" in text(), "saved from the page with the comment kept")
 
             # A tidy state for the screenshot: on, zone on, party off.
             ini.write_bytes(INI_TEMPLATE.encode("utf-8"))

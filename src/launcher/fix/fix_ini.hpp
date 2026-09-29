@@ -18,6 +18,10 @@
 // Files are read and written with the Windows profile API (Get/WritePrivateProfileStringW), the
 // same one the fixes use, one key at a time: every other key, section, comment and blank line
 // stays exactly where it was, and the file is created when it does not exist yet.
+//
+// A value is read the way the XML2 Fix reads it: the text after '=' up to an inline comment
+// (';' or '#'), trimmed, so "Enabled=0   ; off for now" is 0. A missing or empty value is "not
+// set" (the key's default). Rewriting a value keeps the line's inline comment.
 
 namespace fix_ini
 {
@@ -53,11 +57,12 @@ namespace fix_ini
 
     std::string trim(std::string text);
 
-    // 0/1 (and true/false, on/off, yes/no, for hand-edited files) -> "0" / "1".
+    // 0/1 (and true/false, on/off, yes/no, in any case, for hand-edited files) -> "0" / "1".
     std::optional<std::string> parse_flag(const std::string& text);
 
-    // The values of `keys` present in [section], as written but trimmed. A missing key, or one
-    // with an empty value, is left out (the fixes read both as "not set").
+    // The values of `keys` present in [section], as written without an inline comment ("0   ; off"
+    // -> "0"), trimmed. A missing key, or one with an empty value, is left out (the fixes read both
+    // as "not set").
     std::map<std::string, std::string> read(const std::filesystem::path& ini, const std::wstring& section,
                                             const std::vector<std::string>& keys);
 
@@ -65,6 +70,8 @@ namespace fix_ini
     using changes = std::vector<std::pair<std::string, std::optional<std::string>>>;
 
     // Writes each key into [section] (creating the section, and the file, when needed) and flushes
-    // the profile cache, so the game reads the file as written. Validation is the caller's.
+    // the profile cache, so the game reads the file as written. A key's inline comment stays after
+    // its new value ("0   ; off for now" -> "1   ; off for now"); removing a key removes its line.
+    // Validation is the caller's, and a value must not hold a ';' or '#' itself.
     bool write(const std::filesystem::path& ini, const std::wstring& section, const changes& changes, std::string& error);
 }

@@ -4355,3 +4355,80 @@ html:not([data-color-uninstalled]) .library-card:not(.is-installed):not(.is-comi
 .ul-presence-row.is-sub { margin-left: 28px; }
 .ul-presence-row.is-disabled .ul-display-control { opacity: 0.55; }
 .ul-display .toggle-btn:disabled { cursor: default; pointer-events: none; }
+
+/* ---- X-Men Legends (community port): Build section (xml1-view.js) and setup wizard (xml1-setup.js) ---- */
+.detail-build { margin-top: 24px; }
+.secondary-action.xml1-small { width: auto; min-height: 32px; padding: 6px 12px; font-size: 12px; flex-shrink: 0; }
+.secondary-action.xml1-small:disabled { opacity: 0.45; cursor: default; transform: none; box-shadow: none; }
+.xml1-state { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--surface-lo); border: 1px solid var(--border); border-radius: 12px; }
+.xml1-state-name { flex-shrink: 0; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; background: rgba(255, 255, 255, 0.08); }
+.xml1-state-text { color: var(--text-muted); font-size: 12.5px; line-height: 1.5; min-width: 0; }
+.xml1-state.is-ready .xml1-state-name { background: rgba(0, 210, 106, 0.16); color: #6ff0a8; }
+.xml1-state.is-stale .xml1-state-name, .xml1-state.is-incomplete .xml1-state-name, .xml1-state.is-needs-fix .xml1-state-name { background: rgba(255, 178, 63, 0.16); color: var(--warn); }
+.xml1-state.is-building .xml1-state-name, .xml1-state.is-finishing .xml1-state-name { background: rgba(54, 197, 238, 0.16); color: #7fdcf6; }
+.xml1-state.is-damaged .xml1-state-name, .xml1-state.is-absent .xml1-state-name { background: rgba(255, 77, 99, 0.16); color: #ff8a9a; }
+.xml1-progress { display: flex; flex-direction: column; gap: 6px; }
+.xml1-progress-bar { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.xml1-progress-fill { height: 100%; border-radius: 4px; background: var(--game-accent, var(--game-color-xml1)); box-shadow: 0 0 12px var(--game-accent, var(--game-color-xml1)); transition: width 0.4s var(--ease); }
+.xml1-progress-meta { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--text-muted); }
+.xml1-progress-message { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.xml1-progress-numbers { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.xml1-note { margin: 0; padding: 8px 12px; border-radius: 8px; font-size: 12.5px; line-height: 1.5; background: rgba(255, 255, 255, 0.06); }
+.xml1-note.is-error { background: rgba(255, 77, 99, 0.15); color: #ff8a9a; }
+.xml1-note.is-warn { background: rgba(255, 178, 63, 0.14); color: var(--warn); }
+.xml1-note.is-info { background: rgba(54, 197, 238, 0.12); }
+.xml1-warn { color: var(--warn); }
+.xml1-error { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: 12px; background: rgba(255, 77, 99, 0.1); border: 1px solid rgba(255, 77, 99, 0.35); }
+.xml1-error-title { color: #fff; font-size: 13.5px; font-weight: 600; }
+.xml1-error-fact { color: #ffb2ba; font-size: 12.5px; }
+.xml1-error-hint { color: var(--text-muted); font-size: 12.5px; line-height: 1.5; }
+.xml1-error-code { font-family: var(--font-mono, 'Consolas', monospace); font-size: 11px; opacity: 0.55; }
+.xml1-error-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.xml1-facts { margin: 0; }
+.xml1-facts .xml1-row { display: grid; grid-template-columns: 120px minmax(0, 1fr) auto; gap: 12px; }
+.xml1-row-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.xml1-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.component-selection-popup.xml1-setup { width: 620px; }
+.xml1-setup .popup-content { display: flex; flex-direction: column; gap: 14px; }
+.xml1-setup .popup-actions { margin-top: 4px; }
+.xml1-setup .install-note { margin: 0; }
+.xml1-reqs { display: flex; flex-direction: column; gap: 8px; }
+.xml1-req { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: var(--surface-lo); border: 1px solid var(--border); border-radius: 12px; }
+.xml1-req-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.xml1-req-title { color: #fff; font-size: 13px; font-weight: 600; }
+.xml1-req-detail { color: var(--text-muted); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.xml1-req-detail a { color: var(--accent); }
+.xml1-mark { flex-shrink: 0; width: 18px; height: 18px; margin-top: 1px; border-radius: 50%; border: 2px solid var(--text-dim); position: relative; box-sizing: border-box; }
+.xml1-req.is-ok .xml1-mark { border-color: var(--play); background: var(--play); }
+.xml1-req.is-ok .xml1-mark::after { content: ''; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid #0a0a0f; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.xml1-req.is-missing .xml1-mark { border-color: var(--danger); background: var(--danger); }
+.xml1-req.is-missing .xml1-mark::after { content: '!'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #0a0a0f; font-size: 11px; font-weight: 800; }
+.xml1-field { display: flex; gap: 8px; }
+.xml1-input { flex: 1; min-width: 0; background: var(--surface-lo); border: 1px solid var(--border-hi); border-radius: 10px; padding: 8px 10px; color: #fff; font-size: 12.5px; font-family: inherit; outline: none; }
+.xml1-input:focus { border-color: var(--focus-border, var(--accent)); box-shadow: 0 0 0 3px var(--accent-soft); }
+.xml1-estimate { margin: 0; font-size: 12.5px; color: var(--text-muted); line-height: 1.5; }
+.xml1-advanced { border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; background: var(--surface-lo); }
+.xml1-advanced summary { cursor: pointer; font-size: 12.5px; font-weight: 600; color: #fff; }
+.xml1-option { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0 2px; cursor: pointer; }
+.xml1-option-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.xml1-option-text strong { font-size: 12.5px; color: #fff; font-weight: 600; }
+.xml1-option-text small { font-size: 11.5px; color: var(--text-muted); line-height: 1.45; }
+.xml1-busy { display: flex; align-items: center; gap: 12px; padding: 24px 8px; color: var(--text-muted); font-size: 13px; }
+.xml1-spinner { width: 18px; height: 18px; flex-shrink: 0; border: 2px solid rgba(255, 255, 255, 0.2); border-top-color: #fff; border-radius: 50%; animation: spin 0.9s linear infinite; }
+.xml1-stages { list-style: none; margin: 0; padding: 4px 0; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; }
+.xml1-stage { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-dim); min-width: 0; }
+.xml1-stage-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.xml1-stage-note { margin-left: auto; font-size: 11px; opacity: 0.8; white-space: nowrap; }
+.xml1-stage-mark { flex-shrink: 0; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--text-dim); }
+.xml1-stage.is-running { color: #fff; }
+.xml1-stage.is-running .xml1-stage-mark { border-color: var(--game-color-xml1); border-top-color: transparent; animation: spin 0.9s linear infinite; }
+.xml1-stage.is-done { color: var(--text-muted); }
+.xml1-stage.is-done .xml1-stage-mark { border-color: var(--play); background: var(--play); }
+.xml1-setup .xml1-progress-fill { background: var(--game-color-xml1); box-shadow: 0 0 12px var(--game-color-xml1); }
+.xml1-ready { margin: 0; font-size: 13px; line-height: 1.55; color: var(--text-muted); }
+.component-selection-popup.xml1-uninstall { width: 520px; }
+.xml1-uninstall .popup-content { display: flex; flex-direction: column; gap: 10px; }
+.xml1-check { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #fff; cursor: pointer; }
+.xml1-check.is-sub { margin-left: 26px; color: var(--text-muted); }
+.xml1-check input { width: 16px; height: 16px; accent-color: var(--danger); }

@@ -9,7 +9,7 @@
     'use strict';
 
     // Games whose fix has a [Discord] section (fix_ini's table, fix::presence).
-    const SUPPORTED = new Set(['xml2']);
+    const SUPPORTED = new Set(['xml2', 'xml1']);
     // The main switch, then what it shares; the rest only count while it is on.
     const MAIN_KEY = 'Enabled';
     const DETAIL_KEYS = ['ShowZone', 'ShowParty'];

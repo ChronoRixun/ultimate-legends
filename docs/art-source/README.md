@@ -32,6 +32,12 @@ Game titles appear only as plain text in Archivo.
 Coming-soon games are drawn partly "unprinted" (halftone or outline instead of solid ink).
 The launcher adds its own COMING SOON badge, so the images do not include one.
 
+One capsule is not drawn here: the `xml1` library tile is the XML2 Fix's Discord art for the
+X-Men Legends port (`sources/xml1-large-d.png`, original art from xml2-fix
+`docs/discord-art/xml1-large-d.svg`), placed across the top and faded into Ink like the others
+by `capsule_from_art()` (`capsule_art` in the `GAMES` table). Its hero, logo and icon are drawn
+here as before.
+
 ## Re-rendering
 
 Requirements: Windows with Microsoft Edge, Python 3.9+ and Pillow (`pip install Pillow`),

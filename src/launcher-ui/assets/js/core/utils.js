@@ -110,16 +110,19 @@ class GameUtils {
             heroImagePath: './assets/img/games/muac/hero.jpg',
             logoPath: './assets/img/games/muac/logo.png'
         },
+        // Built on the player's PC by the port's builder from their own Xbox disc image and their
+        // XML2 install (app/xml1-*.js); it runs on the XML2 engine with the XML2 Fix.
         'xml1': {
             displayName: 'X-Men Legends',
             shortName: 'XML',
             uiId: 'xml1',
             client: 'Community port',
-            provider: 'In progress',
+            provider: 'Built on your PC',
             version: 'PC port',
-            comingSoon: true,
-            description: 'The original game never came to PC. A community port is in progress.',
-            credits: '',
+            built: true,
+            description: 'The 2004 original never came to PC. This community port rebuilds it on X-Men Legends II’s PC engine, on your PC, from your own Xbox disc image and your X-Men Legends II install. Nothing from the games is downloaded.',
+            patchName: 'XML2 Fix',
+            credits: 'Runs on the <a href="https://github.com/ChronoRixun/xml2-fix" target="_blank">XML2 Fix</a>, built by the X-Men Legends port’s builder.',
             accent: '#FF4D63',
             assetBase: './assets/img/games/xml1',
             iconPath: './assets/img/games/xml1/icon.ico',

@@ -17,7 +17,27 @@ Ultimate Legends never downloads or distributes game files. Every game runs from
 | Marvel: Ultimate Alliance 2 | `mua2` | 2016 PC (Steam app 433320) | Finds your Steam install; installs the [MUA Controller Fix](https://github.com/ChronoRixun/mua-controller-fix) |
 | X-Men Legends II: Rise of Apocalypse | `xml2` | 2005 PC | Launches your existing install; installs the [XML2 Fix](https://github.com/ChronoRixun/xml2-fix) for native Xbox controller support (online play through OpenSpy is in progress); a Display section edits the fix's window mode, resolution, frame rate limit and VSync, and a Discord section turns its Rich Presence on or off (on by default; `xml2-fix.ini` next to the game) |
 | Marvel: Ultimate Alliance (2006 PC) | `muac` | 2006 PC | Coming soon |
-| X-Men Legends | `xml1` | Community port | Coming soon: the original never came to PC, and a port is in progress |
+| X-Men Legends | `xml1` | Community port | Coming soon: builds a PC version on your PC from your own Xbox disc image and your X-Men Legends II install ([details](#x-men-legends-community-port)) |
+
+## X-Men Legends (community port)
+
+X-Men Legends (2004) never came to PC. A community port rebuilds it on the engine of X-Men Legends II's PC
+version, and Ultimate Legends will set it up for you:
+
+1. Set up X-Men Legends II first.
+2. On the X-Men Legends card, choose **Set up**, pick a disc image of **your own** X-Men Legends Xbox disc and a
+   folder for the new game.
+3. The launcher downloads the port's builder, which checks your disc image and your XML2 install and builds the
+   game in that folder, on your PC. The first build takes a while (it converts every sound bank); you can hide,
+   cancel and resume it.
+4. The launcher installs the XML2 Fix into the new folder. Play.
+
+The page shows whether your build is up to date and offers a rebuild when the builder is updated. Display, Discord
+and Mods work as for X-Men Legends II. Uninstalling removes the built game and, if you want, the build cache; your
+saves in `Documents\Activision\X-Men Legends` are kept.
+
+Nothing from the games is downloaded: the builder uses only your disc image and your XML2 install, and it never
+connects to the internet. Until the builder's first release, the setup says it has not been released yet.
 
 ## Download
 
@@ -31,7 +51,7 @@ The launcher accepts the following optional command line arguments.
 |----------|-------|-------------|
 | `-offline` | — | Runs the launcher in offline mode. Downloads and online features are disabled. |
 | `-portable` | — | Runs the launcher in portable mode. Launcher data (user settings, CEF cache, the CEF runtime and UI files) lives in an `ultimate-legends` folder next to the executable instead of `%LOCALAPPDATA%\ultimate-legends`. Until there is a release, copy `data\cef\release` and `data\launcher-ui` into that folder yourself: `tools\stage-runtime.ps1` only stages `%LOCALAPPDATA%`. |
-| `-launch` | game id | Launches the given game once the launcher finishes loading. Accepts `mua`, `mua2` and `xml2`, plus the aliases `mua1`, `ultimatealliance`, `ultimatealliance2` and `xmenlegends2`. (`muac`, `xml1` and `xmenlegends` are recognised, but until those games are supported they only open the game's page.) |
+| `-launch` | game id | Launches the given game once the launcher finishes loading. Accepts `mua`, `mua2`, `xml2` and `xml1`, plus the aliases `mua1`, `ultimatealliance`, `ultimatealliance2`, `xmenlegends2` and `xmenlegends`. (`muac` is recognised, but until it is supported it only opens the game's page; `xml1` opens its setup until the port has been built.) |
 | `-install` | game id | Opens the given game's page and its setup flow (or its Manage install dialog if the game is already set up) once the launcher finishes loading. Accepts the same ids as `-launch`. If both are given, `-install` wins. |
 
 ## URL scheme (`ultimatelegends://`)
@@ -61,6 +81,10 @@ Ultimate Legends sends no telemetry. It only connects to the internet in these c
 
 - When you set up, launch or verify Marvel: Ultimate Alliance or Marvel: Ultimate Alliance 2, it checks the latest [MUA Controller Fix release](https://github.com/ChronoRixun/mua-controller-fix/releases) on GitHub and downloads `dinput8.dll` if it is missing or out of date. Turn on "Skip patch update on launch" in Settings, or use `-offline`, to stop the launch-time check.
 - X-Men Legends II works the same way with the latest [XML2 Fix release](https://github.com/ChronoRixun/xml2-fix/releases) and its `dinput.dll`.
+- When you set up X-Men Legends (community port), or its page checks for updates, the launcher checks the latest
+  release of the port's builder on GitHub and downloads it if it is missing or out of date (its SHA-256 is checked).
+  The builder itself never connects to the internet: it reads your disc image and your X-Men Legends II install and
+  writes the new game folder on your PC.
 - If the Visual C++ 2012 runtime that MUA and MUA2 need is missing, the launcher offers to download Microsoft's installer from download.microsoft.com.
 - Links on the Support and Settings pages open in your browser.
 - Steam install detection reads your local Steam library folders; it does not contact Steam.

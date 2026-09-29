@@ -5,7 +5,7 @@
     'use strict';
 
     // Games whose patch DLL includes the mod loader.
-    const SUPPORTED = new Set(['mua', 'mua2', 'xml2']);
+    const SUPPORTED = new Set(['mua', 'mua2', 'xml2', 'xml1']);
 
     const state = {};
     const escapeHtml = value => GameUtils.escapeHtml(value);

@@ -74,7 +74,15 @@ function busyOpLabel(gameId) {
 function setupButtonLabel(installStatus, busyKind, gameId) {
     if (busyKind === 'queued') return t('common.queued');
     if (busyKind === 'active') return busyOpLabel(gameId);
+    // A built game (the X-Men Legends port) says where its build stands: Building 42%, Resume build...
+    const built = isBuiltGame(gameId) && window.Xml1Port ? window.Xml1Port.cardLabel() : null;
+    if (built) return built;
     return installStatus === 'partial' ? t('common.finishSetup') : t('common.setup');
+}
+
+function isBuiltGame(gameId) {
+    const config = GameUtils.getGameConfigByUIId(gameId);
+    return !!(config && config.built);
 }
 
 async function initializeLanguage() {
@@ -366,6 +374,11 @@ async function initialize() {
             // Start game state polling
             if (window.GameStateManager) {
                 window.GameStateManager.startPolling();
+            }
+
+            // The X-Men Legends port: its build state, a build still running, builder updates.
+            if (window.Xml1Port) {
+                window.Xml1Port.init();
             }
 
             handleStartupLaunchArg();
@@ -1573,6 +1586,12 @@ async function handleStartupLaunchArg() {
         return;
     }
 
+    // A built game that isn't built yet (or whose build broke off) opens its setup instead.
+    if (gameConfig.built && (await checkGameInstallation(uiId)).status !== 'installed') {
+        await showSetupFlow(uiId);
+        return;
+    }
+
     try {
         launchGame(uiId);
     } catch (e) {
@@ -1735,6 +1754,11 @@ async function uninstallGameDirect(gameId) {
     if (!config) return false;
     const backendId = GameUtils.getGameMapping(gameId);
 
+    // A built game asks what to delete (the build, its mods, the build cache); its builder deletes it.
+    if (config.built && window.Xml1Setup) {
+        return window.Xml1Setup.showUninstall();
+    }
+
     if (typeof window.showMessageBox === 'function') {
         const result = await window.showMessageBox(
             t('popup.manageInstall.confirmUninstallTitle'),
@@ -1816,6 +1840,12 @@ function stopGame(gameId) {
 
 async function showSetupFlow(gameId) {
     console.log(`Setup button clicked for ${gameId}`);
+
+    // A built game's setup is its build: the wizard, Resume build, or installing its fix.
+    if (isBuiltGame(gameId) && window.Xml1Port) {
+        await window.Xml1Port.primaryAction();
+        return;
+    }
 
     // Setup ends in the patch install, which needs the network.
     if (!await window.guardOnline()) return;
@@ -2282,6 +2312,14 @@ async function initializeSettingsPage() {
     await loadVersion();
     console.log('Settings page initialized');
 }
+
+// The X-Men Legends port's build moved on: its buttons and cards follow.
+window.addEventListener('ul-xml1-changed', () => {
+    applyDownloadQueueButtonState();
+    if (window.AppViews && typeof window.AppViews.refreshActionButtons === 'function') {
+        window.AppViews.refreshActionButtons();
+    }
+});
 
 // Listen for installation updates globally
 window.addEventListener('gameInstallationUpdated', (event) => {

@@ -114,6 +114,9 @@ GAMES = {
         "sub": None,
         "soon": True,
         "concept": "A sun rising over the horizon, printed only in halftone - the first Legends, still coming up.",
+        # The library tile is the XML2 Fix's Discord art for the port (original art, xml2-fix
+        # docs/discord-art/xml1-large-d.svg), faded into Ink like the drawn capsules.
+        "capsule_art": "sources/xml1-large-d.png",
     },
 }
 
@@ -644,6 +647,21 @@ def edge_shot(html, png, W, H, transparent, profile):
     subprocess.run(args, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
 
 
+def capsule_from_art(path):
+    """A 600x900 capsule from a square piece of original art: the art across the top, faded into
+    Ink over CAPSULE_FADE like the drawn capsules, so the library card's title and button read."""
+    from PIL import Image
+
+    art = Image.open(path).convert("RGB").resize((600, 600), Image.Resampling.LANCZOS)
+    tile = Image.new("RGB", (600, 900), INK)
+    tile.paste(art, (0, 0))
+    f0, f1 = CAPSULE_FADE
+    mask = Image.new("L", (600, 900), 0)
+    for y in range(f0, 900):
+        mask.paste(min(255, round(255 * (y - f0) / (f1 - f0))), (0, y, 600, y + 1))
+    return Image.composite(Image.new("RGB", (600, 900), INK), tile, mask)
+
+
 def render(written):
     from PIL import Image
 
@@ -685,7 +703,9 @@ def render(written):
         d = GAMES_OUT / gid
         d.mkdir(parents=True, exist_ok=True)
         if has(f"{gid}/capsule"):
-            shots[f"{gid}/capsule"].convert("RGB").save(d / "capsule.jpg", quality=88, optimize=True, progressive=True)
+            art = GAMES[gid].get("capsule_art")
+            capsule = capsule_from_art(HERE / art) if art else shots[f"{gid}/capsule"].convert("RGB")
+            capsule.save(d / "capsule.jpg", quality=88, optimize=True, progressive=True)
         if has(f"{gid}/hero"):
             shots[f"{gid}/hero"].convert("RGB").save(d / "hero.jpg", quality=88, optimize=True, progressive=True)
         if has(f"{gid}/logo"):

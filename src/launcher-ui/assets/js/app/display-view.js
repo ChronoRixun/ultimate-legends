@@ -1,5 +1,6 @@
-// Display section of X-Men Legends II's page: the [Display] section of xml2-fix.ini next to the
-// game, which the XML2 Fix (dinput.dll) reads when the game starts and its in-game Advanced
+// Display section of the X-Men Legends II page (and of the X-Men Legends port's, which runs on the
+// same fix): the [Display] section of xml2-fix.ini next to the game, which the XML2 Fix
+// (dinput.dll) reads when the game starts and its in-game Advanced
 // options write too. Every change is saved on its own (debounced) through the same
 // WritePrivateProfileString semantics, so the rest of the file and its comments stay as they are;
 // "Game default" removes the key.
@@ -7,7 +8,7 @@
     'use strict';
 
     // Games whose fix has a [Display] section.
-    const SUPPORTED = new Set(['xml2']);
+    const SUPPORTED = new Set(['xml2', 'xml1']);
     const FRAME_RATES = [30, 60, 120, 144, 165, 240];
     // Rows whose change the fix only picks up when the game starts.
     const RESTART_ROWS = new Set(['Mode', 'Resolution', 'VSync']);

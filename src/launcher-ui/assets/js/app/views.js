@@ -156,11 +156,26 @@
         });
     }
 
+    // A built game (the X-Men Legends port) while its build runs or waits: Building 42%, Resume build...
+    function buildLabel(gameId, status) {
+        const config = GameUtils.getGameConfigByUIId(gameId);
+        if (!config || !config.built || !window.Xml1Port) return null;
+        if (status === 'installed' && !window.Xml1Port.isBuilding()) return null;
+        return window.Xml1Port.cardLabel();
+    }
+
+    function isBuilding(gameId) {
+        const config = GameUtils.getGameConfigByUIId(gameId);
+        return !!(config && config.built && window.Xml1Port && window.Xml1Port.isBuilding());
+    }
+
     function homeActionLabel(status, busyKind, gameId) {
         if (GameUtils.isComingSoon(gameId)) return t('common.comingSoon');
         if (busyKind === 'queued') return t('common.queued');
         if (busyKind === 'active') return busyOpLabel(activeOpFor(gameId));
         if (isGameRunning(gameId)) return t('common.stop');
+        const built = buildLabel(gameId, status);
+        if (built) return built;
         if (status === 'installed') return t('common.play');
         if (status === 'partial') return t('common.finishSetup');
         // Nothing is downloaded: setting up means pointing at the player's own install.
@@ -924,7 +939,7 @@
         card.classList.toggle('is-installed', normalizedStatus === 'installed');
         card.classList.toggle('is-partial', normalizedStatus === 'partial');
         const busyKind = busyKindFor(gameId);
-        card.classList.toggle('is-installing', !!busyKind);
+        card.classList.toggle('is-installing', !!busyKind || isBuilding(gameId));
         card.classList.toggle('is-running', !busyKind && isGameRunning(gameId));
 
         if (action) {
@@ -1029,6 +1044,12 @@
                         ${descriptionSection}
                         ${actionsAside}
                     </div>
+                    ${!comingSoon && window.Xml1View && window.Xml1View.supports(config.uiId)
+                        ? `<section class="detail-display detail-build">
+                        <h3 class="detail-display-title">${escapeHtml(t('xml1.sectionTitle'))}</h3>
+                        <div id="${escapeHtml(config.uiId)}-build-panel"></div>
+                    </section>`
+                        : ''}
                     ${!comingSoon && window.DisplayView && window.DisplayView.supports(config.uiId)
                         ? `<section class="detail-display">
                         <h3 class="detail-display-title">${escapeHtml(t('display.title'))}</h3>
@@ -1051,6 +1072,12 @@
             </div>
         `;
         }).join('');
+
+        if (window.Xml1View) {
+            GameUtils.getAllGameConfigs()
+                .filter(config => !config.comingSoon && window.Xml1View.supports(config.uiId))
+                .forEach(config => window.Xml1View.render(config.uiId));
+        }
 
         if (window.DisplayView) {
             GameUtils.getAllGameConfigs()
@@ -1263,7 +1290,7 @@
             if (!gameId) return;
             const busyKind = busyKindFor(gameId);
             const running = !busyKind && isGameRunning(gameId);
-            card.classList.toggle('is-installing', !!busyKind);
+            card.classList.toggle('is-installing', !!busyKind || isBuilding(gameId));
             card.classList.toggle('is-running', running);
             const action = card.querySelector('[data-action-label]');
             if (!action) return;

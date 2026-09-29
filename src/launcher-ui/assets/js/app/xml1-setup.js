@@ -10,6 +10,9 @@
     'use strict';
 
     const GAME = 'xml1';
+    // The builder copies XML2's files even with --link-base (W_LINK_BASE) until it supports hard links, so the
+    // option stays hidden; flip this when a builder release links them.
+    const LINK_BASE_SUPPORTED = false;
     const escapeHtml = value => GameUtils.escapeHtml(value);
 
     function t(key, variables) {
@@ -58,7 +61,7 @@
                     out: s.install || s.defaultOut || '',
                     movies: s.movies !== false,
                     keepCache: s.keepCache !== false,
-                    linkBase: !!s.linkBase
+                    linkBase: LINK_BASE_SUPPORTED && !!s.linkBase
                 };
             }
             this.step = port.isBuilding() || port.finishing ? 'build' : 'requirements';
@@ -366,7 +369,7 @@
                     <summary>${escapeHtml(t('xml1.advanced'))}</summary>
                     ${this.optionHTML('movies', t('xml1.optMovies'), t('xml1.optMoviesBody'), f.movies)}
                     ${this.optionHTML('keepCache', t('xml1.optKeepCache'), t('xml1.optKeepCacheBody'), f.keepCache)}
-                    ${this.optionHTML('linkBase', t('xml1.optLinkBase'), t('xml1.optLinkBaseBody'), f.linkBase)}
+                    ${LINK_BASE_SUPPORTED ? this.optionHTML('linkBase', t('xml1.optLinkBase'), t('xml1.optLinkBaseBody'), f.linkBase) : ''}
                 </details>
                 <div class="popup-actions">
                     <button type="button" class="btn-cancel" data-act="back">${escapeHtml(t('xml1.back'))}</button>

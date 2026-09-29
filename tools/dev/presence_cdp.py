@@ -40,8 +40,9 @@ DISCORD_TEMPLATE = INI_TEMPLATE + (
     "LogNetwork=0\r\n"
 )
 
-# Inline comments, read as the fix reads them: the value is the text after '=' up to a ';' or '#',
-# trimmed. The first line is the XML2 Fix README's own example: OFF in the game, so OFF here too.
+# Inline comments, read as the fix reads them: the value is the text after '=' up to the first ';',
+# trimmed; a '#' is part of the value. The first line is the XML2 Fix README's own example: OFF in the
+# game, so OFF here too. 'OFF # later' isn't a switch value, so the game takes the default, ON.
 README_ENABLED = "Enabled=0        ; no presence at all (0, false, no or off; anything else, or no key: on)"
 COMMENTED_TEMPLATE = INI_TEMPLATE + (
     "\r\n"
@@ -171,8 +172,8 @@ def main():
             print("inline comments, read as the fix reads them")
             ini.write_bytes(COMMENTED_TEMPLATE.encode("utf-8"))
             state = get()
-            check(state["values"] == {"Enabled": False, "ShowZone": None, "ShowParty": False},
-                  f"README line is OFF, empty-with-comment is the default, 'OFF # later' is OFF: {state['values']}")
+            check(state["values"] == {"Enabled": False, "ShowZone": None, "ShowParty": "OFF # later"},
+                  f"README line is OFF, empty-with-comment is the default, 'OFF # later' is not a flag (shown as written): {state['values']}")
 
             def reads(line, key="Enabled"):
                 ini.write_bytes((INI_TEMPLATE + f"\r\n[Discord]\r\n{line}\r\n").encode("utf-8"))
@@ -180,9 +181,10 @@ def main():
 
             check(reads("Enabled=1;tight") is True, "1;tight (no space before the ';')")
             check(reads("Enabled=no\t; after a tab") is False, "no<tab>; comment")
-            check(reads("Enabled = False   # hash comment") is False, "spaces round '=', False # comment")
+            check(reads("Enabled = False   ; comment") is False, "spaces round '=', False ; comment")
+            check(reads("Enabled = False   # not a comment") == "False   # not a comment", "a '#' is part of the value: not a flag")
             check(reads("Enabled=Yes ; comment") is True, "Yes ; comment")
-            check(reads("Enabled=on#x") is True, "on#x")
+            check(reads("Enabled=on#x") == "on#x", "on#x is not a flag")
             check(reads("Enabled=0 ; 1") is False, "a 1 in the comment doesn't count")
             check(reads("Enabled=;") is None, "only a comment: the default")
             check(reads("Enabled=maybe ; comment") == "maybe", "unreadable with a comment: the value alone comes back")
@@ -194,7 +196,7 @@ def main():
                   f"three keys flipped {result.get('values')}")
             expected = (COMMENTED_TEMPLATE.replace(README_ENABLED, README_ENABLED.replace("Enabled=0", "Enabled=1"))
                         .replace("ShowZone=   ; not decided yet", "ShowZone=0 ; not decided yet")
-                        .replace("ShowParty=OFF # later", "ShowParty=1 # later"))
+                        .replace("ShowParty=OFF # later", "ShowParty=1"))  # no ';': the whole value is replaced
             check(text() == expected, "each line's comment kept after its new value, spacing and all")
             if text() != expected:
                 print(text())
@@ -263,8 +265,8 @@ def main():
             ini.write_bytes(COMMENTED_TEMPLATE.encode("utf-8"))
             launcher.evaluate("window.PresenceView.reload('xml2')")
             time.sleep(0.8)
-            check([shown(k) for k in ("Enabled", "ShowZone", "ShowParty")] == ["0", "1", "0"],
-                  "the README's 'Enabled=0 ; comment' shows OFF, as the game treats it")
+            check([shown(k) for k in ("Enabled", "ShowZone", "ShowParty")] == ["0", "1", "1"],
+                  "the README's 'Enabled=0 ; comment' shows OFF and 'OFF # later' the default ON, as the game treats them")
             check(disabled("ShowZone") and disabled("ShowParty"), "sub-options disabled by it")
             check(click("Enabled", "1") == "clicked", "click ON")
             time.sleep(SAVE_WAIT)

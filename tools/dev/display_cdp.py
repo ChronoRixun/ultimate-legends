@@ -26,7 +26,9 @@ INI_TEMPLATE = (
 )
 
 # [Display] keys with inline comments, as a hand-edited file (or the fix's README) has them: the
-# value is the text after '=' up to a ';' or '#', trimmed - the fix's rule.
+# value is the text after '=' up to the first ';', trimmed - the fix's rule. A '#' is part of the
+# value, so the last two lines are values the fix doesn't take (the defaults in the game), shown
+# as written.
 COMMENTED_DISPLAY = (
     "Mode=Borderless   ; fullscreen, borderless or windowed\r\n"
     "Width=2560 ; force a resolution\r\n"
@@ -131,8 +133,9 @@ def main():
             commented = INI_TEMPLATE.replace("Mode=fullscreen\r\n", COMMENTED_DISPLAY)
             ini.write_bytes(commented.encode("ascii"))
             values = get()["values"]
-            check(values == {"Mode": "borderless", "Width": 2560, "Height": 1440, "Topmost": None, "RunInBackground": False,
-                             "FrameRate": "144", "VSync": True}, f"values without their comments {values}")
+            check(values == {"Mode": "borderless", "Width": 2560, "Height": 1440, "Topmost": None,
+                             "RunInBackground": "off # pause behind other windows", "FrameRate": "144\t# cap", "VSync": True},
+                  f"values without their ';' comments, '#' kept {values}")
 
             print("rewriting keeps the inline comment")
             result = put({"Mode": "windowed", "Height": 1080, "Topmost": True, "RunInBackground": True, "FrameRate": "refresh", "VSync": False})
@@ -140,8 +143,8 @@ def main():
             expected = (commented.replace("Mode=Borderless   ;", "Mode=windowed   ;")
                         .replace("Height=1440;tight", "Height=1080;tight")
                         .replace("Topmost=   ; not decided yet", "Topmost=1 ; not decided yet")
-                        .replace("RunInBackground=off #", "RunInBackground=1 #")
-                        .replace("FrameRate=144\t# cap", "FrameRate=refresh\t# cap")
+                        .replace("RunInBackground=off # pause behind other windows", "RunInBackground=1")
+                        .replace("FrameRate=144\t# cap", "FrameRate=refresh")
                         .replace("VSync=1 ; 0", "VSync=0 ; 0"))
             text = ini.read_bytes().decode("ascii")
             check(text == expected, "each line's comment kept after its new value, spacing and all")
@@ -206,10 +209,11 @@ def main():
             time.sleep(0.8)
             check(ui("return panel.querySelector('select[data-key=\"Mode\"]').value;") == "borderless", "Mode shows borderless")
             check(ui("return panel.querySelector('select[data-key=\"Resolution\"]').value;") == "2560x1440", "Resolution shows 2560x1440")
-            check(ui("return panel.querySelector('select[data-key=\"FrameRate\"]').value;") == "144", "FrameRate shows 144")
+            check(ui("return panel.querySelector('select[data-key=\"FrameRate\"]').value;") == "144\t# cap",
+                  "FrameRate '144 # cap' shows as written (not a frame rate: the game keeps its own cap)")
             check(ui("return panel.querySelector('select[data-key=\"VSync\"]').value;") == "1", "VSync shows On")
-            check(ui("return panel.querySelector('.ul-display-toggle[data-key=\"RunInBackground\"] .toggle-btn.active').dataset.value;") == "0",
-                  "Run in background shows OFF")
+            check(ui("return panel.querySelector('.ul-display-toggle[data-key=\"RunInBackground\"] .toggle-btn.active').dataset.value;") == "1",
+                  "Run in background 'off # pause...' isn't a switch value: shows the default ON, as the game takes it")
             set_select("Mode", "windowed")
             time.sleep(0.8)
             check("Mode=windowed   ; fullscreen, borderless or windowed\r\n" in ini.read_bytes().decode("ascii"),

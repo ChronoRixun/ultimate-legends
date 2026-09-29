@@ -19,9 +19,11 @@
 // same one the fixes use, one key at a time: every other key, section, comment and blank line
 // stays exactly where it was, and the file is created when it does not exist yet.
 //
-// A value is read the way the XML2 Fix reads it: the text after '=' up to an inline comment
-// (';' or '#'), trimmed, so "Enabled=0   ; off for now" is 0. A missing or empty value is "not
-// set" (the key's default). Rewriting a value keeps the line's inline comment.
+// A value is read the way the XML2 Fix reads it (its ini_rules.hpp, one rule for every key): the
+// text after '=' up to the first ';' (the Windows INI comment character), trimmed, so
+// "Enabled=0   ; off for now" is 0. A '#' is part of the value: "Enabled=0 # later" is not a flag,
+// so the key's default, as in the game. A missing or empty value is "not set" (the key's default).
+// Rewriting a value keeps the line's inline comment.
 
 namespace fix_ini
 {
@@ -72,6 +74,6 @@ namespace fix_ini
     // Writes each key into [section] (creating the section, and the file, when needed) and flushes
     // the profile cache, so the game reads the file as written. A key's inline comment stays after
     // its new value ("0   ; off for now" -> "1   ; off for now"); removing a key removes its line.
-    // Validation is the caller's, and a value must not hold a ';' or '#' itself.
+    // Validation is the caller's, and a value must not hold a ';' itself.
     bool write(const std::filesystem::path& ini, const std::wstring& section, const changes& changes, std::string& error);
 }

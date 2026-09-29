@@ -30,8 +30,10 @@ namespace fix_ini
             return table;
         }
 
-        // What starts an inline comment in a value, as in the fix: "Enabled=0   ; off for now".
-        constexpr auto comment_chars = L";#";
+        // What starts an inline comment in a value, as in the fix: "Enabled=0   ; off for now". Only ';',
+        // the Windows INI comment character: a '#' is part of the value (a name or a path may hold one),
+        // as the XML2 Fix reads it (its ini_rules.hpp).
+        constexpr auto comment_chars = L";";
 
         bool is_space(const wchar_t c)
         {

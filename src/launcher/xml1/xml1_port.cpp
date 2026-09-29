@@ -618,6 +618,7 @@ namespace xml1_port
                 set_check([&](builder_check& check)
                 {
                     check.checking = false;
+                    check.latest.reset(); // what an earlier check found no longer holds
                     check.not_published = not_published;
                     check.code = not_published ? "L_BUILDER_UNPUBLISHED" : "L_BUILDER_OFFLINE";
                     check.error = error;

@@ -185,8 +185,9 @@
             let builderText;
             if (builder.installed && !builder.updateAvailable) builderText = t('xml1.builderInstalled', { version: builder.version });
             else if (builder.installed) builderText = t('xml1.builderUpdate', { version: builder.version, latest: builder.latest.version });
-            else if (builder.latest) builderText = t('xml1.builderWillDownload', { version: builder.latest.version, size: bytes(builder.latest.size) });
             else if (builder.notPublished) builderText = t('xml1.errors.L_BUILDER_UNPUBLISHED.msg');
+            else if (builder.latest) builderText = t('xml1.builderWillDownload', { version: builder.latest.version, size: bytes(builder.latest.size) });
+            else if (builder.code) builderText = this.port().describe({ code: builder.code, msg: builder.error }).title;
             else builderText = t('xml1.builderUnknown');
             const resumeNote = s.state === 'incomplete'
                 ? `<p class="xml1-note is-info">${escapeHtml(t(s.isoExists ? 'xml1.resumeNote' : 'xml1.resumeNeedsDisc'))}</p>` : '';

@@ -72,7 +72,7 @@ namespace xml1_port
 
     // What a folder holds, as a destination for a build. launcher_only: only what the launcher and
     // the player own (dinput.dll, xml2-fix.*, mods\ - the builder never touches them), so nothing
-    // is built there and the builder accepts it (its `info` still calls it "foreign").
+    // is built there and the builder accepts it (its `info` and `verify` call it "absent").
     struct folder_facts
     {
         bool exists{};

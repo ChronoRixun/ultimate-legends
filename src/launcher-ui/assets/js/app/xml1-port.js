@@ -198,18 +198,23 @@
             return REPAIRS.reduce((sum, code) => sum + (Number(counts[code]) || 0), 0);
         },
 
-        // The warnings of a run worth showing, translated: [{ code, text, files }].
+        // The warnings of a run worth showing, translated: [{ code, text, files }]. How many:
+        // detail.count (every warning of the builder has it), else the number its message starts with.
+        // W_EXTRA_FILES with detail.not_removed: files the rebuild could not delete, and why (cause).
         noticesOf(job) {
             const seen = new Set();
             const notices = job && Array.isArray(job.notices) ? job.notices : [];
             return notices.filter(notice => notice && NOTICES.includes(notice.code) && !seen.has(notice.code) && seen.add(notice.code))
                 .map(notice => {
-                    const detail = notice.detail && typeof notice.detail === 'object' ? notice.detail : {};
+                    const detail = notice.detail && typeof notice.detail === 'object' && !Array.isArray(notice.detail) ? notice.detail : {};
                     const files = Array.isArray(detail.files) ? detail.files.map(String) : [];
+                    const kept = Array.isArray(detail.not_removed) ? detail.not_removed.map(String) : [];
                     const msg = typeof notice.msg === 'string' ? notice.msg : '';
-                    const count = parseInt(msg, 10) || files.length || notice.count || 1;
-                    const key = `xml1.warnings.${notice.code}`;
-                    const text = has(key) ? t(key, { count, first: files[0] || '' }) : msg;
+                    const count = Number.isInteger(detail.count) && detail.count > 0 ? detail.count
+                        : parseInt(msg, 10) || files.length || notice.count || 1;
+                    let key = `xml1.warnings.${notice.code}`;
+                    if (kept.length && typeof detail.cause === 'string' && has(`${key}_${detail.cause}`)) key = `${key}_${detail.cause}`;
+                    const text = has(key) ? t(key, { count, first: kept[0] || files[0] || '' }) : msg;
                     return { code: notice.code, text, files };
                 });
         },
@@ -368,8 +373,10 @@
             // A code of a known family without its own text (a new E_CACHE_*, say) reads as its family.
             const family = ['E_CACHE_'].find(prefix => code.startsWith(prefix));
             const key = has(`xml1.errors.${code}.msg`) || !family ? `xml1.errors.${code}` : `xml1.errors.${family}`;
-            const title = has(`${key}.msg`) ? t(`${key}.msg`) : (error && error.msg) || t('xml1.errors.unknown.msg');
-            const hint = has(`${key}.hint`) ? t(`${key}.hint`) : (error && error.hint) || '';
+            // E_IO names what happened to which file when the builder knows (detail.cause).
+            const io = code === 'E_IO' ? this.ioProblem(detail) : null;
+            const title = io && io.title ? io.title : has(`${key}.msg`) ? t(`${key}.msg`) : (error && error.msg) || t('xml1.errors.unknown.msg');
+            const hint = io && io.title ? io.hint : has(`${key}.hint`) ? t(`${key}.hint`) : (error && error.hint) || '';
             const facts = [];
             if (detail.title) facts.push(t('xml1.detailFound', { title: String(detail.title) }));
             if (Array.isArray(detail.missing) && detail.missing.length) facts.push(t('xml1.detailMissing', { files: detail.missing.map(String).join(', ') }));
@@ -383,9 +390,29 @@
             if (Array.isArray(detail.first) && detail.first.length) {
                 facts.push(t('xml1.detailFirst', { text: maskPaths(String(detail.first[0])).slice(0, 240) }));
             }
-            if (typeof detail.path === 'string' && detail.path && !detail.title) facts.push(t('xml1.detailFile', { path: maskPaths(detail.path) }));
+            if (io) {
+                if (io.file && !io.named) facts.push(t('xml1.detailFile', { path: io.file }));
+            } else if (typeof detail.path === 'string' && detail.path && !detail.title) {
+                facts.push(t('xml1.detailFile', { path: maskPaths(detail.path) }));
+            }
             if (Number.isInteger(detail.pid)) facts.push(t('xml1.detailPid', { pid: detail.pid }));
             return { code, title: String(title), hint: String(hint || ''), facts, builderText: error && typeof error.msg === 'string' ? error.msg : '' };
+        },
+
+        // An E_IO's detail as plain words: { title, hint } for its cause (held, disk_full, ...: the
+        // builder's errors.IO_CAUSES; none for `other` or a builder without causes), file (the path
+        // relative to its folder, named for the build cache / X-Men Legends II's folder), named (the
+        // title says the file).
+        ioProblem(detail) {
+            const path = typeof detail.path === 'string' ? maskPaths(detail.path) : '';
+            const where = typeof detail.where === 'string' && /^[a-z0-9]+$/.test(detail.where) && has(`xml1.io.where.${detail.where}`) ? detail.where : '';
+            const file = path && where ? t(`xml1.io.where.${where}`, { path }) : path;
+            const cause = typeof detail.cause === 'string' && /^[a-z_]+$/.test(detail.cause) ? detail.cause : '';
+            const key = `xml1.io.causes.${cause}`;
+            if (!cause || !has(`${key}.msg`)) return { title: '', hint: '', file, named: false };
+            const named = !!file && t(`${key}.msg`).includes('{{file}}');
+            const text = t(`${key}.msg`, { file: file || t('xml1.io.someFile') });
+            return { title: text.charAt(0).toUpperCase() + text.slice(1), hint: has(`${key}.hint`) ? t(`${key}.hint`) : '', file, named };
         },
 
         // The error of a finished run: its first error, else what its exit code means.

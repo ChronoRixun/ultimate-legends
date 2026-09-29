@@ -440,6 +440,8 @@
                     W_XML2_MODIFIED: 'X-Men Legends II differs from a retail install (files: {{count}}; first: {{first}}). The build used its files as they are: if the port misbehaves, restore them (Steam or GOG: verify the game files) and rebuild.',
                     W_XML2_UNKNOWN_EXE: 'This X-Men Legends II (XMen2.exe) is not a known retail version: the XML2 Fix may leave the port’s engine fixes off.',
                     W_EXTRA_FILES: 'Files in the game folders that the build did not make: {{count}} (first: {{first}}). They were left as they are; mods belong in the mods folder.',
+                    // ... that the rebuild could not delete (detail.not_removed), by detail.cause.
+                    W_EXTRA_FILES_held: 'Files in the game folders that the build did not make: {{count}} (first: {{first}}). Another program has them open, so the rebuild left them as they are; the game does not need them. Close that program and rebuild to remove them.',
                     W_LINK_BASE: 'This builder can’t use hard links yet: X-Men Legends II’s files were copied.',
                     W_ISO_UNKNOWN_DUMP: 'The disc image is not one we know: the build checked it as it went.'
                 },
@@ -502,6 +504,26 @@
                     damaged: 'Files of the build are missing or changed ({{count}}). Repair rebuilds them.',
                     stale: 'A newer builder makes a newer version of the port. Rebuild to update it (a few minutes with the build cache).',
                     ready: 'The game is built and up to date.'
+                },
+                // E_IO: a file the build could not read or write. detail.path is relative to its folder
+                // (detail.where: the game folder, or these), detail.cause says why (the builder's
+                // errors.IO_CAUSES); {{file}} is the file, or someFile when the builder names none.
+                io: {
+                    someFile: 'a file of the build',
+                    where: {
+                        cache: '{{path}} (in the build cache)',
+                        xml2: '{{path}} (in X-Men Legends II’s folder)'
+                    },
+                    causes: {
+                        held: { msg: 'Another program has {{file}} open.', hint: 'Close it (X-Men Legends, an editor, a file manager or an antivirus scan), then try again.' },
+                        read_only: { msg: '{{file}} is read-only.', hint: 'Clear its Read-only box (right-click it, Properties), then try again.' },
+                        denied: { msg: 'Windows denied access to {{file}}.', hint: 'Check that your account may change that folder, or choose a folder in your user folder, then try again.' },
+                        disk_full: { msg: 'The drive is full.', hint: 'Free up some space on it, then try again.' },
+                        drive_read_only: { msg: 'The drive is write-protected.', hint: 'Turn its write protection off or choose a folder on another drive, then try again.' },
+                        disk_error: { msg: 'The drive reported an error with {{file}}.', hint: 'Check the drive for errors (its Properties, Tools, Check), then try again.' },
+                        drive_gone: { msg: 'The drive is not available.', hint: 'Reconnect it, then try again.' },
+                        too_long: { msg: 'The path of {{file}} is too long.', hint: 'Choose a folder with a shorter path, then try again.' }
+                    }
                 },
                 // The builder's error codes (BUILDER_DESIGN.md 2.2 / 2.3) and the launcher's own (L_*).
                 errors: {

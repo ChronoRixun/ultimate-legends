@@ -20,18 +20,23 @@ next to the test's game folder, so the setup's default folder is the test's), an
 (--cache) that the test hard-links into a throwaway copy on the same drive (never written, never
 deleted). The game is built into %TEMP%. Afterwards the test asserts that nothing in the XML2 install,
 the disc image or the cache changed. It never launches a game: Play / Stop are skipped. The fake
-builder's own knobs (a failing step, a builder that ignores cancel) have no real equivalent: the real
-build is made to fail by holding one of its files open, and the ignored cancel is skipped. The builder
-install / update / pruning checks are the fake's (the real builder runs from source, not a release).
+builder's own knobs (a failing step, a builder that ignores cancel) have no real equivalent: the
+failing step and the ignored cancel are skipped. The builder install / update / pruning checks are the
+fake's (the real builder runs from source, not a release).
+
+Held files, both modes: a stray file another program holds open survives a repair, which succeeds and
+names it (W_EXTRA_FILES, detail.not_removed, cause "held"); a file the build must replace held open
+fails the build with E_IO (exit 6, detail.cause "held"), which the page says in plain words.
 
 Covers: the states (not set up, builder missing / unpublished, building, incomplete / resume, needs
 the fix, ready, update available, damaged, failed), the wizard (requirements, disc errors mapped to
 plain messages, disc check, options, progress, cancel, hide), the builder install (SHA-256 checked,
 staging, update, pruning), the build (stamp, ini keys merged with the launcher's Display defaults, fix
 installed), Play and Stop by path, Display / Discord / Mods on the port's page, Verify (the groups and
-counts) / Repair, warnings after a build, Report a problem (the saved report, paths masked), a rebuild
-without the disc image, Free up, the cancel that ends in a kill, uninstall, and a folder holding only
-the launcher's files as a destination. Screenshots of the states go to tools/dev/xml1-*.png
+counts) / Repair, warnings after a build (their counts from detail.count), E_IO per cause in plain
+words, Report a problem (the saved report, paths masked), a rebuild without the disc image, Free up,
+the cancel that ends in a kill, uninstall, and a folder holding only the launcher's files as a
+destination (the builder's info: absent). Screenshots of the states go to tools/dev/xml1-*.png
 (xml1-real-*.png with --real; they show profile paths: they are gitignored).
 """
 import argparse
@@ -354,6 +359,51 @@ def main():
         test.prop("install", "")
         check(test.status()["state"] == "not-setup" and test.prop("iso") == "", "still answering; the bad values were not stored")
 
+        print("E_IO in plain words per cause (detail.cause); warning counts from detail.count")
+        described = js("""(() => {
+            const port = window.Xml1Port;
+            const io = (detail) => port.describe({ code: 'E_IO', msg: 'builder text', hint: 'builder hint', detail });
+            const out = {};
+            for (const cause of ['held', 'read_only', 'denied', 'disk_full', 'drive_read_only', 'disk_error', 'drive_gone', 'too_long', 'other']) {
+                out[cause] = io({ path: 'Actors/14001.IGB', where: 'out', cause, errno: 13, winerror: 5 });
+            }
+            out.cache = io({ path: 'abc/prepared/stage.json', where: 'cache', cause: 'held' });
+            out.xml2 = io({ path: 'Data/herostat.engb', where: 'xml2', cause: 'disk_error' });
+            out.nofile = io({ path: null, where: null, cause: 'held' });
+            out.nocause = io({ path: 'Actors/14001.IGB' });
+            out.odd = io({ path: 5, where: [], cause: {} });
+            const notices = (...list) => port.noticesOf({ notices: list }).map(n => n.text);
+            out.count = notices({ code: 'W_EXTRA_FILES', msg: 'files the build did not make', count: 1, detail: { count: 7, files: ['Data/a.txt'] } });
+            out.parsed = notices({ code: 'W_XML2_MODIFIED', msg: '3 file(s) of X-Men Legends II differ', count: 1, detail: { files: ['Data/x'] } });
+            out.kept = notices({ code: 'W_EXTRA_FILES', msg: '2 file(s)', count: 1,
+                                 detail: { count: 2, files: ['Data/a.txt', 'Data/b.txt'], not_removed: ['Data/b.txt'], cause: 'held' } });
+            return out;
+        })()""") or {}
+        generic = "A file could not be read or written."
+        words = {"held": "Another program has Actors/14001.IGB open.", "read_only": "Actors/14001.IGB is read-only.",
+                 "denied": "Windows denied access to Actors/14001.IGB.", "disk_full": "The drive is full.",
+                 "drive_read_only": "The drive is write-protected.", "disk_error": "The drive reported an error with Actors/14001.IGB.",
+                 "drive_gone": "The drive is not available.", "too_long": "The path of Actors/14001.IGB is too long."}
+        wrong = {cause: described.get(cause, {}).get("title") for cause, title in words.items() if (described.get(cause) or {}).get("title") != title}
+        check(not wrong, "a plain title per cause" + (f" (wrong: {wrong})" if wrong else ""))
+        check(all((described.get(cause) or {}).get("hint") and described[cause]["hint"] != "builder hint" for cause in words), "a hint per cause")
+        check("Close it" in (described.get("held") or {}).get("hint", ""), f"held: {described.get('held', {}).get('hint')!r}")
+        named = [cause for cause in words if "Actors/14001.IGB" in words[cause]]
+        check(all(not described[cause]["facts"] for cause in named) and
+              all(described[cause]["facts"] == ["File: Actors/14001.IGB"] for cause in words if cause not in named),
+              "the file named once: in the title, or as File: when the title doesn't say it")
+        check((described.get("cache") or {}).get("title") == "Another program has abc/prepared/stage.json (in the build cache) open." and
+              (described.get("xml2") or {}).get("title") == "The drive reported an error with Data/herostat.engb (in X-Men Legends II’s folder).",
+              f"where: the build cache / X-Men Legends II's folder ({(described.get('cache') or {}).get('title')!r})")
+        check((described.get("nofile") or {}).get("title") == "Another program has a file of the build open.", f"no file: {(described.get('nofile') or {}).get('title')!r}")
+        check(all((described.get(k) or {}).get("title") == generic for k in ("other", "nocause", "odd")) and
+              described["nocause"]["facts"] == ["File: Actors/14001.IGB"] and described["other"]["facts"] == ["File: Actors/14001.IGB"],
+              "an unknown cause (or none): the general text and the file")
+        check(": 7 (first: Data/a.txt)" in " ".join(described.get("count") or []), f"W_EXTRA_FILES counts detail.count: {described.get('count')}")
+        check("files: 3;" in " ".join(described.get("parsed") or []), f"no detail.count: the number of the message: {described.get('parsed')}")
+        check(any("Another program has them open" in text and "first: Data/b.txt" in text for text in described.get("kept") or []),
+              f"not_removed with cause held: said so, first the kept file: {described.get('kept')}")
+
         print("wizard: requirements")
         js("window.Xml1Setup.show()")
         wait_for(lambda: test.exists(".xml1-setup [data-req='xml2']"), 5)
@@ -624,57 +674,56 @@ def main():
         check("build log, last" in text, "and the end of the build log")
         check(profile not in text and profile.replace("\\", "\\\\") not in text and "%USERPROFILE%" in text, "profile paths masked")
         report.unlink(missing_ok=True)  # (a report of the test's own made-up damage)
-        # Fake: a second stray file that another program holds open - the repair can't delete it and names
-        # it (W_EXTRA_FILES). The real builder's validator (V2) fails such a build (E_VALIDATE) before it gets
-        # there, so W_EXTRA_FILES can't be shown with it: a builder follow-up (the sweep's failure should be
-        # an E_IO naming the file).
+        # A second stray file that another program holds open: the repair can't delete it, so it stays and
+        # the build succeeds, naming it (W_EXTRA_FILES: detail.not_removed, cause held).
         kept = out / "Data" / "stray-held-open.txt"
-        if not real:
-            kept.write_text("held by another program", encoding="utf-8")
-            held = hold_file(kept)
+        kept.write_text("held by another program", encoding="utf-8")
+        held = hold_file(kept)
         test.click("#xml1-build-panel [data-act='rebuild']")
         test.message_box(1)
         job = test.build_done(90)
         check(job["exitCode"] == 0 and (out / gone).exists(), f"Repair rebuilds it (exit {job['exitCode']})")
         check(wait_for(lambda: test.state() == "ready", 30), "ready")
         check(not stray.exists(), "the rebuild removed the file it did not make")
-        if real:
-            test.skip("W_EXTRA_FILES after a repair: the real builder fails validation (V2) over a file its sweep can't delete")
-        else:
-            notices = [notice["code"] for notice in job.get("notices", [])]
-            check("W_EXTRA_FILES" in notices, f"the one it could not remove (held open) is named: {notices}")
-            check(wait_for(lambda: "stray-held-open.txt" in (test.text("#xml1-build-panel .xml1-notice[data-code='W_EXTRA_FILES']") or ""), 10),
-                  "the page shows that warning, with the file")
-            test.shot("repaired-warning", "#xml1-page .detail-build")
-            release_file(held)
-            held = None
-            kept.unlink()
+        notice = next((n for n in job.get("notices", []) if n.get("code") == "W_EXTRA_FILES"), None)
+        detail = (notice or {}).get("detail") or {}
+        check(notice is not None and "data/stray-held-open.txt" in [str(p).lower() for p in detail.get("not_removed") or []]
+              and detail.get("cause") == "held" and isinstance(detail.get("count"), int) and detail["count"] >= 1,
+              f"the one it could not remove (held open) is named: {[n.get('code') for n in job.get('notices', [])]}, {detail}")
+        check(wait_for(lambda: (lambda shown: "stray-held-open.txt" in shown and "Another program has them open" in shown)(
+                           test.text("#xml1-build-panel .xml1-notice[data-code='W_EXTRA_FILES']") or ""), 10),
+              "the page shows that warning: the file, and why it stayed")
+        test.shot("repaired-warning", "#xml1-page .detail-build")
+        release_file(held)
+        held = None
+        kept.unlink()
         test.click("#xml1-build-panel [data-act='verify']")
         check(wait_for(lambda: (js("window.Xml1Port.verify") or {}).get("state") == "current", 120 if real else 20) and test.state() == "ready",
               "Verify: current, nothing missing or changed")
 
-        print("a failed build")
-        if real:
-            registry = json.loads((out / "_build" / "registry.json").read_text())
-            victim = next(entry["rel"] for entry in sorted(registry["entries"].values(), key=lambda e: e["rel"]) if entry.get("sha1"))
-            held = hold_file(out / victim)
-            print(f"  (holding {victim} open, as another program would)")
-            expected = ("E_PIPELINE", "E_IO")
-        else:
-            test.prop("iso", str(failing))
-            expected = ("E_PIPELINE",)
+        print("a failed build: another program holds a file the build replaces (E_IO, exit 6)")
+        registry = json.loads((out / "_build" / "registry.json").read_text())
+        victim = next(entry["rel"] for entry in sorted(registry["entries"].values(), key=lambda e: e["rel"]) if entry.get("sha1"))
+        held = hold_file(out / victim)
+        print(f"  (holding {victim} open, as another program would)")
         test.refresh_port()
         test.click("#xml1-build-panel [data-act='rebuild']")
         test.message_box(1)
         job = test.build_done(60)
-        code = job["errors"][0]["code"] if job["errors"] else "-"
-        check(job["exitCode"] in (1, 6) and code in expected, f"exit {job['exitCode']}, {code}")
-        check(wait_for(lambda: test.exists(f"#xml1-build-panel .xml1-error[data-code='{code}']"), 10), "the page shows the error")
-        words = {"E_PIPELINE": "A step of the build failed", "E_IO": "could not be read or written",
-                 "E_VALIDATE": "did not pass its checks"}.get(code, "?")
-        check(words in (test.text("#xml1-build-panel .xml1-error") or ""), "in plain words, with Copy details / Open log / Report")
+        error = job["errors"][0] if job["errors"] else {}
+        code, detail = error.get("code", "-"), error.get("detail") or {}
+        check(job["exitCode"] == 6 and code == "E_IO", f"exit {job['exitCode']}, {code}")
+        check(detail.get("cause") == "held" and str(detail.get("path")).lower() == victim.lower() and detail.get("where") == "out",
+              f"detail: cause held, the file relative to the game folder ({ {k: detail.get(k) for k in ('path', 'where', 'cause', 'winerror')} })")
+        check(wait_for(lambda: test.exists("#xml1-build-panel .xml1-error[data-code='E_IO']"), 10), "the page shows the error")
+        shown = test.text("#xml1-build-panel .xml1-error") or ""
+        check(f"another program has {victim.lower()} open" in shown.lower() and "Close it" in shown,
+              f"in plain words: who has which file, and what to do ({shown.splitlines()[0] if shown else ''!r})")
+        check(test.exists("#xml1-build-panel .xml1-error [data-act='copy-details']") and test.exists("#xml1-build-panel .xml1-error [data-act='report']"),
+              "with Copy details / Open log / Report")
         details = js("window.Xml1Port.details(window.Xml1Port.build)")
-        check(code in details and profile not in details and "Last log lines" in details, "Copy details: code, log tail, no profile path")
+        check(code in details and profile not in details and "Last log lines" in details and '"cause":"held"' in details,
+              "Copy details: code, detail (the cause), log tail, no profile path")
         test.shot("failed", "#xml1-page .detail-build")
         written = js("window.Xml1Port.saveReport(window.Xml1Port.build, false)") or {}
         text = pathlib.Path(written["path"]).read_text(encoding="utf-8") if written.get("success") else ""
@@ -682,9 +731,22 @@ def main():
             pathlib.Path(written["path"]).unlink(missing_ok=True)
         check(code in text and profile not in text and "build log, last" in text, "the saved report: the error, the log, no profile path")
         check(test.status()["state"] == "incomplete", "state incomplete: Resume")
-        if held:
-            release_file(held)
-            held = None
+        release_file(held)
+        held = None
+
+        if real:
+            test.skip("a failing step (E_PIPELINE): the fake's knob (the real pipeline has no bug to show on demand)")
+        else:
+            print("a failed build: a step of the build fails (E_PIPELINE)")
+            test.prop("iso", str(failing))
+            test.refresh_port()
+            test.click("#xml1-build-panel [data-act='resume']")
+            job = test.build_done(60)
+            code = job["errors"][0]["code"] if job["errors"] else "-"
+            check(job["exitCode"] == 1 and code == "E_PIPELINE", f"exit {job['exitCode']}, {code}")
+            check(wait_for(lambda: "A step of the build failed" in (test.text("#xml1-build-panel .xml1-error[data-code='E_PIPELINE']") or ""), 10),
+                  "the page says so in plain words")
+            check(test.status()["state"] == "incomplete", "state incomplete: Resume")
         if real:
             test.skip("Play refused on an unfinished build: never launches in real mode")
         else:
@@ -760,6 +822,10 @@ def main():
         check(status["state"] == "absent" and status["launcherOnly"], f"state absent, not a broken build ({status['state']})")
         folder = cmd("xml1-folder", {"path": str(out)})
         check(folder["launcherOnly"] and not folder["builder"], "xml1-folder: launcher files only")
+        started = cmd("xml1-info", {"out": str(out)})
+        job = test.job_done(started["id"], 120 if real else 30) if started.get("success") else {}
+        said = (((job.get("result") or {}).get("info") or {}).get("out") or {}).get("state")
+        check(job.get("exitCode") == 0 and said == "absent", f"the builder's info calls it absent, the rule its build uses ({said})")
         test.prop("install", "")
         js("window.Xml1Setup.show()")
         wait_for(lambda: test.exists(".xml1-setup [data-field='iso']"), 5)
@@ -768,7 +834,7 @@ def main():
         test.click(".xml1-setup [data-act='check']")
         wait_for(lambda: test.exists(".xml1-setup [data-act='build']") or test.exists(".xml1-setup .xml1-error"), 120 if real else 20)
         shown = test.text(".xml1-setup") or ""
-        check("they are kept" in shown and "already has other files" not in shown, "the check takes it (the builder's info said foreign)")
+        check("they are kept" in shown and "already has other files" not in shown, "the check takes it and says the files are kept")
         check(not js("document.querySelector('.xml1-setup [data-act=\"build\"]').disabled"), "Build enabled")
         test.shot("wizard-launcher-files")
         if real:

@@ -294,14 +294,13 @@
             if (!job || job.exitCode !== 0 || !info) {
                 this.check = { job, error: port.jobError(job) };
             } else {
-                // The builder's `info` calls a folder "foreign" as soon as it holds files without a
-                // build, but its `build` takes one that holds only the launcher's and the player's
-                // (dinput.dll, xml2-fix.*, mods\): so does the wizard.
+                // A folder holding only the launcher's and the player's files (dinput.dll, xml2-fix.*,
+                // mods\) is "absent" to the builder (its `build` takes it); the wizard says they are kept.
                 let folder = null;
                 try {
                     folder = await run('xml1-folder', { path: out });
                 } catch (_) { /* the builder's word stands */ }
-                this.check = { job, info, folder, launcherOnly: !!(folder && folder.launcherOnly && info.out && info.out.state === 'foreign') };
+                this.check = { job, info, folder, launcherOnly: !!(folder && folder.launcherOnly && info.out && info.out.state === 'absent') };
             }
             this.render();
         }

@@ -51,6 +51,7 @@ try { tar.exe -a -cf $zip $name } finally { Pop-Location }
 Remove-Item (Join-Path $OutDir 'stage') -Recurse -Force
 
 $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
-"$hash  $name.zip" | Set-Content -Path (Join-Path $OutDir 'SHA256SUMS.txt') -Encoding ascii
+# LF, no BOM: `sha256sum -c` on Linux / Git Bash rejects a CRLF line.
+[IO.File]::WriteAllText((Join-Path $OutDir 'SHA256SUMS.txt'), "$hash  $name.zip`n", [Text.Encoding]::ASCII)
 $size = (Get-Item $zip).Length
 Write-Host ("{0}`n  {1:n0} bytes, sha256 {2}" -f $zip, $size, $hash)

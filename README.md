@@ -48,6 +48,9 @@ deleting that folder moves or removes the launcher and nothing else. The release
 SmartScreen may warn about it on first start; compare the SHA-256 with the release page, or
 [build it from source](#build-from-source).
 
+Help, bug reports and co-op partners: the community Discord, [discord.gg/tFxwHtZv8k](https://discord.gg/tFxwHtZv8k).
+No game files, disc images or links to them there either.
+
 ## Command line arguments
 
 The launcher accepts the following optional command line arguments.

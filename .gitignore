@@ -160,3 +160,6 @@ __pycache__/
 docs/art-source/html/
 # Screenshots the CDP tests save (they can show user-profile paths)
 tools/dev/*.png
+
+# release packaging output (tools/package-portable.ps1)
+dist

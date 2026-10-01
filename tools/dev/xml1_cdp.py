@@ -154,10 +154,17 @@ class Test:
         return self.cmd("get-xml1-job", {"id": job_id})
 
     def build_done(self, timeout=90):
+        """Waits for the build started since the last call to finish. The page checks the builder's
+        release before every build (and installs a newer one), so a build starts a moment after its
+        click: first wait for a job that is not the one already seen, then for it to finish."""
         if self.real:
             timeout = max(timeout, 1500)
+        seen = getattr(self, "_seen_job", None)
+        wait_for(lambda: (lambda job: job is not None and job.get("id") != seen)(self.cmd("get-xml1-build")), 20)
         wait_for(lambda: (lambda job: job is not None and job["finished"])(self.cmd("get-xml1-build")), timeout)
-        return self.cmd("get-xml1-build")
+        job = self.cmd("get-xml1-build")
+        self._seen_job = job.get("id") if job else None
+        return job
 
     def state(self):
         return self.js("window.Xml1Port.state()")

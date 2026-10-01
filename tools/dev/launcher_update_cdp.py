@@ -15,7 +15,10 @@ and SHA256SUMS.txt, listed in a releases/latest JSON of GitHub's shape.
 Covers: the check (update available, the bar), a download whose SHA-256 doesn't match (refused, nothing
 changed, nothing left behind), the download, Restart now (the swap: the new UI is live; user\\, tools\\,
 cache\\, mods\\, portable.marker and the settings untouched; updates\\ cleaned up; "updated" reported),
-up to date, an interrupted swap rolled back at the next start, and development builds (no checks).
+up to date, a file held open in data\\cef during the swap (retried, rolled back, said, then installed by
+the next Restart now), a swap interrupted before and after the exe moved and with an empty journal, a new
+version whose first start never got its window up (all rolled back from what is on the disk), and
+development builds (no checks).
 The ultimatelegends:// registration the test exe takes over is put back at the end. Screenshots go to
 tools/dev/launcher-update-*.png (gitignored).
 """
@@ -338,24 +341,103 @@ def main():
         check(wait_for(lambda: bar_text() is None, 10), "no bar")
         launcher.command("set-property", {"dev-launcher-version": "0.1.0"})
 
-        print("an interrupted swap is rolled back")
-        stop_launcher()
-        (UPDATES / "ready" / "data").mkdir(parents=True)
-        shutil.copy2(DEBUG_EXE, UPDATES / "ready" / "ultimate-legends.exe")
-        (UPDATES / "previous" / "data").mkdir(parents=True)
-        for name in ("cef", "launcher-ui"):
-            os.rename(ROOT / "data" / name, UPDATES / "previous" / "data" / name)
-            (ROOT / "data" / name).mkdir()
-            (ROOT / "data" / name / "new.txt").write_text("half-installed")
-        (UPDATES / "applying.json").write_text(json.dumps({"version": "0.1.3", "items": ["data/cef", "data/launcher-ui", "exe"]}))
+        print("a file held open in data\\cef during the swap")
+        (ROOT / "data" / "launcher-ui" / "pre-swap.txt").write_text("the UI before this swap")
+        launcher.command("check-launcher-update")
+        check(wait_for(lambda: status()["state"] == "available", 30), "0.1.0 again: the update is offered")
+        js("window.LauncherUpdate.refresh()")
+        js("document.querySelector('#launcher-update-action').click()")
+        check(confirm() is not None and wait_for(lambda: status()["state"] == "ready", 180), "downloaded again")
+        held = open(ROOT / "data" / "cef" / "release" / "icudtl.dat", "rb")  # no FILE_SHARE_DELETE: the folder can't be renamed
+        try:
+            started = time.time()
+            js("document.querySelector('#launcher-update-action').click()")
+            time.sleep(3)
+            launcher = connect(180)
+            js = launcher.evaluate
+            check(time.time() - started > 25, f"the swap was retried for a while ({time.time() - started:.0f} s)")
+        finally:
+            held.close()
+        check((ROOT / "data" / "launcher-ui" / "pre-swap.txt").exists(), "rolled back: the UI before the swap is live")
+        s = status()
+        check("could not be put in place" in s["installError"] and s["state"] == "ready",
+              "the launcher says why, and offers Restart now again")
+        check(wait_for(lambda: "could not be put in place" in (bar_text() or ""), 10), "on the bar")
+        launcher.screenshot(HERE / "launcher-update-held.png")
+        check((UPDATES / "ready" / "update.json").exists() and not (UPDATES / "applying.json").exists()
+              and not (UPDATES / "previous").exists(), "the download kept, no journal, no previous\\")
+        js("document.querySelector('#launcher-update-action').click()")  # Restart now, nothing held this time
+        time.sleep(3)
+        launcher = connect(120)
+        js = launcher.evaluate
+        check(not (ROOT / "data" / "launcher-ui" / "pre-swap.txt").exists() and marker.exists(), "the retry installs it")
+        check(status()["updatedTo"] == NEW_VERSION and not status()["installError"], "and reports the update")
+        check(wait_for(lambda: not (UPDATES / "previous").exists(), 45), "the previous version is deleted")
+
+        new_exe = DEBUG_EXE.read_bytes() + b"\0UPDATE-TEST-NEW-EXE"  # a different exe that still runs (PE overlay)
+        old_hash = sha256(INSTALL / "ultimate-legends.exe")
+
+        def half_swap(exe_moved, journal=None, applied=None):
+            """The disk as a swap (or a first start) left it: data\\ folders moved out, fake new ones in."""
+            stop_launcher()
+            shutil.rmtree(UPDATES / "discarded", ignore_errors=True)
+            (UPDATES / "ready" / "data").mkdir(parents=True, exist_ok=True)
+            (UPDATES / "previous" / "data").mkdir(parents=True, exist_ok=True)
+            for name in ("cef", "launcher-ui"):
+                for attempt in range(20):
+                    try:
+                        os.rename(ROOT / "data" / name, UPDATES / "previous" / "data" / name)
+                        break
+                    except OSError:
+                        time.sleep(1)
+                (ROOT / "data" / name).mkdir()
+                (ROOT / "data" / name / "new.txt").write_text("half-installed")
+            if exe_moved:
+                os.rename(INSTALL / "ultimate-legends.exe", UPDATES / "previous" / "ultimate-legends.exe")
+                (INSTALL / "ultimate-legends.exe").write_bytes(new_exe)
+            else:
+                (UPDATES / "ready" / "ultimate-legends.exe").write_bytes(new_exe)
+            if journal is not None:
+                (UPDATES / "applying.json").write_text(journal)
+            if applied is not None:
+                (UPDATES / "applied.json").write_text(json.dumps(applied))
+
+        def restored(label, words):
+            check(sha256(INSTALL / "ultimate-legends.exe") == old_hash, f"{label}: the previous exe is back")
+            check((ROOT / "data" / "cef" / "release" / "libcef.dll").exists() and marker.exists()
+                  and not (ROOT / "data" / "launcher-ui" / "new.txt").exists(), f"{label}: the previous CEF and UI are back")
+            check(not (UPDATES / "applying.json").exists() and not (UPDATES / "applied.json").exists()
+                  and not (UPDATES / "ready").exists(), f"{label}: no journal, applied.json or ready\\ left")
+            check(sha256(UPDATES / "discarded" / "ultimate-legends.exe") == hashlib.sha256(new_exe).hexdigest(),
+                  f"{label}: the new version set aside in updates\\discarded")
+            check(wait_for(lambda: not (UPDATES / "previous").exists(), 30), f"{label}: previous\\ cleared")
+            check(words in status()["installError"], f"{label}: the launcher says: {words}")
+            check(wait_for(lambda: words in (bar_text() or ""), 10), f"{label}: on the bar")
+
+        print("an interrupted swap is rolled back: folders moved, the exe not yet")
+        half_swap(False, json.dumps({"version": "0.1.3", "items": ["data/cef", "data/launcher-ui", "exe"]}))
         launcher = start_launcher()
         js = launcher.evaluate
-        check((ROOT / "data" / "cef" / "release" / "libcef.dll").exists() and (ROOT / "data" / "launcher-ui" / "main.html").exists(),
-              "the previous CEF and UI are back")
-        check(not (ROOT / "data" / "launcher-ui" / "new.txt").exists(), "the half-installed files are gone from data\\")
-        check(not (UPDATES / "applying.json").exists() and not (UPDATES / "ready").exists(), "journal and ready\\ cleared")
-        check("interrupted" in status()["installError"], "the launcher says the update was interrupted")
-        check(wait_for(lambda: "interrupted" in (bar_text() or ""), 10), "on the bar")
+        restored("journal", "interrupted")
+
+        print("an interrupted swap with an empty journal (a power cut while writing it)")
+        half_swap(False, "")
+        launcher = start_launcher()
+        js = launcher.evaluate
+        restored("empty journal", "interrupted")
+
+        print("an interrupted swap after the exe moved: the new exe restores the old one and starts it")
+        half_swap(True, json.dumps({"version": "0.1.3", "items": ["data/cef", "data/launcher-ui", "exe"]}))
+        launcher = start_launcher()
+        js = launcher.evaluate
+        restored("exe moved", "interrupted")
+
+        print("a new version whose first start never got its window up")
+        half_swap(True, applied={"from": "0.1.0", "to": "0.1.3", "started": "true"})
+        launcher = start_launcher()
+        js = launcher.evaluate
+        restored("failed first start", "did not start")
+        launcher.screenshot(HERE / "launcher-update-restored.png")
 
         print("development builds")
         launcher.command("set-property", {"dev-launcher-version": ""})

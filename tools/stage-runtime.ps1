@@ -4,8 +4,9 @@
 
 .DESCRIPTION
     The launcher loads CEF and its UI from %LOCALAPPDATA%\ultimate-legends[_debug]\data rather
-    than from next to the executable. Upstream delivered those files through its self-updater;
-    Ultimate Legends has no update channel yet, so this script stages them for local runs.
+    than from next to the executable. Released launchers ship them in the portable zip (and update
+    them along with the exe: src\launcher\updater\launcher_update.hpp); for local runs of a build,
+    this script stages them.
 
 .EXAMPLE
     tools\stage-runtime.ps1                       # Release

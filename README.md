@@ -48,6 +48,13 @@ deleting that folder moves or removes the launcher and nothing else. The release
 SmartScreen may warn about it on first start; compare the SHA-256 with the release page, or
 [build it from source](#build-from-source).
 
+The launcher updates itself: when a newer release is out, a bar at the top of the window offers it. Update downloads
+the new portable zip, checks it against the release's `SHA256SUMS.txt` and installs it when the launcher restarts
+(or at once with Restart now). Only the executable, `data\cef` and `data\launcher-ui` are replaced; your settings,
+mods, builds and the rest of the `ultimate-legends` folder stay as they are, and a failed or interrupted update puts
+the previous version back. A launcher you moved to `%LOCALAPPDATA%` (Settings, portable mode off) only links to the
+release page. Development builds (Debug, or built from anything but a release tag) never update themselves.
+
 Help, bug reports and co-op partners: the community Discord, [discord.gg/tFxwHtZv8k](https://discord.gg/tFxwHtZv8k).
 No game files, disc images or links to them there either.
 
@@ -93,6 +100,9 @@ Ultimate Legends sends no telemetry. It only connects to the internet in these c
   release of the port's builder on GitHub and downloads it if it is missing or out of date (its SHA-256 is checked).
   The builder itself never connects to the internet: it reads your disc image and your X-Men Legends II install and
   writes the new game folder on your PC.
+- When the launcher starts (and every six hours while it runs, or when you press Check for updates in Settings), it
+  asks GitHub's API for the latest [Ultimate Legends release](https://github.com/ChronoRixun/ultimate-legends/releases).
+  It downloads that release only when you press Update. `-offline` turns the check off.
 - If the Visual C++ 2012 runtime that MUA and MUA2 need is missing, the launcher offers to download Microsoft's installer from download.microsoft.com.
 - Links on the Support and Settings pages open in your browser.
 - Steam install detection reads your local Steam library folders; it does not contact Steam.

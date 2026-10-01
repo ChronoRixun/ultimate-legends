@@ -3,6 +3,7 @@
 #include "commands/commands.hpp"
 #include "deep_link.hpp"
 #include "redist/redist_worker.hpp"
+#include "updater/launcher_update.hpp"
 #include "uri_scheme.hpp"
 
 #include <utils/flags.hpp>
@@ -98,10 +99,15 @@ namespace
         }).detach();
     }
 
-    bool try_become_singleton()
+    utils::named_mutex& singleton_mutex()
     {
         static utils::named_mutex mutex{"ultimate-legends"};
-        return mutex.try_lock(3s);
+        return mutex;
+    }
+
+    bool try_become_singleton()
+    {
+        return singleton_mutex().try_lock(3s);
     }
 
     bool is_subprocess()
@@ -296,6 +302,17 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
         freopen_s(&fp, "CONOUT$", "w", stderr);
         printf("Debug console enabled\n");
 #endif
+
+        // A downloaded launcher update (portable installs) goes in now, before CEF loads its files.
+        if (launcher_update::apply_pending())
+        {
+#if !defined(DEBUG)
+            singleton_mutex().unlock(); // the new launcher takes it
+#endif
+            launcher_update::relaunch();
+            return 0;
+        }
+        launcher_update::cleanup();
 
         remove_previous_data_root();
 

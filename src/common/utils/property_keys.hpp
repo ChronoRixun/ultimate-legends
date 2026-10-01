@@ -14,6 +14,10 @@ namespace property_keys
     constexpr const char* PORTABLE_MODE = "launcher-portable-mode";
     constexpr const char* REDUCE_MOTION = "launcher-reduce-motion";
     constexpr const char* GRAYSCALE_UNINSTALLED = "launcher-grayscale-uninstalled";
+    // Debug builds only (tools/dev/launcher_update_cdp.py): the self-update's release JSON (the
+    // shape of GitHub's releases/latest) and the version the launcher claims to be.
+    constexpr const char* DEV_LAUNCHER_RELEASE = "dev-launcher-release";
+    constexpr const char* DEV_LAUNCHER_VERSION = "dev-launcher-version";
 
     // Game property suffixes (used with game_config_t::get/set)
     constexpr const char* INSTALL = "install";

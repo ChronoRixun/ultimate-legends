@@ -13,6 +13,32 @@
             brand: {
                 launcher: 'Launcher'
             },
+            launcherUpdate: {
+                available: 'Update available: Ultimate Legends {{version}}',
+                downloading: 'Downloading Ultimate Legends {{version}}… {{percent}}%',
+                ready: 'Ultimate Legends {{version}} is ready. It installs when the launcher restarts.',
+                failed: 'The update failed: {{error}}',
+                upToDate: 'Ultimate Legends is up to date.',
+                checking: 'Checking for updates…',
+                checkFailed: 'Could not check for updates: {{error}}',
+                devBuild: 'Updates are off in development builds.',
+                offline: 'Offline mode: no update checks.',
+                update: 'Update',
+                download: 'Download',
+                restartNow: 'Restart now',
+                tryAgain: 'Try again',
+                releaseNotes: 'Release notes',
+                later: 'Later',
+                check: 'Check for updates',
+                confirmTitle: 'Update Ultimate Legends',
+                confirmBody: 'Version {{version}} is available (you have {{current}}).<br><br>The launcher downloads it now ({{size}}), checks it against the release’s SHA-256 and installs it the next time it starts. Your settings, games, mods and builds are not touched.',
+                confirmManual: 'Version {{version}} is available (you have {{current}}).<br><br>This launcher keeps its data in AppData rather than next to the exe, so it can’t update itself. Download the new portable zip from the release page.',
+                notNow: 'Not now',
+                busyTitle: 'Not yet',
+                busyBody: 'Wait for the X-Men Legends build or the patch download to finish, or close the launcher: the update installs the next time it starts.',
+                restarting: 'Restarting to install the update…',
+                updated: 'Ultimate Legends was updated to {{version}}.'
+            },
             nav: {
                 home: 'Home',
                 library: 'Library',

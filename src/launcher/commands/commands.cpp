@@ -10,6 +10,7 @@
 #include "display_commands.hpp"
 #include "presence_commands.hpp"
 #include "xml1_commands.hpp"
+#include "update_commands.hpp"
 
 namespace commands
 {
@@ -39,5 +40,6 @@ namespace commands
         display_commands::register_commands(cef_ui, ctx);
         presence_commands::register_commands(cef_ui, ctx);
         xml1_commands::register_commands(cef_ui, ctx);
+        update_commands::register_commands(cef_ui, ctx);
     }
 }

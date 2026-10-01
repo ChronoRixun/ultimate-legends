@@ -25,6 +25,7 @@
     <script src="./assets/js/app/xml1-port.js"></script>
     <script src="./assets/js/app/xml1-setup.js"></script>
     <script src="./assets/js/app/xml1-view.js"></script>
+    <script src="./assets/js/app/launcher-update.js"></script>
     <script src="./assets/js/app/views.js"></script>
     <script src="./assets/js/app/main.js"></script>
 </head>
@@ -89,6 +90,14 @@
             </aside>
 
             <main class="content-area">
+                <div class="launcher-update-bar" id="launcher-update-bar" hidden>
+                    <span class="launcher-update-text" id="launcher-update-text"></span>
+                    <div class="launcher-update-progress" id="launcher-update-progress" hidden><div class="launcher-update-fill" id="launcher-update-fill"></div></div>
+                    <button type="button" class="launcher-update-link" id="launcher-update-notes" data-i18n="launcherUpdate.releaseNotes">Release notes</button>
+                    <button type="button" class="launcher-update-btn" id="launcher-update-action"></button>
+                    <button type="button" class="launcher-update-dismiss" id="launcher-update-dismiss" data-i18n-title="launcherUpdate.later" title="Later">&times;</button>
+                </div>
+
                 <div class="page-section" id="home-page">
                     <div class="hub-hero" id="hub-hero">
                         <div class="hud-corners"></div>
@@ -366,6 +375,10 @@
                     <div class="settings-footer">
                         <div class="footer-title">Ultimate Legends</div>
                         <div class="footer-version" id="version-footer">Version: Loading...</div>
+                        <div class="footer-update">
+                            <span class="footer-update-status" id="launcher-update-status"></span>
+                            <button type="button" class="footer-update-check" id="launcher-update-check" data-i18n="launcherUpdate.check">Check for updates</button>
+                        </div>
                         <div class="footer-links">
                             <div class="footer-source"><a href="https://github.com/ChronoRixun/ultimate-legends" target="_blank" data-i18n="settings.source">Source</a></div>
                             <div class="footer-credit" data-i18n-html="settings.basedOn">Based on the <a href="https://github.com/CBServers/cb-launcher" target="_blank">CB Servers Launcher</a> (GPL-3.0)</div>

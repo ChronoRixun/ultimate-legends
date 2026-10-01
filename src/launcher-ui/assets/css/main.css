@@ -4443,3 +4443,93 @@ html:not([data-color-uninstalled]) .library-card:not(.is-installed):not(.is-comi
 .xml1-check { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #fff; cursor: pointer; }
 .xml1-check.is-sub { margin-left: 26px; color: var(--text-muted); }
 .xml1-check input { width: 16px; height: 16px; accent-color: var(--danger); }
+
+/* ============================================================ */
+/* LAUNCHER UPDATE (app/launcher-update.js)                     */
+/* ============================================================ */
+
+.launcher-update-bar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0 0 10px;
+    padding: 10px 14px;
+    background: var(--surface-popup);
+    border: 1px solid var(--accent-soft);
+    border-radius: var(--radius);
+    box-shadow: 0 0 12px var(--accent-soft);
+    font-size: 13px;
+}
+
+.launcher-update-bar[hidden] { display: none; }
+.launcher-update-bar.is-failed { border-color: rgba(255, 77, 94, 0.45); box-shadow: none; }
+
+.launcher-update-text { flex: 1; min-width: 0; color: var(--text); }
+
+.launcher-update-progress {
+    width: 160px;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--surface-hi);
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.launcher-update-progress[hidden] { display: none; }
+
+.launcher-update-fill {
+    height: 100%;
+    width: 0;
+    background: var(--accent-grad);
+    transition: width 0.3s var(--ease);
+}
+
+.launcher-update-btn {
+    padding: 7px 16px;
+    font: inherit;
+    font-weight: 600;
+    border-radius: 10px;
+    border: 1px solid var(--accent);
+    background: var(--accent-grad);
+    color: #fff;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.launcher-update-btn[hidden] { display: none; }
+.launcher-update-btn:disabled { opacity: 0.5; cursor: default; }
+
+.launcher-update-link,
+.launcher-update-dismiss,
+.footer-update-check {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font: inherit;
+    cursor: pointer;
+    padding: 4px 6px;
+    flex-shrink: 0;
+}
+
+.launcher-update-link:hover,
+.launcher-update-dismiss:hover,
+.footer-update-check:hover:not(:disabled) { color: var(--text); text-decoration: underline; }
+
+.launcher-update-link[hidden],
+.launcher-update-dismiss[hidden] { display: none; }
+
+.launcher-update-dismiss { font-size: 18px; line-height: 1; text-decoration: none !important; }
+
+.settings-footer .footer-update {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.footer-update-check { font-size: 12px; color: var(--accent); }
+.footer-update-check:disabled { opacity: 0.5; cursor: default; }

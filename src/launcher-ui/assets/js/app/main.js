@@ -381,6 +381,11 @@ async function initialize() {
                 window.Xml1Port.init();
             }
 
+            // The launcher's own update (portable installs update themselves; see launcher-update.js).
+            if (window.LauncherUpdate) {
+                window.LauncherUpdate.init();
+            }
+
             handleStartupLaunchArg();
             handleStartupDeepLink();
         });

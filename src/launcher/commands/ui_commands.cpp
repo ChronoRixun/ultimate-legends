@@ -281,6 +281,7 @@ namespace commands::ui_commands
 
             static const std::vector<std::filesystem::path> skipped = {
                 std::filesystem::path("user") / "cef-data",
+                std::filesystem::path("updates"), // the self-update's downloads (portable installs only)
             };
 
             try

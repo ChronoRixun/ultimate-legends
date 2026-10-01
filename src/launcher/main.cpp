@@ -304,13 +304,18 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
 #endif
 
         // A downloaded launcher update (portable installs) goes in now, before CEF loads its files.
-        if (launcher_update::apply_pending())
+        switch (launcher_update::apply_pending())
         {
+        case launcher_update::result::relaunch:
 #if !defined(DEBUG)
             singleton_mutex().unlock(); // the new launcher takes it
 #endif
             launcher_update::relaunch();
             return 0;
+        case launcher_update::result::stop:
+            return 1;
+        case launcher_update::result::none:
+            break;
         }
         launcher_update::cleanup();
 

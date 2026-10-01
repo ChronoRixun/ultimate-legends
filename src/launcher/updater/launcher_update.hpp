@@ -15,26 +15,37 @@
 //   2. on the next start (or Restart now), before CEF loads and while it is the only launcher
 //      process, swaps the executable and each folder of data\ (cef, launcher-ui) with the new ones
 //      by renames on the same drive: the old ones go to updates\previous\, with a journal
-//      (updates\applying.json) written first. A failed rename rolls every step back; a start that
-//      finds the journal (a crash or power cut mid-swap) rolls back too. Then the new launcher is
-//      started and deletes updates\previous\.
+//      (updates\applying.json, written durably) first. A failed rename rolls every step back; a
+//      start that finds the journal (a crash or power cut mid-swap) rolls back too, working out
+//      what moved from the disk. Then the new launcher starts; updates\previous\ stays until its
+//      window is up, and a start that finds the new version never got that far restores it.
 //
 // Never touched: user\ (settings, CEF profile), tools\, cache\, mods, logs, portable.marker, and
 // the %LOCALAPPDATA% data of a non-portable launcher (that one only links to the release page).
 // Development builds (Debug, or not built exactly at a release tag) never update.
 namespace launcher_update
 {
-    // Startup, before CEF and after the single-instance lock: rolls back an interrupted swap,
-    // installs a downloaded update. True when the executable changed: the caller must start it
-    // (relaunch()) and exit.
-    bool apply_pending();
+    enum class result
+    {
+        none,     // carry on starting
+        relaunch, // the executable changed: start it (relaunch()) and exit
+        stop,     // a swap could not be undone and the player was told what to do: exit
+    };
+
+    // Startup, before CEF and after the single-instance lock: rolls back an interrupted swap or a
+    // new version whose first start never got its window up, installs a downloaded update.
+    result apply_pending();
 
     // Starts the launcher's executable again with this process's -flags.
     void relaunch();
 
-    // Startup, after apply_pending(): deletes what an earlier update left (the previous version,
-    // interrupted downloads) in the background.
+    // Startup, after apply_pending(): reads what an earlier start left for the UI, deletes
+    // interrupted downloads and leftovers.
     void cleanup();
+
+    // The window is up (the page says so once it has rendered): a new version's first start
+    // succeeded, so the previous version, kept as its way back until now, is deleted.
+    void confirm_started();
 
     // Checks the latest release in the background (no-op while a check or download runs).
     void check();

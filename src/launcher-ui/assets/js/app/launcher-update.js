@@ -46,6 +46,13 @@
                 this.render();
             };
 
+            // Rendered: a new version's first start went well (the backend keeps the previous version
+            // until now, and restores it when a start never gets here).
+            try {
+                await run('confirm-launcher-update');
+            } catch (error) {
+                console.error('launcher update: confirm failed', error);
+            }
             await this.refresh();
             const s = this.status;
             if (s && s.updatedTo && window.showToast) {
@@ -156,7 +163,11 @@
                     return { text: t('launcherUpdate.downloading', { version, percent }), progress: percent };
                 }
                 case 'ready':
-                    return { text: t('launcherUpdate.ready', { version: s.readyVersion || version }), action: t('launcherUpdate.restartNow') };
+                    return {
+                        text: s.installError || t('launcherUpdate.ready', { version: s.readyVersion || version }),
+                        action: t('launcherUpdate.restartNow'),
+                        failed: !!s.installError
+                    };
                 case 'failed':
                     return { text: t('launcherUpdate.failed', { error: s.error }), action: t('launcherUpdate.tryAgain'), failed: true };
                 default:

@@ -51,8 +51,9 @@ SmartScreen may warn about it on first start; compare the SHA-256 with the relea
 The launcher updates itself: when a newer release is out, a bar at the top of the window offers it. Update downloads
 the new portable zip, checks it against the release's `SHA256SUMS.txt` and installs it when the launcher restarts
 (or at once with Restart now). Only the executable, `data\cef` and `data\launcher-ui` are replaced; your settings,
-mods, builds and the rest of the `ultimate-legends` folder stay as they are, and a failed or interrupted update puts
-the previous version back. A launcher you moved to `%LOCALAPPDATA%` (Settings, portable mode off) only links to the
+mods, builds and the rest of the `ultimate-legends` folder stay as they are. An update that fails or is interrupted
+while it installs puts the previous version back, and so does the next start when the new version's window never
+came up. A launcher you moved to `%LOCALAPPDATA%` (Settings, portable mode off) only links to the
 release page. Development builds (Debug, or built from anything but a release tag) never update themselves.
 
 Help, bug reports and co-op partners: the community Discord, [discord.gg/tFxwHtZv8k](https://discord.gg/tFxwHtZv8k).

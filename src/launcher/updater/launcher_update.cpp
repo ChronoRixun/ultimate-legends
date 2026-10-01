@@ -87,6 +87,17 @@ namespace launcher_update
             return tool_install::is_safe_version(name);
         }
 
+        // A release version: numbers and dots only ("0.1.2"), so compare_versions() orders it exactly.
+        bool is_release_version(const std::string& version)
+        {
+            return !version.empty() && version.size() <= 32 && std::isdigit(static_cast<unsigned char>(version.front())) &&
+                   std::isdigit(static_cast<unsigned char>(version.back())) && version.find("..") == std::string::npos &&
+                   std::all_of(version.begin(), version.end(), [](const char c)
+                   {
+                       return std::isdigit(static_cast<unsigned char>(c)) || c == '.';
+                   });
+        }
+
         // The version this launcher is, for updating; empty for a development build, which never
         // updates: Debug builds (unless a test sets dev-launcher-version) and builds not made
         // exactly at a release tag (GIT_DESCRIBE "v0.1.1-3-gabc1234" or "v0.1.1-dirty").
@@ -94,12 +105,12 @@ namespace launcher_update
         {
 #ifdef _DEBUG
             const auto version = utils::properties::load(property_keys::DEV_LAUNCHER_VERSION).value_or("");
-            return tool_install::is_safe_version(version) ? version : std::string{};
+            return is_release_version(version) ? version : std::string{};
 #else
             const std::string version = VERSION_PRODUCT;
             const std::string describe = GIT_DESCRIBE;
             const std::string tag = GIT_TAG;
-            if (version == "0.0.0" || version.find('-') != std::string::npos || tag.empty() || describe != tag)
+            if (version == "0.0.0" || !is_release_version(version) || tag.empty() || describe != tag)
             {
                 return {};
             }
@@ -124,7 +135,7 @@ namespace launcher_update
                 return true; // the test's local server
             }
 #endif
-            return url.starts_with("https://");
+            return url.starts_with("https://github.com/ChronoRixun/ultimate-legends/releases/download/");
         }
 
         std::filesystem::path portable_root()
@@ -188,15 +199,39 @@ namespace launcher_update
             return document.HasParseError() ? std::string{} : json_string(document, key);
         }
 
-        void write_document(const std::filesystem::path& file, const rapidjson::Document& document)
+        // Writes `data` durably: a temporary file, flushed to the disk, renamed over `file`.
+        bool write_durable(const std::filesystem::path& file, const std::string& data)
+        {
+            auto temp = file;
+            temp += L".tmp";
+            auto* const handle = CreateFileW(temp.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+            if (handle == INVALID_HANDLE_VALUE)
+            {
+                utils::logger::write("launcher update: could not write {}", utils::string::path_to_utf8(file));
+                return false;
+            }
+            DWORD written = 0;
+            const auto ok = WriteFile(handle, data.data(), static_cast<DWORD>(data.size()), &written, nullptr) &&
+                            written == data.size() && FlushFileBuffers(handle);
+            CloseHandle(handle);
+            if (!ok || !MoveFileExW(temp.c_str(), file.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+            {
+                DeleteFileW(temp.c_str());
+                utils::logger::write("launcher update: could not write {}", utils::string::path_to_utf8(file));
+                return false;
+            }
+            return true;
+        }
+
+        bool write_document(const std::filesystem::path& file, const rapidjson::Document& document)
         {
             rapidjson::StringBuffer buffer;
             rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
             document.Accept(writer);
-            utils::io::write_file(file, std::string(buffer.GetString(), buffer.GetLength()));
+            return write_durable(file, std::string(buffer.GetString(), buffer.GetLength()));
         }
 
-        void write_json(const std::filesystem::path& file, const std::vector<std::pair<std::string, std::string>>& members)
+        bool write_json(const std::filesystem::path& file, const std::vector<std::pair<std::string, std::string>>& members)
         {
             rapidjson::Document document(rapidjson::kObjectType);
             auto& allocator = document.GetAllocator();
@@ -204,7 +239,7 @@ namespace launcher_update
             {
                 document.AddMember(make_string(key, allocator), make_string(value, allocator), allocator);
             }
-            write_document(file, document);
+            return write_document(file, document);
         }
 
         // ---- the swap ----
@@ -235,20 +270,46 @@ namespace launcher_update
             return items;
         }
 
-        // What updates\ready brings: every folder in its data\ (cef, launcher-ui), then the exe.
-        std::vector<std::string> ready_names()
+        void add_folders(const std::filesystem::path& data, std::set<std::string>& names)
         {
-            std::vector<std::string> names;
             std::error_code error;
-            for (const auto& entry : std::filesystem::directory_iterator(updates_folder() / "ready" / "data", error))
+            for (const auto& entry : std::filesystem::directory_iterator(data, error))
             {
                 const auto name = utils::string::path_to_utf8(entry.path().filename());
                 if (entry.is_directory(error) && is_plain_name(name))
                 {
-                    names.push_back("data/" + name);
+                    names.insert("data/" + name);
                 }
             }
-            names.push_back("exe");
+        }
+
+        // What updates\ready brings: every folder in its data\ (cef, launcher-ui), then the exe.
+        std::vector<std::string> ready_names()
+        {
+            std::set<std::string> folders;
+            add_folders(updates_folder() / "ready" / "data", folders);
+            std::vector<std::string> names(folders.begin(), folders.end());
+            names.emplace_back("exe");
+            return names;
+        }
+
+        // Everything a swap may have moved, from what is on the disk (updates\previous and
+        // updates\ready) plus the journal's list when it is readable: recovery never depends on the
+        // journal's contents alone.
+        std::vector<std::string> swap_names(const std::vector<std::string>& journal)
+        {
+            std::set<std::string> folders;
+            add_folders(updates_folder() / "previous" / "data", folders);
+            add_folders(updates_folder() / "ready" / "data", folders);
+            for (const auto& name : journal)
+            {
+                if (name != "exe")
+                {
+                    folders.insert(name);
+                }
+            }
+            std::vector<std::string> names(folders.begin(), folders.end());
+            names.emplace_back("exe");
             return names;
         }
 
@@ -269,8 +330,11 @@ namespace launcher_update
         }
 
         // Undoes swap() from any point: what moved in goes back to ready\, what moved out comes back.
+        // Safe to repeat after a partial run.
         bool roll_back(const std::vector<item>& items)
         {
+            std::error_code error;
+            std::filesystem::create_directories(updates_folder() / "ready" / "data", error);
             auto ok = true;
             for (auto it = items.rbegin(); it != items.rend(); ++it)
             {
@@ -287,7 +351,21 @@ namespace launcher_update
             return ok;
         }
 
-        void write_journal(const std::filesystem::path& file, const std::string& version, const std::vector<item>& items)
+        // Retries while the files are still held (by the processes of the version that just ran).
+        bool roll_back_retrying(const std::vector<item>& items)
+        {
+            for (auto attempt = 0; attempt < 30; ++attempt)
+            {
+                if (roll_back(items))
+                {
+                    return true;
+                }
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+            }
+            return false;
+        }
+
+        bool write_journal(const std::filesystem::path& file, const std::string& version, const std::vector<item>& items)
         {
             rapidjson::Document document(rapidjson::kObjectType);
             auto& allocator = document.GetAllocator();
@@ -298,7 +376,7 @@ namespace launcher_update
                 names.PushBack(make_string(entry.name, allocator), allocator);
             }
             document.AddMember("items", names, allocator);
-            write_document(file, document);
+            return write_document(file, document);
         }
 
         std::vector<std::string> read_journal(const std::filesystem::path& file)
@@ -330,6 +408,34 @@ namespace launcher_update
         {
             utils::logger::write("launcher update {}: {}", version, message);
             write_json(updates_folder() / "failed.json", {{"version", version}, {"error", message}});
+        }
+
+        // Keeps a download that can't be used (updates\discarded) instead of deleting it.
+        void set_aside(const std::filesystem::path& ready)
+        {
+            if (!path_exists(ready))
+            {
+                return;
+            }
+            const auto discarded = updates_folder() / "discarded";
+            if (!remove_tree(discarded) || !move_path(ready, discarded))
+            {
+                remove_tree(ready);
+            }
+        }
+
+        // A swap that can't be undone: never start the launcher on half of one version.
+        void stuck(const std::string& what)
+        {
+            const auto text = std::format(
+                "Ultimate Legends could not finish undoing an update ({}).\n\n"
+                "The previous version's files are in:\n{}\n\n"
+                "Close every Ultimate Legends window (and any program that may have the launcher's files open) and start "
+                "Ultimate Legends again: it tries again. If this keeps happening, download the launcher again from {} and "
+                "unzip it over this one; your settings are kept.",
+                what, utils::string::path_to_utf8(updates_folder() / "previous"), release_page);
+            utils::logger::write("launcher update: stuck: {}", what);
+            MessageBoxW(nullptr, utils::string::convert(text).c_str(), L"Ultimate Legends", MB_ICONERROR | MB_OK);
         }
 
         // ---- the release ----
@@ -380,9 +486,10 @@ namespace launcher_update
             {
                 latest.page = release_page;
             }
-            if (!tool_install::is_safe_version(latest.version) || !std::isdigit(static_cast<unsigned char>(latest.version.front())))
+            if (!is_release_version(latest.version))
             {
-                error = "The latest release has no version in its tag (" + tag + ").";
+                // compare_versions() reads "0.2.0-rc1" as 0.2.0: a launcher built at it would never see the real 0.2.0.
+                error = "The latest release's tag (" + tag + ") is not a plain version number; no update.";
                 return std::nullopt;
             }
 
@@ -597,63 +704,103 @@ namespace launcher_update
         }
     }
 
-    bool apply_pending()
+    result apply_pending()
     {
         if (!can_install())
         {
-            return false;
+            return result::none;
         }
 
         const auto updates = updates_folder();
         const auto journal = updates / "applying.json";
+        const auto applied = updates / "applied.json";
         const auto ready = updates / "ready";
         const auto previous = updates / "previous";
 
-        // A swap that never finished (the process died mid-way): put the old launcher back.
+        // 1. A swap that never finished (the process died or the power went mid-way): put the old
+        // launcher back. The items come from the disk; the journal may be empty or damaged.
         if (path_exists(journal))
         {
-            const auto version = read_json_string(journal, "version");
-            const auto items = items_for(read_journal(journal));
-            const auto exe_moved = path_exists(previous / exe_name);
-            if (!roll_back(items))
+            auto version = read_json_string(journal, "version");
+            if (version.empty())
             {
-                utils::logger::write("launcher update: rolling back the interrupted update to {} failed; trying again next start", version);
-                return false;
+                version = read_json_string(ready / "update.json", "version");
+            }
+            const auto items = items_for(swap_names(read_journal(journal)));
+            const auto exe_moved = path_exists(previous / exe_name);
+            if (!roll_back_retrying(items))
+            {
+                stuck("an interrupted update to " + (version.empty() ? std::string("a new version") : version));
+                return result::stop;
             }
             utils::io::remove_file(journal);
-            remove_tree(ready);
+            set_aside(ready);
+            remove_tree(previous);
             note_failure(version, "The update was interrupted and the previous version was put back.");
             if (exe_moved)
             {
-                return true; // this process may be the new executable: start the restored one
+                return result::relaunch; // this process may be the new executable: start the restored one
             }
         }
 
+        // 2. A new version's first start. It is "started" until its window is up (confirm_started());
+        // a start that finds it still started never got that far: put the previous version back.
+        if (path_exists(applied) && path_exists(previous))
+        {
+            const auto to = read_json_string(applied, "to");
+            if (read_json_string(applied, "started") != "true")
+            {
+                write_json(applied, {{"from", read_json_string(applied, "from")}, {"to", to}, {"started", "true"}});
+                return result::none;
+            }
+
+            utils::logger::write("launcher update: {} did not start; restoring the previous version", to);
+            const auto items = items_for(swap_names({}));
+            if (!roll_back_retrying(items))
+            {
+                stuck(to + " did not start, and the previous version could not be put back");
+                return result::stop;
+            }
+            utils::io::remove_file(applied);
+            set_aside(ready);
+            remove_tree(previous);
+            note_failure(to, "It did not start, so the previous version was put back.");
+            return result::relaunch;
+        }
+
+        // 3. A downloaded update.
         const auto version = read_json_string(ready / "update.json", "version");
         if (version.empty())
         {
-            return false;
+            return result::none;
         }
         const auto current = current_version();
         if (current.empty())
         {
-            return false; // a development build never installs one
+            return result::none; // a development build never installs one
         }
-        if (!tool_install::is_safe_version(version) || tool_install::compare_versions(version, current) <= 0 || !is_complete(ready))
+        if (!is_release_version(version) || tool_install::compare_versions(version, current) <= 0)
         {
             utils::logger::write("launcher update: discarding updates\\ready ({}; this is {})", version, current);
             remove_tree(ready);
-            return false;
+            return result::none;
+        }
+        if (!is_complete(ready))
+        {
+            set_aside(ready);
+            note_failure(version, "Its download is incomplete: a file of it is missing (security software may have removed it). "
+                                  "It was moved to updates\\discarded; Update downloads it again.");
+            return result::none;
         }
 
-        // Leftovers of an earlier update; still in use means an older launcher process still runs.
+        // Leftovers of an earlier update (normally deleted once its window was up).
         for (auto attempt = 0; !remove_tree(previous); ++attempt)
         {
             if (attempt >= 20)
             {
-                note_failure(version, "The previous version's files stayed in use.");
-                remove_tree(ready);
-                return false;
+                note_failure(version, "The previous version's files are still in use (updates\\previous). "
+                                      "It installs the next time the launcher starts.");
+                return result::none;
             }
             std::this_thread::sleep_for(std::chrono::seconds(1));
         }
@@ -661,39 +808,47 @@ namespace launcher_update
         std::filesystem::create_directories(previous / "data", fs_error);
 
         const auto items = items_for(ready_names());
-        write_journal(journal, version, items);
+        if (fs_error || !write_journal(journal, version, items))
+        {
+            remove_tree(previous);
+            note_failure(version, "Could not write to " + utils::string::path_to_utf8(updates) + " (is the drive full?). "
+                                  "Nothing was changed; it installs the next time the launcher starts.");
+            return result::none;
+        }
         utils::logger::write("launcher update: installing {} over {}", version, current);
 
         // The previous launcher's processes (CEF's helpers outlive it by a few seconds) hold its
         // files: a folder that can't be renamed yet rolls everything back, and it waits and retries.
         auto installed = false;
-        for (auto attempt = 0; attempt < 30 && !installed; ++attempt)
+        for (auto attempt = 0; attempt < 30; ++attempt)
         {
             installed = swap(items);
-            if (!installed)
+            if (installed)
             {
-                if (!roll_back(items))
-                {
-                    utils::logger::write("launcher update: roll back failed; the next start finishes it");
-                    return false;
-                }
-                std::this_thread::sleep_for(std::chrono::seconds(1));
+                break;
             }
+            if (!roll_back_retrying(items))
+            {
+                stuck("installing " + version);
+                return result::stop;
+            }
+            std::this_thread::sleep_for(std::chrono::seconds(1));
         }
         if (!installed)
         {
             utils::io::remove_file(journal);
-            remove_tree(ready);
-            note_failure(version, "Its files could not be put in place (another program held the launcher's files).");
-            return false;
+            remove_tree(previous);
+            note_failure(version, "Its files could not be put in place: another program kept the launcher's files open. "
+                                  "It is tried again the next time the launcher starts.");
+            return result::none;
         }
 
-        // Committed: from here on the new version stands.
+        // Committed once the journal is gone; updates\previous stays until the new window is up.
+        write_json(applied, {{"from", current}, {"to", version}});
         utils::io::remove_file(journal);
         remove_tree(ready);
-        write_json(updates / "applied.json", {{"from", current}, {"to", version}});
         utils::logger::write("launcher update: installed {}", version);
-        return true;
+        return result::relaunch;
     }
 
     void relaunch()
@@ -728,6 +883,16 @@ namespace launcher_update
         }
         const auto updates = updates_folder();
 
+        // Interrupted downloads (before this process can start one).
+        std::error_code error;
+        for (const auto& entry : std::filesystem::directory_iterator(updates, error))
+        {
+            if (entry.path().filename().wstring().starts_with(L".staging-"))
+            {
+                remove_tree(entry.path());
+            }
+        }
+
         if (const auto to = read_json_string(updates / "applied.json", "to"); !to.empty())
         {
             with_state([&](state_t& state)
@@ -735,36 +900,61 @@ namespace launcher_update
                 state.updated_to = to;
             });
         }
-        utils::io::remove_file(updates / "applied.json");
 
-        if (const auto version = read_json_string(updates / "failed.json", "version"); !version.empty())
+        // The version may be unknown (an interrupted swap whose journal and update.json were lost).
+        if (const auto failure = read_json_string(updates / "failed.json", "error"); !failure.empty())
         {
-            const auto error = read_json_string(updates / "failed.json", "error");
+            const auto version = read_json_string(updates / "failed.json", "version");
             with_state([&](state_t& state)
             {
-                state.install_error = "Version " + version + " could not be installed. " + error + " Your launcher was not changed.";
+                state.install_error = (version.empty() ? std::string("The update") : "Version " + version) +
+                                      " could not be installed. " + failure + " Your launcher was not changed.";
             });
         }
         utils::io::remove_file(updates / "failed.json");
 
+        // A verified download still waiting (its install was put off): offer Restart now.
+        const auto ready_version = read_json_string(updates / "ready" / "update.json", "version");
+        const auto current = current_version();
+        if (!ready_version.empty() && !current.empty() && is_complete(updates / "ready") &&
+            tool_install::compare_versions(ready_version, current) > 0)
+        {
+            with_state([&](state_t& state)
+            {
+                state.state = "ready";
+                state.ready_version = ready_version;
+            });
+        }
+
+        // Leftovers of an earlier update that are not a first start's way back.
+        if (!path_exists(updates / "applied.json") && path_exists(updates / "previous"))
+        {
+            std::thread([updates]
+            {
+                for (auto attempt = 0; attempt < 30 && !remove_tree(updates / "previous"); ++attempt)
+                {
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
+                }
+            }).detach();
+        }
+    }
+
+    void confirm_started()
+    {
+        const auto updates = updates_folder();
+        if (!can_install() || !path_exists(updates / "applied.json"))
+        {
+            return;
+        }
+        // The new version's window is up: it stands, and the previous one can go.
+        utils::io::remove_file(updates / "applied.json");
+        utils::logger::write("launcher update: the new version started");
         std::thread([updates]
         {
             // The previous executable may still run for a moment (it started this one).
-            for (auto attempt = 0; attempt < 30 && path_exists(updates / "previous"); ++attempt)
+            for (auto attempt = 0; attempt < 30 && !remove_tree(updates / "previous"); ++attempt)
             {
-                if (remove_tree(updates / "previous"))
-                {
-                    break;
-                }
                 std::this_thread::sleep_for(std::chrono::seconds(1));
-            }
-            std::error_code error;
-            for (const auto& entry : std::filesystem::directory_iterator(updates, error))
-            {
-                if (entry.path().filename().wstring().starts_with(L".staging-"))
-                {
-                    remove_tree(entry.path());
-                }
             }
         }).detach();
     }

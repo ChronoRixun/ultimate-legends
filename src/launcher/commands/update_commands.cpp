@@ -13,6 +13,13 @@ namespace commands::update_commands
             launcher_update::write_status(response, response.GetAllocator());
         });
 
+        // The page calls this once it has rendered: a new version's first start went well.
+        cef_ui.add_command("confirm-launcher-update", [](const auto&, rapidjson::Document& response)
+        {
+            launcher_update::confirm_started();
+            response.SetBool(true);
+        });
+
         cef_ui.add_command("check-launcher-update", [](const auto&, rapidjson::Document& response)
         {
             launcher_update::check();

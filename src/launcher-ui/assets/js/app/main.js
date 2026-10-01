@@ -350,6 +350,12 @@ async function initialize() {
     // Remove hidden class after the first localized render
     document.body.classList.remove('hidden');
 
+    // The page is shown: a launcher update's first start went well (the backend keeps the previous
+    // version until now). Here, before anything later in startup can fail and skip it.
+    try {
+        Promise.resolve(window.executeCommand('confirm-launcher-update')).catch(() => {});
+    } catch (_) { /* never in the way of the page */ }
+
     // Preload all game images first
     preloadGameImages().then(() => {
         console.log('All game images preloaded');

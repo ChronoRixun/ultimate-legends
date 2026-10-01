@@ -46,13 +46,6 @@
                 this.render();
             };
 
-            // Rendered: a new version's first start went well (the backend keeps the previous version
-            // until now, and restores it when a start never gets here).
-            try {
-                await run('confirm-launcher-update');
-            } catch (error) {
-                console.error('launcher update: confirm failed', error);
-            }
             await this.refresh();
             const s = this.status;
             if (s && s.updatedTo && window.showToast) {

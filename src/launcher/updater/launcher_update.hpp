@@ -18,7 +18,7 @@
 //      (updates\applying.json, written durably) first. A failed rename rolls every step back; a
 //      start that finds the journal (a crash or power cut mid-swap) rolls back too, working out
 //      what moved from the disk. Then the new launcher starts; updates\previous\ stays until its
-//      window is up, and a start that finds the new version never got that far restores it.
+//      page is shown, and after two starts that never got that far the next one restores it.
 //
 // Never touched: user\ (settings, CEF profile), tools\, cache\, mods, logs, portable.marker, and
 // the %LOCALAPPDATA% data of a non-portable launcher (that one only links to the release page).
@@ -43,7 +43,7 @@ namespace launcher_update
     // interrupted downloads and leftovers.
     void cleanup();
 
-    // The window is up (the page says so once it has rendered): a new version's first start
+    // The page is shown (main.js says so as soon as it is): a new version's first start
     // succeeded, so the previous version, kept as its way back until now, is deleted.
     void confirm_started();
 

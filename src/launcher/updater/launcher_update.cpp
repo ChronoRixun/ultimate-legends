@@ -424,6 +424,18 @@ namespace launcher_update
             }
         }
 
+        constexpr auto unconfirmed_starts = 2; // a new version's starts without its page shown before a roll back
+        constexpr auto held_retries = 3;       // starts that try again on their own after files were held
+
+        std::string held_message(const int tries)
+        {
+            return std::string("Its files could not be put in place: another program kept the launcher's files open. ") +
+                   (tries < held_retries
+                        ? "It is tried again the next time the launcher starts."
+                        : "Close programs that may have them open (an Explorer window on the launcher's folder, "
+                          "OneDrive or other sync software) and press Restart now.");
+        }
+
         // A swap that can't be undone: never start the launcher on half of one version.
         void stuck(const std::string& what)
         {
@@ -743,18 +755,20 @@ namespace launcher_update
             }
         }
 
-        // 2. A new version's first start. It is "started" until its window is up (confirm_started());
-        // a start that finds it still started never got that far: put the previous version back.
+        // 2. A new version's first starts. Each start is counted until its page is shown
+        // (confirm_started()); after two starts that never got that far (not one: a window closed
+        // early is no reason), the next one puts the previous version back.
         if (path_exists(applied) && path_exists(previous))
         {
             const auto to = read_json_string(applied, "to");
-            if (read_json_string(applied, "started") != "true")
+            const auto starts = std::atoi(read_json_string(applied, "starts").c_str());
+            if (starts < unconfirmed_starts)
             {
-                write_json(applied, {{"from", read_json_string(applied, "from")}, {"to", to}, {"started", "true"}});
+                write_json(applied, {{"from", read_json_string(applied, "from")}, {"to", to}, {"starts", std::to_string(starts + 1)}});
                 return result::none;
             }
 
-            utils::logger::write("launcher update: {} did not start; restoring the previous version", to);
+            utils::logger::write("launcher update: {} did not start {} times; restoring the previous version", to, starts);
             const auto items = items_for(swap_names({}));
             if (!roll_back_retrying(items))
             {
@@ -792,6 +806,18 @@ namespace launcher_update
                                   "It was moved to updates\\discarded; Update downloads it again.");
             return result::none;
         }
+
+        // Files held open on every try (an Explorer window, OneDrive): after three starts that failed
+        // on them, only Restart now tries again, so a start doesn't stall each time.
+        const auto held_file = ready / "held.json";
+        const auto install_now = ready / "install-now";
+        const auto held = std::atoi(read_json_string(held_file, "count").c_str());
+        if (held >= held_retries && !path_exists(install_now))
+        {
+            note_failure(version, held_message(held));
+            return result::none;
+        }
+        utils::io::remove_file(install_now);
 
         // Leftovers of an earlier update (normally deleted once its window was up).
         for (auto attempt = 0; !remove_tree(previous); ++attempt)
@@ -838,14 +864,15 @@ namespace launcher_update
         {
             utils::io::remove_file(journal);
             remove_tree(previous);
-            note_failure(version, "Its files could not be put in place: another program kept the launcher's files open. "
-                                  "It is tried again the next time the launcher starts.");
+            write_json(held_file, {{"count", std::to_string(held + 1)}});
+            note_failure(version, held_message(held + 1));
             return result::none;
         }
 
-        // Committed once the journal is gone; updates\previous stays until the new window is up.
-        write_json(applied, {{"from", current}, {"to", version}});
+        // Committed once the journal is gone (first: a crash before applied.json is written must
+        // not roll back a finished swap); updates\previous stays until the new page is shown.
         utils::io::remove_file(journal);
+        write_json(applied, {{"from", current}, {"to", version}});
         remove_tree(ready);
         utils::logger::write("launcher update: installed {}", version);
         return result::relaunch;
@@ -1050,6 +1077,7 @@ namespace launcher_update
             return false;
         }
 
+        utils::io::write_file(updates_folder() / "ready" / "install-now", "");
         std::thread([]
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(300)); // let the answer reach the UI

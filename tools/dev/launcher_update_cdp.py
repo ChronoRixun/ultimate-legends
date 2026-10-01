@@ -17,7 +17,9 @@ changed, nothing left behind), the download, Restart now (the swap: the new UI i
 cache\\, mods\\, portable.marker and the settings untouched; updates\\ cleaned up; "updated" reported),
 up to date, a file held open in data\\cef during the swap (retried, rolled back, said, then installed by
 the next Restart now), a swap interrupted before and after the exe moved and with an empty journal, a new
-version whose first start never got its window up (all rolled back from what is on the disk), and
+version whose page never comes up (kept for two starts, then rolled back; all from what is on the disk), a
+first start whose page fails after it is shown (kept), files held on three starts (the fourth doesn't
+retry), and
 development builds (no checks).
 The ultimatelegends:// registration the test exe takes over is put back at the end. Screenshots go to
 tools/dev/launcher-update-*.png (gitignored).
@@ -95,10 +97,21 @@ def debug_port_open():
         return False
 
 
-def start_launcher():
+def launch():
     subprocess.Popen([str(INSTALL / "ultimate-legends.exe"), "-no-assert-dialogs"], cwd=str(INSTALL),
                      creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS)
+
+
+def start_launcher():
+    launch()
     return connect()
+
+
+def json_field(path, key):
+    try:
+        return json.loads(path.read_text()).get(key)
+    except (OSError, ValueError):
+        return None
 
 
 def connect(timeout=90):
@@ -217,6 +230,11 @@ def make_release_zip(path):
         archive.writestr(f"{top}/ultimate-legends/data/launcher-ui/update-test.txt", NEW_VERSION)
 
 
+def replace_once(text, old, new):
+    assert old in text, old
+    return text.replace(old, new, 1)
+
+
 def make_install(release):
     INSTALL.mkdir(parents=True)
     shutil.copy2(DEBUG_EXE, INSTALL / "ultimate-legends.exe")
@@ -308,7 +326,9 @@ def main():
         release.wrong_hash = False
         js("document.querySelector('#launcher-update-action').click()")  # Try again
         check(confirm() is not None, "Try again asks again")
-        check(wait_for(lambda: status()["state"] == "ready", 180), "downloaded, verified and unpacked")
+        if not check(wait_for(lambda: status()["state"] == "ready", 300), "downloaded, verified and unpacked"):
+            print("    status:", status())
+            return 1
         ready = json.loads((UPDATES / "ready" / "update.json").read_text())
         check(ready.get("version") == NEW_VERSION and ready.get("sha256") == sha256(www / ZIP_NAME),
               "updates\\ready\\update.json names the version and the zip's SHA-256")
@@ -366,6 +386,7 @@ def main():
         launcher.screenshot(HERE / "launcher-update-held.png")
         check((UPDATES / "ready" / "update.json").exists() and not (UPDATES / "applying.json").exists()
               and not (UPDATES / "previous").exists(), "the download kept, no journal, no previous\\")
+        check(json_field(UPDATES / "ready" / "held.json", "count") == "1", "the held start is counted (held.json)")
         js("document.querySelector('#launcher-update-action').click()")  # Restart now, nothing held this time
         time.sleep(3)
         launcher = connect(120)
@@ -377,13 +398,53 @@ def main():
         new_exe = DEBUG_EXE.read_bytes() + b"\0UPDATE-TEST-NEW-EXE"  # a different exe that still runs (PE overlay)
         old_hash = sha256(INSTALL / "ultimate-legends.exe")
 
-        def half_swap(exe_moved, journal=None, applied=None):
+        print("a first start whose page fails after it is shown is kept")
+        stop_launcher()
+        page_js = ROOT / "data" / "launcher-ui" / "assets" / "js" / "app" / "main.js"
+        original_js = page_js.read_text(encoding="utf-8")
+        page_js.write_text(replace_once(original_js, "window.GameStateManager.startPolling();",
+                                        "throw new Error('test: startup fails after the page is shown');"), encoding="utf-8")
+        (UPDATES / "previous").mkdir(parents=True, exist_ok=True)
+        shutil.copy2(INSTALL / "ultimate-legends.exe", UPDATES / "previous" / "ultimate-legends.exe")
+        (UPDATES / "applied.json").write_text(json.dumps({"from": "0.1.0", "to": NEW_VERSION, "starts": "1"}))
+        exe_before = sha256(INSTALL / "ultimate-legends.exe")
+        launcher = start_launcher()
+        js = launcher.evaluate
+        check(js("window.LauncherUpdate.status === null"), "the page's startup failed before LauncherUpdate.init")
+        check(wait_for(lambda: not (UPDATES / "applied.json").exists(), 10), "it still confirmed the start (applied.json gone)")
+        check(wait_for(lambda: not (UPDATES / "previous").exists(), 30), "the previous version is deleted, not restored")
+        check(sha256(INSTALL / "ultimate-legends.exe") == exe_before and marker.exists(), "the new version stays")
+        stop_launcher()
+        page_js.write_text(original_js, encoding="utf-8")
+
+        print("files held on three starts: the fourth start doesn't try (and doesn't stall)")
+        ready_dir = UPDATES / "ready"
+        (ready_dir / "data" / "cef" / "release").mkdir(parents=True)
+        (ready_dir / "data" / "launcher-ui").mkdir(parents=True)
+        os.link(CEF / "libcef.dll", ready_dir / "data" / "cef" / "release" / "libcef.dll")
+        shutil.copy2(UI / "main.html", ready_dir / "data" / "launcher-ui" / "main.html")
+        shutil.copy2(DEBUG_EXE, ready_dir / "ultimate-legends.exe")
+        (ready_dir / "update.json").write_text(json.dumps({"version": NEW_VERSION}))
+        (ready_dir / "held.json").write_text(json.dumps({"count": "3"}))
+        started = time.time()
+        launcher = start_launcher()
+        js = launcher.evaluate
+        seconds = time.time() - started
+        check(seconds < 25, f"the start took {seconds:.0f} s (no 30 s of retries)")
+        s = status()
+        check(s["state"] == "ready" and "press Restart now" in s["installError"], "it says why and offers Restart now")
+        check(wait_for(lambda: "press Restart now" in (bar_text() or ""), 10), "on the bar")
+        check((ready_dir / "update.json").exists() and marker.exists(), "the download kept, nothing installed")
+        stop_launcher()
+        shutil.rmtree(ready_dir)
+
+        def half_swap(exe_moved, journal=None, applied=None, folders=("cef", "launcher-ui")):
             """The disk as a swap (or a first start) left it: data\\ folders moved out, fake new ones in."""
             stop_launcher()
             shutil.rmtree(UPDATES / "discarded", ignore_errors=True)
             (UPDATES / "ready" / "data").mkdir(parents=True, exist_ok=True)
             (UPDATES / "previous" / "data").mkdir(parents=True, exist_ok=True)
-            for name in ("cef", "launcher-ui"):
+            for name in folders:
                 for attempt in range(20):
                     try:
                         os.rename(ROOT / "data" / name, UPDATES / "previous" / "data" / name)
@@ -432,11 +493,19 @@ def main():
         js = launcher.evaluate
         restored("exe moved", "interrupted")
 
-        print("a new version whose first start never got its window up")
-        half_swap(True, applied={"from": "0.1.0", "to": "0.1.3", "started": "true"})
+        print("a new version whose page never comes up: two starts, then the previous version is back")
+        # The new exe with a UI folder that has no page: CEF starts, the page never shows.
+        half_swap(True, applied={"from": "0.1.0", "to": "0.1.3"}, folders=("launcher-ui",))
+        for count in ("1", "2"):
+            launch()
+            check(wait_for(lambda: json_field(UPDATES / "applied.json", "starts") == count, 30),
+                  f"start {count} without the page is counted, nothing restored yet")
+            time.sleep(3)
+            check((ROOT / "data" / "launcher-ui" / "new.txt").exists(), f"start {count}: the new version still in place")
+            stop_launcher()
         launcher = start_launcher()
         js = launcher.evaluate
-        restored("failed first start", "did not start")
+        restored("third start", "did not start")
         launcher.screenshot(HERE / "launcher-update-restored.png")
 
         print("development builds")

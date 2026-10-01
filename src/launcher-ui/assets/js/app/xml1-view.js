@@ -150,7 +150,9 @@
 
         // Rows: what the page knows about the build.
         let builderValue;
-        if (builder.installed) {
+        if (builder.installed && builder.checking) {
+            builderValue = t('xml1.builderChecking', { version: builder.version });
+        } else if (builder.installed) {
             builderValue = builder.updateAvailable ? t('xml1.builderUpdate', { version: builder.version, latest: builder.latest.version })
                 : t('xml1.builderVersion', { version: builder.version });
         } else if (builder.installing) {
@@ -174,7 +176,8 @@
                 ${row(t('xml1.rowDisc'), discValue, button('change-disc', t('xml1.changeDisc'), working ? 'disabled' : ''))}
                 ${row(t('xml1.rowBuild'), buildValue)}
                 ${row(t('xml1.rowFix'), fixValue)}
-                ${row(t('xml1.rowBuilder'), builderValue, !builder.installed && !builder.installing ? button('install-builder', t('xml1.installBuilder')) : '')}
+                ${row(t('xml1.rowBuilder'), builderValue, !builder.installed && !builder.installing ? button('install-builder', t('xml1.installBuilder'))
+                    : builder.installed ? button('check-builder', t('xml1.checkUpdates'), builder.checking || builder.installing || working || window.IS_OFFLINE ? 'disabled' : '') : '')}
                 ${row(t('xml1.rowCache'), cacheValue, cache && cache.bytes > 0 ? button('free-cache', t('xml1.freeUp'), working ? 'disabled' : '') : '')}
             </div>` : '';
 
@@ -246,6 +249,20 @@
                 await port.checkBuilder(true);
                 port.refreshInfo();
                 break;
+            case 'check-builder': {
+                const before = s && s.builder ? s.builder.version : '';
+                const builder = await port.checkBuilder(true);
+                if (!builder || !builder.installed) {
+                    const described = port.describe({ code: (builder && builder.code) || 'L_BUILDER_OFFLINE', msg: builder ? builder.error : '' });
+                    window.showToast(described.title, 'error', 6000);
+                } else if (builder.version !== before) {
+                    window.showToast(t('xml1.builderInstalled', { version: builder.version }), 'success', 6000);
+                } else {
+                    window.showToast(t('xml1.builderUpToDate', { version: builder.version }), 'info');
+                }
+                port.refreshInfo();
+                break;
+            }
             case 'verify': {
                 const job = await port.verifyBuild();
                 const verify = port.verify;
@@ -294,6 +311,7 @@
             setTimeout(async () => {
                 await window.Xml1Port.refresh();
                 window.Xml1Port.refreshInfo();
+                window.Xml1Port.checkBuilderIfDue(5 * 60 * 1000);
             }, 0);
         }
     }, true);

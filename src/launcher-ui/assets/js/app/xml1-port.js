@@ -26,6 +26,11 @@
     }
 
     const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+    // The builder's release is checked again while the launcher stays open (a release published after
+    // startup used to go unseen until a restart: a Rebuild then ran the old builder): on a timer, when
+    // the window comes back into view, when the port's page opens, and always right before a build.
+    const RECHECK_MS = 30 * 60 * 1000;
+    const DUE_MS = 5 * 60 * 1000;
 
     // Profile paths never leave the PC in copied details or reports (the builder masks its own the
     // same way). JSON text escapes backslashes, so "C:\\Users\\name" is masked too.
@@ -41,6 +46,7 @@
 
     const Xml1Port = {
         status: null,
+        lastCheck: 0,
         info: null,      // the builder's `info` about the build in its folder (result.info)
         verify: null,    // the last `verify` (result.verify)
         build: null,     // the last build/clean run (get-xml1-build)
@@ -74,6 +80,26 @@
             // player's call, section 4.5).
             if (this.status && this.status.install && !window.IS_OFFLINE) {
                 this.checkBuilder(true);
+            }
+            setInterval(() => this.checkBuilderIfDue(RECHECK_MS), RECHECK_MS);
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') this.checkBuilderIfDue(DUE_MS);
+            });
+        },
+
+        // The release check again, when the last one is older than `maxAge` and nothing is in the
+        // way (offline, the port not set up, a build running, a check or install already under way).
+        async checkBuilderIfDue(maxAge) {
+            const s = this.status;
+            const builder = s && s.builder;
+            if (!s || !s.install || window.IS_OFFLINE || this.isWorking()) return null;
+            if (builder && (builder.checking || builder.installing)) return null;
+            if (Date.now() - this.lastCheck < maxAge) return null;
+            try {
+                return await this.checkBuilder(true);
+            } catch (error) {
+                console.error('xml1: builder check failed', error);
+                return null;
             }
         },
 
@@ -115,6 +141,7 @@
                 status = await run('get-xml1-status');
                 if (onUpdate) onUpdate(status.builder);
             } while (status.builder.checking || status.builder.installing);
+            this.lastCheck = Date.now();
             this.status = status;
             this.emit();
             return status.builder;
@@ -234,10 +261,20 @@
         // A build with the choices of the last one (Resume, Rebuild, Repair, Update). Without the disc
         // image the builder reads the disc from the build cache.
         async resume() {
-            const s = this.status || await this.refresh();
+            let s = this.status || await this.refresh();
             if (!this.canRebuild()) {
                 if (window.Xml1Setup) window.Xml1Setup.show();
                 return null;
+            }
+            // The latest builder first: a release published since the last check would otherwise
+            // leave this build on the old content version.
+            if (!window.IS_OFFLINE && !(s.builder && (s.builder.checking || s.builder.installing))) {
+                try {
+                    await this.checkBuilder(true);
+                } catch (error) {
+                    console.error('xml1: builder check before the build failed', error);
+                }
+                s = this.status || s;
             }
             const iso = s.isoExists ? s.iso : '';
             const started = await this.startBuild({ iso, out: s.install, movies: s.movies, keepCache: s.keepCache, linkBase: s.linkBase });

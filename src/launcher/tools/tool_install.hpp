@@ -66,6 +66,12 @@ namespace tool_install
     using progress_callback = std::function<void(std::uint64_t done, std::uint64_t total)>;
     using cancel_check = std::function<bool()>;
 
+    // Streams `url` into `file`, computing its SHA-256 (lower-case hex) on the way. `size` is the
+    // expected size (0: unknown); a download that differs from it fails. Returns "" on success,
+    // "cancelled", or a message for the user. Used by install() and the launcher's self-update.
+    std::string download_file(const std::string& url, const std::filesystem::path& file, std::uint64_t size,
+                              const progress_callback& progress, const cancel_check& cancelled, std::string& sha256);
+
     // Downloads, checks and unpacks `manifest` into root\<version>; returns the installed version
     // (at once when that folder is already complete). nullopt with `error` set on failure or cancel.
     std::optional<installed> install(const tool& tool, const manifest& manifest, const progress_callback& progress,

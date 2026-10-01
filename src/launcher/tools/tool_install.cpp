@@ -57,66 +57,6 @@ namespace tool_install
             return staging;
         }
 
-        // Streams `url` into `file`, hashing on the way. Returns an error message or "".
-        std::string download(const std::string& url, const std::filesystem::path& file, const manifest& manifest,
-                             const progress_callback& progress, const cancel_check& cancelled, std::string& sha256)
-        {
-            std::ofstream stream(file, std::ios::binary | std::ios::trunc);
-            if (!stream)
-            {
-                return "Could not write to the launcher's tools folder.";
-            }
-
-            utils::cryptography::sha256::stream hasher;
-            std::uint64_t written = 0;
-            bool too_big = false;
-            const auto result = utils::http::get_data_stream(url, {}, {}, {}, [&](const char* data, const size_t length)
-            {
-                if (cancelled && cancelled())
-                {
-                    return false;
-                }
-                written += length;
-                // An answer much larger than announced is not the file (a runaway or wrong URL).
-                if (manifest.size && written > manifest.size + 1024 * 1024)
-                {
-                    too_big = true;
-                    return false;
-                }
-                stream.write(data, static_cast<std::streamsize>(length));
-                hasher.update(data, length);
-                if (progress)
-                {
-                    progress(written, manifest.size);
-                }
-                return static_cast<bool>(stream);
-            }, {}, 0, 0);
-            stream.close();
-
-            if (cancelled && cancelled())
-            {
-                return "cancelled";
-            }
-            if (too_big)
-            {
-                return "The download is larger than the release says; it was stopped.";
-            }
-            if (!result || result->code != CURLE_OK)
-            {
-                return std::format("The download failed ({}).", result ? curl_easy_strerror(result->code) : "no connection");
-            }
-            if (result->response_code != 200)
-            {
-                return std::format("The download failed (HTTP {}).", result->response_code);
-            }
-            sha256 = hasher.finish_hex();
-            if (manifest.size && written != manifest.size)
-            {
-                return std::format("The download is incomplete ({} of {} bytes).", written, manifest.size);
-            }
-            return {};
-        }
-
         // The folder holding the tool's exe in an unpacked zip: the top, or a single folder in it.
         std::optional<std::filesystem::path> content_root(const std::filesystem::path& unpacked, const std::string& exe)
         {
@@ -140,6 +80,65 @@ namespace tool_install
             }
             return std::nullopt;
         }
+    }
+
+    std::string download_file(const std::string& url, const std::filesystem::path& file, const std::uint64_t size,
+                              const progress_callback& progress, const cancel_check& cancelled, std::string& sha256)
+    {
+        std::ofstream stream(file, std::ios::binary | std::ios::trunc);
+        if (!stream)
+        {
+            return "Could not write the download into the launcher's data folder.";
+        }
+
+        utils::cryptography::sha256::stream hasher;
+        std::uint64_t written = 0;
+        bool too_big = false;
+        const auto result = utils::http::get_data_stream(url, {}, {}, {}, [&](const char* data, const size_t length)
+        {
+            if (cancelled && cancelled())
+            {
+                return false;
+            }
+            written += length;
+            // An answer much larger than announced is not the file (a runaway or wrong URL).
+            if (size && written > size + 1024 * 1024)
+            {
+                too_big = true;
+                return false;
+            }
+            stream.write(data, static_cast<std::streamsize>(length));
+            hasher.update(data, length);
+            if (progress)
+            {
+                progress(written, size);
+            }
+            return static_cast<bool>(stream);
+        }, {}, 0, 0);
+        stream.close();
+
+        if (cancelled && cancelled())
+        {
+            return "cancelled";
+        }
+        if (too_big)
+        {
+            return "The download is larger than the release says; it was stopped.";
+        }
+        if (!result || result->code != CURLE_OK)
+        {
+            return std::format("The download failed ({}).", result ? curl_easy_strerror(result->code) : "no connection");
+        }
+        if (result->response_code != 200)
+        {
+            return std::format("The download failed (HTTP {}).", result->response_code);
+        }
+        sha256 = hasher.finish_hex();
+        if (size && written != size)
+        {
+            return std::format("The download is incomplete ({} of {} bytes).", written, size);
+        }
+        return {};
     }
 
     std::filesystem::path root(const tool& tool)
@@ -348,7 +347,7 @@ namespace tool_install
         std::string failure;
         for (int attempt = 0; attempt < 3; ++attempt)
         {
-            failure = download(manifest.url, archive_path, manifest, progress, cancelled, sha256);
+            failure = download_file(manifest.url, archive_path, manifest.size, progress, cancelled, sha256);
             if (failure.empty() || failure == "cancelled" || failure.starts_with("The download is larger"))
             {
                 break;

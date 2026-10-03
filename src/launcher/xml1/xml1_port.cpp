@@ -854,6 +854,7 @@ namespace xml1_port
                 check.installing = false;
                 if (!result)
                 {
+                    utils::logger::write("xml1 builder install failed: {}", error);
                     check.code = error.find("SHA-256") != std::string::npos ? "L_BUILDER_HASH"
                                : error.find("zip") != std::string::npos || error.find("unpack") != std::string::npos ? "L_BUILDER_EXTRACT"
                                : "L_BUILDER_DOWNLOAD";

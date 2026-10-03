@@ -1,5 +1,6 @@
 #include "std_include.hpp"
 #include "game_mods.hpp"
+#include "tools/archive.hpp"
 
 #include <utils/finally.hpp>
 #include <utils/io.hpp>
@@ -197,39 +198,6 @@ namespace game_mods
             }
             read_metadata(folder / utils::string::utf8_to_path(entry.name), info);
             return info;
-        }
-
-        // Unpacks a .zip with Windows' own tar.exe (bsdtar, in System32 since Windows 10 1803),
-        // which refuses absolute paths and ".." entries.
-        std::string extract_zip(const std::filesystem::path& archive, const std::filesystem::path& into)
-        {
-            wchar_t system[MAX_PATH]{};
-            GetSystemDirectoryW(system, MAX_PATH);
-            const auto tar = std::filesystem::path(system) / L"tar.exe";
-            if (!utils::io::file_exists(tar))
-            {
-                return "Installing from a .zip needs Windows 10 (1803) or newer. Unpack the zip and add the folder instead.";
-            }
-            std::error_code created;
-            std::filesystem::create_directories(into, created);
-            if (!utils::io::directory_exists(into))
-            {
-                return "Could not create a folder for the mod.";
-            }
-
-            auto command = L"\"" + tar.wstring() + L"\" -xf \"" + archive.wstring() + L"\" -C \"" + into.wstring() + L"\"";
-            STARTUPINFOW startup{sizeof(startup)};
-            PROCESS_INFORMATION process{};
-            if (!CreateProcessW(nullptr, command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &startup, &process))
-            {
-                return "Could not start the zip extractor.";
-            }
-            WaitForSingleObject(process.hProcess, INFINITE);
-            DWORD exit_code = 1;
-            GetExitCodeProcess(process.hProcess, &exit_code);
-            CloseHandle(process.hThread);
-            CloseHandle(process.hProcess);
-            return exit_code == 0 ? std::string{} : "The file is not a valid zip archive, or it could not be unpacked.";
         }
 
         bool is_clutter(const std::string& name)
@@ -434,7 +402,7 @@ namespace game_mods
 
         if (is_zip)
         {
-            error = extract_zip(source, staging);
+            error = archive::extract_zip(source, staging);
             if (!error.empty())
             {
                 return std::nullopt;

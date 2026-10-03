@@ -10,3 +10,6 @@
 [submodule "deps/libtomcrypt"]
 	path = deps/libtomcrypt
 	url = https://github.com/libtom/libtomcrypt.git
+[submodule "deps/miniz"]
+	path = deps/miniz
+	url = https://github.com/richgel999/miniz

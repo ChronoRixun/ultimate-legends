@@ -1,0 +1,25 @@
+# Allowlist for tools/check_no_game_content.py.
+# Format:  RULE  GLOB  # reason (required)
+# Every entry is a deliberate exception that someone reviewed. Keep it short; `--all` warns about entries that
+# match nothing. Never excuse store art, screenshots, game icons or anything else taken from the games.
+
+# --- original artwork, drawn from code by docs/art-source/build.py (geometry + Google Fonts; see its README)
+MEDIA  src/launcher-ui/assets/img/games/mua/*              # capsule, hero, logo, icon rendered by docs/art-source/build.py
+MEDIA  src/launcher-ui/assets/img/games/mua2/*             # capsule, hero, logo, icon rendered by docs/art-source/build.py
+MEDIA  src/launcher-ui/assets/img/games/muac/*             # capsule, hero, logo, icon rendered by docs/art-source/build.py
+MEDIA  src/launcher-ui/assets/img/games/xml1/*             # rendered by build.py; the capsule is xml2-fix's original Discord art
+MEDIA  src/launcher-ui/assets/img/games/xml2/*             # capsule, hero, logo, icon rendered by docs/art-source/build.py
+MEDIA  src/launcher-ui/assets/img/brand/ul-mark.png        # the Ultimate Legends mark, rendered by docs/art-source/build.py
+MEDIA  src/launcher/resource/icon.ico                      # the app icon, rendered by docs/art-source/build.py
+MEDIA  src/launcher/resource/icon.png                      # the app icon at 256x256, rendered by docs/art-source/build.py
+MEDIA  docs/art-source/preview/brand-sheet.jpg             # brand overview rendered by docs/art-source/build.py
+MEDIA  docs/art-source/sources/xml1-large-d.png            # original art from xml2-fix docs/discord-art (source of the xml1 capsule)
+
+# --- fonts: IBM Plex Mono and Rajdhani under the SIL Open Font License (src/launcher-ui/assets/fonts/OFL.txt)
+BINARY  src/launcher-ui/assets/fonts/*.woff2               # OFL web fonts used by the launcher UI
+EMAIL   src/launcher-ui/assets/fonts/OFL.txt               # the font foundry's contact line in the licence text
+
+# --- build tool
+GAME_EXT    tools/premake5.exe                             # premake 5 (BSD-3-Clause), run by generate.bat to make the solution
+GAME_MAGIC  tools/premake5.exe                             # premake 5 (BSD-3-Clause), run by generate.bat to make the solution
+SIZE        tools/premake5.exe                             # premake 5 (BSD-3-Clause), run by generate.bat to make the solution

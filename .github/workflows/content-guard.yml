@@ -1,0 +1,48 @@
+# Blocks game content, store art, personal data, the upstream's service hosts and big binaries on every push and PR
+# (tools/check_no_game_content.py, from Legends Classic's guard). GitHub-hosted runners only.
+name: content guard
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0            # the ranges and --history need the commits, not just the tip
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Guard self-test
+        run: python tools/check_no_game_content.py --self-test
+
+      - name: Every tracked file
+        run: python tools/check_no_game_content.py --all --format github
+
+      - name: Every blob the new commits add (catches add-then-delete)
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          guard() { python tools/check_no_game_content.py --format github "$@"; }
+          if [ "$EVENT" = "pull_request" ]; then
+            guard --range "$PR_BASE..$PR_HEAD"
+          elif [ "$EVENT" = "push" ] && [ -n "$BEFORE" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            guard --range "$BEFORE..$AFTER"
+          else
+            # first push of a branch, a force-push whose old tip is gone, or a manual run: the whole history
+            guard --history
+          fi

@@ -16,7 +16,7 @@
 //                       "url": "(optional) where the zip is; default: next to the manifest"}
 //
 // Installing streams the zip to a staging folder beside the versions (tools\<id>\.staging-*),
-// checks its size and SHA-256, unpacks it with Windows' tar.exe and renames the result to
+// checks its size and SHA-256, unpacks it (archive::extract_zip) and renames the result to
 // tools\<id>\<version>\, so a version folder is either complete or absent. Older versions stay
 // until the caller prunes them (the builder keeps the previous one until a build with the new one
 // has succeeded).

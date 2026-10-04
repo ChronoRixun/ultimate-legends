@@ -126,6 +126,16 @@ def connect(timeout=90):
             return False
 
     if not wait_for(ready, timeout):
+        # Say what the launcher was doing: its log, its processes and what is in updates\.
+        log = ROOT / "ultimate-legends.log"
+        if log.exists():
+            lines = [line for line in log.read_text(errors="replace").splitlines() if not line.startswith("Debug:")]
+            print("    launcher log (last lines):", *lines[-25:], sep="\n      ")
+        tasks = subprocess.run(["tasklist", "/FI", "IMAGENAME eq ultimate-legends.exe", "/FO", "CSV", "/NH"],
+                               capture_output=True, text=True).stdout.strip()
+        print("    launcher processes:", tasks or "none")
+        if UPDATES.exists():
+            print("    updates\\:", sorted(p.name for p in UPDATES.iterdir()))
         raise RuntimeError("the test launcher did not come up")
     return launcher
 
@@ -322,13 +332,37 @@ def main():
               "nothing left in updates\\ (no staging, no ready)")
         check(sha256(INSTALL / "ultimate-legends.exe") == exe_hash and not marker.exists(), "the launcher is unchanged")
 
-        print("download")
+        print("download (a just-unpacked file is held open for a moment, as a virus scanner does)")
         release.wrong_hash = False
+        held_fresh = []
+
+        def hold_fresh_file():
+            # Open a file of the unpacked data\ as soon as it exists and keep it open until 3 s after the
+            # unpacking is over (the zip is deleted then): data\ can't be renamed while it is open.
+            # A CEF file: they are unpacked first, long before the folder is moved.
+            unpacked_file = lambda: next(iter(UPDATES.glob(".staging-*/unpacked/*/ultimate-legends/data/cef/release/*.*")), None)
+            deadline = time.time() + 280
+            while unpacked_file() is None:
+                if time.time() > deadline:
+                    return
+                time.sleep(0.05)
+            with open(unpacked_file(), "rb"):  # no FILE_SHARE_DELETE
+                held_fresh.append("opened")
+                if wait_for(lambda: not list(UPDATES.glob(f".staging-*/{ZIP_NAME}")), 280):
+                    time.sleep(3)
+                    held_fresh.append("held past the unpacking")
+
+        holder = threading.Thread(target=hold_fresh_file, daemon=True)
+        holder.start()
         js("document.querySelector('#launcher-update-action').click()")  # Try again
         check(confirm() is not None, "Try again asks again")
         if not check(wait_for(lambda: status()["state"] == "ready", 300), "downloaded, verified and unpacked"):
             print("    status:", status())
             return 1
+        holder.join(20)
+        check(held_fresh == ["opened", "held past the unpacking"], f"the file was held past the unpacking: {held_fresh}")
+        check("was held for a moment" in (ROOT / "ultimate-legends.log").read_text(errors="replace"),
+              "the launcher waited for it (ultimate-legends.log)")
         ready = json.loads((UPDATES / "ready" / "update.json").read_text())
         check(ready.get("version") == NEW_VERSION and ready.get("sha256") == sha256(www / ZIP_NAME),
               "updates\\ready\\update.json names the version and the zip's SHA-256")
@@ -368,6 +402,9 @@ def main():
         js("window.LauncherUpdate.refresh()")
         js("document.querySelector('#launcher-update-action').click()")
         check(confirm() is not None and wait_for(lambda: status()["state"] == "ready", 180), "downloaded again")
+        # The page acts on its own copy of the status (refreshed every 500 ms while downloading): a click
+        # before it has seen "ready" does nothing.
+        check(wait_for(lambda: "ready" in (bar_text() or ""), 10), "the bar offers Restart now again")
         held = open(ROOT / "data" / "cef" / "release" / "icudtl.dat", "rb")  # no FILE_SHARE_DELETE: the folder can't be renamed
         try:
             started = time.time()

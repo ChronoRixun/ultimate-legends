@@ -187,6 +187,31 @@ namespace launcher_update
             return false;
         }
 
+        // For files this process has just written (an unpacked download): a scanner (antivirus, the
+        // indexer) can hold one open for a moment, and a folder with an open file can't be renamed.
+        bool move_fresh_path(const std::filesystem::path& from, const std::filesystem::path& to)
+        {
+            for (auto attempt = 0; attempt < 40; ++attempt)
+            {
+                if (MoveFileExW(from.c_str(), to.c_str(), MOVEFILE_WRITE_THROUGH))
+                {
+                    if (attempt)
+                    {
+                        utils::logger::write("launcher update: {} was held for a moment (moved on try {})",
+                                             utils::string::path_to_utf8(from.filename()), attempt + 1);
+                    }
+                    return true;
+                }
+                const auto error = GetLastError();
+                if (error != ERROR_ACCESS_DENIED && error != ERROR_SHARING_VIOLATION)
+                {
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(250));
+            }
+            return move_path(from, to); // once more, logging the failure
+        }
+
         std::string read_json_string(const std::filesystem::path& file, const char* key)
         {
             std::string data;
@@ -679,14 +704,14 @@ namespace launcher_update
             // updates\ready's layout: the exe and data\, update.json last.
             const auto ready = staging / "ready";
             std::filesystem::create_directories(ready, fs_error);
-            if (!move_path(*content / exe_name, ready / exe_name) || !move_path(data, ready / "data") || !is_complete(ready))
+            if (!move_fresh_path(*content / exe_name, ready / exe_name) || !move_fresh_path(data, ready / "data") || !is_complete(ready))
             {
                 return "The release's zip is missing parts of the launcher.";
             }
             write_json(ready / "update.json", {{"version", latest.version}, {"zip", latest.zip}, {"sha256", sha256}});
 
             const auto target = updates / "ready";
-            if (!remove_tree(target) || !move_path(ready, target))
+            if (!remove_tree(target) || !move_fresh_path(ready, target))
             {
                 return "Could not move the update into place in " + utils::string::path_to_utf8(updates) + ".";
             }

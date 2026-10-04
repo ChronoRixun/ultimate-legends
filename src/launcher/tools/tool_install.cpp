@@ -387,7 +387,17 @@ namespace tool_install
         }
 
         std::filesystem::remove_all(destination, fs_error); // an earlier, incomplete copy
-        std::filesystem::rename(*content, destination, fs_error);
+        // A scanner (antivirus, the indexer) can hold a just-unpacked file open for a moment, and a
+        // folder with an open file can't be renamed: wait for it.
+        for (auto attempt = 0; attempt < 40; ++attempt)
+        {
+            std::filesystem::rename(*content, destination, fs_error);
+            if (fs_error != std::errc::permission_denied && fs_error.value() != ERROR_SHARING_VIOLATION)
+            {
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(250));
+        }
         if (fs_error)
         {
             error = "Could not install into the launcher's tools folder: " + fs_error.message();

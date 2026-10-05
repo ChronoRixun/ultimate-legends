@@ -19,11 +19,12 @@
 // same one the fixes use, one key at a time: every other key, section, comment and blank line
 // stays exactly where it was, and the file is created when it does not exist yet.
 //
-// A value is read the way the XML2 Fix reads it (its ini_rules.hpp, one rule for every key): the
-// text after '=' up to the first ';' (the Windows INI comment character), trimmed, so
-// "Enabled=0   ; off for now" is 0. A '#' is part of the value: "Enabled=0 # later" is not a flag,
-// so the key's default, as in the game. A missing or empty value is "not set" (the key's default).
-// Rewriting a value keeps the line's inline comment.
+// A value is read the way its fix reads it: the text after '=' up to the first character that
+// starts an inline comment, trimmed, so "Enabled=0   ; off for now" is 0. For the XML2 Fix (its
+// ini_rules.hpp, one rule for every key) that is only ';', the Windows INI comment character, and a
+// '#' is part of the value: "Enabled=0 # later" is not a flag, so the key's default, as in the game.
+// MUA Controller Fix also starts a comment at '#' (fix::comment_chars). A missing or empty value is
+// "not set" (the key's default). Rewriting a value keeps the line's inline comment.
 
 namespace fix_ini
 {
@@ -40,6 +41,9 @@ namespace fix_ini
         // The [Discord] switches the launcher shows for this fix, in order: Enabled, then what it
         // shares (the XML2 Fix's ShowZone and ShowParty, MUA Controller Fix's ShowZone and ShowHero).
         std::vector<std::string> presence_keys{};
+
+        // What starts an inline comment in a value, as this fix reads its ini.
+        std::wstring comment_chars{L";"};
     };
 
     // The fix of the game with this key (game_config's game_key), or nullptr when the game's fix
@@ -67,10 +71,10 @@ namespace fix_ini
     std::optional<std::string> parse_flag(const std::string& text);
 
     // The values of `keys` present in [section], as written without an inline comment ("0   ; off"
-    // -> "0"), trimmed. A missing key, or one with an empty value, is left out (the fixes read both
-    // as "not set").
+    // -> "0"; `comments` = the characters that start one, the fix's comment_chars), trimmed. A
+    // missing key, or one with an empty value, is left out (the fixes read both as "not set").
     std::map<std::string, std::string> read(const std::filesystem::path& ini, const std::wstring& section,
-                                            const std::vector<std::string>& keys);
+                                            const std::vector<std::string>& keys, const std::wstring& comments = L";");
 
     // key -> value; nullopt removes the key.
     using changes = std::vector<std::pair<std::string, std::optional<std::string>>>;
@@ -78,6 +82,7 @@ namespace fix_ini
     // Writes each key into [section] (creating the section, and the file, when needed) and flushes
     // the profile cache, so the game reads the file as written. A key's inline comment stays after
     // its new value ("0   ; off for now" -> "1   ; off for now"); removing a key removes its line.
-    // Validation is the caller's, and a value must not hold a ';' itself.
-    bool write(const std::filesystem::path& ini, const std::wstring& section, const changes& changes, std::string& error);
+    // Validation is the caller's, and a value must not hold a comment character itself.
+    bool write(const std::filesystem::path& ini, const std::wstring& section, const changes& changes, std::string& error,
+               const std::wstring& comments = L";");
 }

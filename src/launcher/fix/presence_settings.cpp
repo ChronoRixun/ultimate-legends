@@ -20,7 +20,7 @@ namespace presence_settings
 
     std::map<std::string, std::string> read(const std::filesystem::path& ini, const fix_ini::fix& fix)
     {
-        return fix_ini::read(ini, section, keys(fix));
+        return fix_ini::read(ini, section, keys(fix), fix.comment_chars);
     }
 
     std::optional<std::string> normalise(const fix_ini::fix& fix, const std::string& key, const std::string& value, std::string& error)
@@ -59,6 +59,6 @@ namespace presence_settings
             }
             prepared.emplace_back(change.key, std::move(value));
         }
-        return fix_ini::write(ini, section, prepared, error);
+        return fix_ini::write(ini, section, prepared, error, fix.comment_chars);
     }
 }

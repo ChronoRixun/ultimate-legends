@@ -22,10 +22,12 @@ namespace fix_ini
             .display = true,
             .presence = true,
             .presence_keys = {"Enabled", "ShowZone", "ShowParty"},
+            .comment_chars = L";",
         };
 
         // MUA Controller Fix (github.com/ChronoRixun/mua-controller-fix), for both MUA games. Its
         // [Discord] section (1.1.0 on) shows the game's own status line, the area and player 1's hero.
+        // It reads a value up to the first ';' or '#' (its discord_rules.hpp value_text).
         const fix mua_fix{
             .name = "MUA Controller Fix",
             .dll = L"dinput8.dll",
@@ -33,6 +35,7 @@ namespace fix_ini
             .display = false,
             .presence = true,
             .presence_keys = {"Enabled", "ShowZone", "ShowHero"},
+            .comment_chars = L";#",
         };
 
         const std::map<std::string, const fix*>& fixes()
@@ -45,11 +48,6 @@ namespace fix_ini
             };
             return table;
         }
-
-        // What starts an inline comment in a value, as in the fix: "Enabled=0   ; off for now". Only ';',
-        // the Windows INI comment character: a '#' is part of the value (a name or a path may hold one),
-        // as the XML2 Fix reads it (its ini_rules.hpp).
-        constexpr auto comment_chars = L";";
 
         bool is_space(const wchar_t c)
         {
@@ -83,10 +81,10 @@ namespace fix_ini
             return text;
         }
 
-        // The value part of `raw`: up to its inline comment, trimmed.
-        std::wstring value_part(const std::wstring& raw)
+        // The value part of `raw`: up to its inline comment (the first of `comments`), trimmed.
+        std::wstring value_part(const std::wstring& raw, const std::wstring& comments)
         {
-            auto end = std::min(raw.find_first_of(comment_chars), raw.size());
+            auto end = std::min(raw.find_first_of(comments), raw.size());
             while (end > 0 && is_space(raw[end - 1]))
             {
                 --end;
@@ -101,13 +99,13 @@ namespace fix_ini
 
         // The text to write for a key whose line now reads `raw`: the new value, followed by the old
         // line's inline comment and the spaces before it ("0   ; off for now" -> "1   ; off for now").
-        std::wstring with_comment(const std::wstring& value, const std::optional<std::wstring>& raw)
+        std::wstring with_comment(const std::wstring& value, const std::optional<std::wstring>& raw, const std::wstring& comments)
         {
             if (!raw)
             {
                 return value;
             }
-            const auto comment = raw->find_first_of(comment_chars);
+            const auto comment = raw->find_first_of(comments);
             if (comment == std::wstring::npos)
             {
                 return value;
@@ -203,7 +201,7 @@ namespace fix_ini
     }
 
     std::map<std::string, std::string> read(const std::filesystem::path& ini, const std::wstring& section,
-                                            const std::vector<std::string>& keys)
+                                            const std::vector<std::string>& keys, const std::wstring& comments)
     {
         std::map<std::string, std::string> values;
         const auto file = ini.wstring();
@@ -220,7 +218,7 @@ namespace fix_ini
                 continue;
             }
             // "Enabled=0   ; off for now" is 0, as the fix reads it; "Enabled=   ; note" is not set.
-            const auto value = value_part(*raw);
+            const auto value = value_part(*raw, comments);
             if (!value.empty())
             {
                 values[key] = utils::string::convert(value);
@@ -229,7 +227,8 @@ namespace fix_ini
         return values;
     }
 
-    bool write(const std::filesystem::path& ini, const std::wstring& section, const changes& changes, std::string& error)
+    bool write(const std::filesystem::path& ini, const std::wstring& section, const changes& changes, std::string& error,
+               const std::wstring& comments)
     {
         if (!utils::io::directory_exists(ini.parent_path()))
         {
@@ -248,7 +247,7 @@ namespace fix_ini
             std::optional<std::wstring> wide_value;
             if (value)
             {
-                wide_value = with_comment(utils::string::convert(*value), raw_value(file, section, wide_key));
+                wide_value = with_comment(utils::string::convert(*value), raw_value(file, section, wide_key), comments);
             }
             if (!WritePrivateProfileStringW(section.c_str(), wide_key.c_str(), wide_value ? wide_value->c_str() : nullptr, file.c_str()))
             {

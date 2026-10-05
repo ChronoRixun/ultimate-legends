@@ -21,8 +21,9 @@
 //
 // Presence is on by default: the launcher shows an absent key as ON and writes 1 or 0 when the
 // player flips a toggle, one key at a time through fix_ini (the rest of the file is kept). Values
-// are read as the fix reads them (fix_ini): an inline comment is ignored ("Enabled=0 ; x" is OFF),
-// and an empty or unreadable value is the default, ON.
+// are read as the fix reads them (fix_ini, the fix's comment_chars): an inline comment is ignored
+// ("Enabled=0 ; x" is OFF; for MUA Controller Fix "Enabled=0 # x" too), and an empty or unreadable
+// value is the default, ON.
 
 namespace presence_settings
 {

@@ -35,8 +35,9 @@ namespace property_keys
     constexpr const char* BUILDER_VERSION = "builder-version";       // the installed builder to use
     constexpr const char* BUILDER_CONTENT = "builder-content";       // that builder's content_version
     // Debug builds only (the CDP tests): where to fetch the builder's manifest, a builder exe to
-    // run instead of an installed one, and the game's patch manifest.
+    // run instead of an installed one, the game's patch manifest and its patch's latest release.
     constexpr const char* DEV_BUILDER_MANIFEST = "builder-manifest";
     constexpr const char* DEV_BUILDER_EXE = "builder-exe";
     constexpr const char* DEV_PATCH_MANIFEST = "patch-manifest";
+    constexpr const char* DEV_PATCH_RELEASE = "patch-release";
 }

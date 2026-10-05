@@ -2871,6 +2871,24 @@ html[data-theme="dark"] .secondary-action:hover {
     text-align: right;
 }
 
+/* The patch line (app/patch-view.js): its release, and a newer one to install. */
+.detail-patch-update {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 0 0 0;
+}
+
+.detail-patch-update-label {
+    color: var(--game-accent, #fff);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.detail-patch-update-label a {
+    color: inherit;
+}
+
 /* ============================================================ */
 /* SUPPORT + SETTINGS REWORK                                    */
 /* ============================================================ */

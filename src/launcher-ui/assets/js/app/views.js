@@ -1023,6 +1023,9 @@
                             <span>${escapeHtml(t('detail.provider'))}</span>
                             <strong>${escapeHtml(config.provider)}</strong>
                         </div>
+                        ${window.PatchView && window.PatchView.supports(config.uiId)
+                            ? `<div class="detail-patch" id="${escapeHtml(config.uiId)}-patch" hidden></div>`
+                            : ''}
                     </aside>`;
 
             return `
@@ -1095,6 +1098,12 @@
             GameUtils.getAllGameConfigs()
                 .filter(config => !config.comingSoon && window.ModsView.supports(config.uiId))
                 .forEach(config => window.ModsView.render(config.uiId));
+        }
+
+        if (window.PatchView) {
+            GameUtils.getAllGameConfigs()
+                .filter(config => !config.comingSoon && window.PatchView.supports(config.uiId))
+                .forEach(config => window.PatchView.render(config.uiId));
         }
 
         host.querySelectorAll('.detail-browse-files-action').forEach(button => {

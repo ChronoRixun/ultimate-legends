@@ -14,6 +14,7 @@
 #include "updater/updater.hpp"
 #include "mods/game_mods.hpp"
 #include "updater/client_updater.hpp"
+#include "updater/patch_status.hpp"
 #include "updater/game_updater.hpp"
 #include "updater/ui_progress_listener.hpp"
 #include "xml1/xml1_port.hpp"
@@ -426,6 +427,17 @@ namespace commands::game_commands
             response.AddMember("path", path_value, allocator);
             response.AddMember("valid", updater.is_install_valid(), allocator);
             response.AddMember("hasPatch", !config->update_manifest_url.empty(), allocator);
+        });
+
+        // The game page's patch line: the release installed in the game folder and the latest one
+        // (checked in the background; the page asks again while `checking`). Null without a patch.
+        cef_ui.add_command("get-patch-status", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetNull();
+            if (const auto config = ctx.get_game_config_from_request(value))
+            {
+                patch_status::write_status(*config, response, response.GetAllocator());
+            }
         });
 
         // Installs or updates the game's patch files; the game's own files are never touched.

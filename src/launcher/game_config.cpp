@@ -10,9 +10,11 @@
 // Patch files for MUA and MUA2 (the controller fix: dinput8.dll), installed into the game folder.
 // Each release of github.com/ChronoRixun/mua-controller-fix publishes the DLL and a patch manifest.
 #define CONTROLLER_FIX_RELEASE "https://github.com/ChronoRixun/mua-controller-fix/releases/latest/download/"
+#define CONTROLLER_FIX_LATEST "https://api.github.com/repos/ChronoRixun/mua-controller-fix/releases/latest"
 // X-Men Legends II gets the same from github.com/ChronoRixun/xml2-fix (dinput.dll: controller
 // bindings and the OpenSpy redirect for online play).
 #define XML2_FIX_RELEASE "https://github.com/ChronoRixun/xml2-fix/releases/latest/download/"
+#define XML2_FIX_LATEST "https://api.github.com/repos/ChronoRixun/xml2-fix/releases/latest"
 
 namespace game_config
 {
@@ -136,6 +138,8 @@ namespace game_config
                 .exe_name = "Marvel.exe",
                 .update_manifest_url = CONTROLLER_FIX_RELEASE "ultimate-legends.json",
                 .update_folder_url = CONTROLLER_FIX_RELEASE,
+                .patch_file = "dinput8.dll",
+                .patch_release_url = CONTROLLER_FIX_LATEST,
                 .valid_game_files = {"Marvel.exe"},
                 .check_running_exes = {"Marvel.exe"},
                 .required_redists = {"vcr2012"},
@@ -151,6 +155,8 @@ namespace game_config
                 .exe_name = "Alliance.exe",
                 .update_manifest_url = CONTROLLER_FIX_RELEASE "ultimate-legends.json",
                 .update_folder_url = CONTROLLER_FIX_RELEASE,
+                .patch_file = "dinput8.dll",
+                .patch_release_url = CONTROLLER_FIX_LATEST,
                 .valid_game_files = {"Alliance.exe"},
                 .check_running_exes = {"Alliance.exe"},
                 .required_redists = {"vcr2012"},
@@ -166,6 +172,8 @@ namespace game_config
                 .exe_name = "XMen2.exe",
                 .update_manifest_url = XML2_FIX_RELEASE "ultimate-legends.json",
                 .update_folder_url = XML2_FIX_RELEASE,
+                .patch_file = "dinput.dll",
+                .patch_release_url = XML2_FIX_LATEST,
                 .valid_game_files = {"XMen2.exe"},
                 .check_running_exes = {"XMen2.exe"}
             }
@@ -181,6 +189,8 @@ namespace game_config
                 .exe_name = "XMen2.exe",
                 .update_manifest_url = XML2_FIX_RELEASE "ultimate-legends.json",
                 .update_folder_url = XML2_FIX_RELEASE,
+                .patch_file = "dinput.dll",
+                .patch_release_url = XML2_FIX_LATEST,
                 // A folder the builder finished: the exe and its stamp, written last.
                 .valid_game_files = {"XMen2.exe", "_build/stamp.json"},
                 .check_running_exes = {"XMen2.exe"},
@@ -196,16 +206,22 @@ namespace game_config
         {
 #ifdef _DEBUG
             // Debug builds only: the CDP tests serve a stand-in patch from a local server
-            // (<game>-patch-manifest = its manifest URL; the files sit next to it).
-            if (const auto manifest = it->second.get(property_keys::DEV_PATCH_MANIFEST); manifest && !manifest->empty())
+            // (<game>-patch-manifest = its manifest URL; the files sit next to it), and a stand-in
+            // for its latest release (<game>-patch-release = the GitHub API answer's URL).
+            auto config = it->second;
+            if (const auto manifest = config.get(property_keys::DEV_PATCH_MANIFEST); manifest && !manifest->empty())
             {
-                auto config = it->second;
                 config.update_manifest_url = *manifest;
                 config.update_folder_url = manifest->substr(0, manifest->rfind('/') + 1);
-                return config;
             }
-#endif
+            if (const auto release = config.get(property_keys::DEV_PATCH_RELEASE); release && !release->empty())
+            {
+                config.patch_release_url = *release;
+            }
+            return config;
+#else
             return it->second;
+#endif
         }
         return std::nullopt;
     }

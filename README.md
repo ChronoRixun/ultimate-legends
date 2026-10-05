@@ -99,6 +99,7 @@ Ultimate Legends sends no telemetry. It only connects to the internet in these c
 
 - When you set up, launch or verify Marvel: Ultimate Alliance or Marvel: Ultimate Alliance 2, it checks the latest [MUA Controller Fix release](https://github.com/ChronoRixun/mua-controller-fix/releases) on GitHub and downloads `dinput8.dll` if it is missing or out of date. Turn on "Skip patch update on launch" in Settings, or use `-offline`, to stop the launch-time check.
 - X-Men Legends II works the same way with the latest [XML2 Fix release](https://github.com/ChronoRixun/xml2-fix/releases) and its `dinput.dll`.
+- When you open the page of one of those games (or X-Men Legends), it asks GitHub's API for the patch's latest release, at most once an hour, to show whether a newer one is out. It is downloaded only when you launch or verify the game or press Update now. `-offline` turns the check off.
 - When you set up X-Men Legends (community port), or its page checks for updates, the launcher checks the latest
   release of the port's builder on GitHub and downloads it if it is missing or out of date (its SHA-256 is checked).
   The builder itself never connects to the internet: it reads your disc image and your X-Men Legends II install and

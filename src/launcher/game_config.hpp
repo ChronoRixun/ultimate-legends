@@ -50,6 +50,11 @@ namespace game_config
         std::string update_manifest_url;
         std::string update_folder_url;
 
+        // The patch's main file in the game folder, whose version resource says which release is
+        // installed, and the GitHub API address of the patch's latest release (updater/patch_status).
+        std::string patch_file;
+        std::string patch_release_url;
+
         std::vector<std::string> valid_game_files;
         std::vector<std::string> check_running_exes;
 

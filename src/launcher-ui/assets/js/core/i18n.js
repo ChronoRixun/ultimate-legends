@@ -609,6 +609,11 @@
                 noteBody: 'Ultimate Legends is an unofficial fan project and is not affiliated with or endorsed by Activision, Marvel or Disney. Please report launcher issues on our <a href="https://github.com/ChronoRixun/ultimate-legends/issues" target="_blank">GitHub</a>.',
                 client: 'Game',
                 provider: 'Provider',
+                patchNotInstalled: 'Not installed yet',
+                patchUnknownVersion: 'Installed',
+                patchUpdateAvailable: 'Update available: {{version}}',
+                patchUpdate: 'Update now',
+                patchUpdateHint: 'Installs {{version}} now. Launching the game from Ultimate Legends installs it too.',
             },
             popup: {
                 gameSettings: {
@@ -907,6 +912,11 @@
                 noteBody: "Ultimate Legends est un projet de fans non officiel, ni affilie ni approuve par Activision, Marvel ou Disney. Signalez les problemes du launcher sur notre <a href=\"https://github.com/ChronoRixun/ultimate-legends/issues\" target=\"_blank\">GitHub</a>.",
                 client: 'Jeu',
                 provider: 'Fournisseur',
+                patchNotInstalled: 'Pas encore installe',
+                patchUnknownVersion: 'Installe',
+                patchUpdateAvailable: 'Mise a jour disponible : {{version}}',
+                patchUpdate: 'Mettre a jour',
+                patchUpdateHint: "Installe {{version}} maintenant. Lancer le jeu depuis Ultimate Legends l'installe aussi.",
             },
             popup: {
                 gameSettings: {
@@ -1205,6 +1215,11 @@
                 noteBody: 'Ultimate Legends es un proyecto de fans no oficial y no esta afiliado ni respaldado por Activision, Marvel ni Disney. Informa de los problemas del launcher en nuestro <a href="https://github.com/ChronoRixun/ultimate-legends/issues" target="_blank">GitHub</a>.',
                 client: 'Juego',
                 provider: 'Proveedor',
+                patchNotInstalled: 'Aun no instalado',
+                patchUnknownVersion: 'Instalado',
+                patchUpdateAvailable: 'Actualizacion disponible: {{version}}',
+                patchUpdate: 'Actualizar',
+                patchUpdateHint: 'Instala {{version}} ahora. Iniciar el juego desde Ultimate Legends tambien lo instala.',
             },
             popup: {
                 gameSettings: {
@@ -1503,6 +1518,11 @@
                 noteBody: 'Ultimate Legends — неофициальный фанатский проект, не связанный с Activision, Marvel или Disney и не одобренный ими. Сообщайте о проблемах лаунчера на нашем <a href="https://github.com/ChronoRixun/ultimate-legends/issues" target="_blank">GitHub</a>.',
                 client: 'Игра',
                 provider: 'Поставщик',
+                patchNotInstalled: 'Ещё не установлен',
+                patchUnknownVersion: 'Установлен',
+                patchUpdateAvailable: 'Доступно обновление: {{version}}',
+                patchUpdate: 'Обновить',
+                patchUpdateHint: 'Установит {{version}} сейчас. Запуск игры из Ultimate Legends тоже установит его.',
             },
             popup: {
                 gameSettings: {

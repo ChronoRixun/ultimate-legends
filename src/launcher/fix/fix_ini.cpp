@@ -21,6 +21,18 @@ namespace fix_ini
             .ini = L"xml2-fix.ini",
             .display = true,
             .presence = true,
+            .presence_keys = {"Enabled", "ShowZone", "ShowParty"},
+        };
+
+        // MUA Controller Fix (github.com/ChronoRixun/mua-controller-fix), for both MUA games. Its
+        // [Discord] section (1.1.0 on) shows the game's own status line, the area and player 1's hero.
+        const fix mua_fix{
+            .name = "MUA Controller Fix",
+            .dll = L"dinput8.dll",
+            .ini = L"mua-controller-fix.ini",
+            .display = false,
+            .presence = true,
+            .presence_keys = {"Enabled", "ShowZone", "ShowHero"},
         };
 
         const std::map<std::string, const fix*>& fixes()
@@ -28,6 +40,8 @@ namespace fix_ini
             static const std::map<std::string, const fix*> table{
                 {"xml2", &xml2_fix},
                 {"xml1", &xml2_fix},
+                {"mua", &mua_fix},
+                {"mua2", &mua_fix},
             };
             return table;
         }

@@ -346,6 +346,15 @@ def main():
                   and mua_text() == "[Discord]\r\nClientId=123456789012345678 ; own app\r\nEnabled=1\r\nShowZone=0\r\n",
                   "ClientId and its comment kept")
 
+            print("MUA comments: ';' and '#', as MUA Controller Fix reads them")
+            ini.write_bytes(b"[Discord]\r\nEnabled=0 # later\r\nShowHero=Yes#x\r\nShowZone=0 ; note\r\n")
+            state = get("mua")
+            check(state["values"] == {"Enabled": False, "ShowZone": False, "ShowHero": True},
+                  f"'0 # later' is OFF, 'Yes#x' ON, '0 ; note' OFF: {state['values']}")
+            check(put({"Enabled": True}, "mua").get("success") is True and "Enabled=1 # later\r\n" in mua_text(),
+                  "a rewrite keeps the '#' comment")
+            check("ShowHero=Yes#x\r\n" in mua_text() and "ShowZone=0 ; note\r\n" in mua_text(), "the other lines untouched")
+
             print("MUA page")
             ini.write_bytes(b"[Discord]\r\nShowHero=0\r\n")
             open_page("mua")

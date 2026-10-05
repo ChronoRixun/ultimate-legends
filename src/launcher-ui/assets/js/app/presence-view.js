@@ -1,18 +1,25 @@
 // Discord section of a game's page: Rich Presence from the game's fix, the [Discord] section of
-// its ini (xml2-fix.ini for the XML2 Fix). The fix shows the game on the player's Discord profile
-// while it runs; every key defaults to on, and each toggle writes 1 or 0 on its own through the
-// same WritePrivateProfileString semantics as the Display section, so the rest of the file stays.
+// its ini (xml2-fix.ini for the XML2 Fix, mua-controller-fix.ini for MUA Controller Fix). The fix
+// shows the game on the player's Discord profile while it runs; every key defaults to on, and each
+// toggle writes 1 or 0 on its own through the same WritePrivateProfileString semantics as the
+// Display section, so the rest of the file stays.
 //
-// Nothing here is XML2-specific: the backend (fix/fix_ini.cpp) says which fix and file a game
-// has, so another game whose fix gets the section only needs adding to SUPPORTED and to that table.
+// Nothing here is game-specific: the backend (fix/fix_ini.cpp) says which fix, file and switches a
+// game has (the XML2 Fix shares the zone and the party, MUA Controller Fix the area and the hero),
+// so another game whose fix gets the section only needs adding to SUPPORTED and to that table.
 (function () {
     'use strict';
 
     // Games whose fix has a [Discord] section (fix_ini's table, fix::presence).
-    const SUPPORTED = new Set(['xml2', 'xml1']);
+    const SUPPORTED = new Set(['xml2', 'xml1', 'mua', 'mua2']);
     // The main switch, then what it shares; the rest only count while it is on.
     const MAIN_KEY = 'Enabled';
-    const DETAIL_KEYS = ['ShowZone', 'ShowParty'];
+    // Each switch the fixes have: its label and its note.
+    const DETAILS = {
+        ShowZone: ['presence.showZone', 'presence.showZoneBody'],
+        ShowParty: ['presence.showParty', 'presence.showPartyBody'],
+        ShowHero: ['presence.showHero', 'presence.showHeroBody']
+    };
     const SAVE_DELAY = 250;
 
     const state = {};
@@ -44,6 +51,12 @@
     function reportError(error) {
         console.error(error);
         window.showToast(String((error && error.message) || error), 'error');
+    }
+
+    // What this game's fix shares besides the main switch, in the backend's order (keys).
+    function detailKeys(data) {
+        const keys = data && Array.isArray(data.keys) ? data.keys : [MAIN_KEY, 'ShowZone', 'ShowParty'];
+        return keys.filter(key => key !== MAIN_KEY && DETAILS[key]);
     }
 
     // true/false from the file; an absent key (null) or one the fix can't read as 0/1 is shown as
@@ -132,10 +145,11 @@
             return;
         }
 
+        const details = detailKeys(data);
+        const mainBody = details.includes('ShowHero') ? 'presence.enabledBodyHero' : 'presence.enabledBody';
         body.innerHTML = `
-            ${rowHTML(MAIN_KEY, t('presence.enabled'), t('presence.enabledBody'), isOn(data, MAIN_KEY), 'is-main')}
-            ${rowHTML('ShowZone', t('presence.showZone'), t('presence.showZoneBody'), isOn(data, 'ShowZone'), 'is-sub')}
-            ${rowHTML('ShowParty', t('presence.showParty'), t('presence.showPartyBody'), isOn(data, 'ShowParty'), 'is-sub')}
+            ${rowHTML(MAIN_KEY, t('presence.enabled'), t(mainBody), isOn(data, MAIN_KEY), 'is-main')}
+            ${details.map(key => rowHTML(key, t(DETAILS[key][0]), t(DETAILS[key][1]), isOn(data, key), 'is-sub')).join('')}
             <p class="ul-display-footer">${escapeHtml(t('presence.storedIn', { file: data.ini || data.file || '' }))}</p>`;
         syncRows(gameId);
         showStatus(gameId, data.running ? t('presence.appliesNextLaunch') : '', 'info');
@@ -156,7 +170,7 @@
                 button.setAttribute('aria-pressed', active ? 'true' : 'false');
             });
         });
-        DETAIL_KEYS.forEach(key => {
+        detailKeys(data).forEach(key => {
             const row = host.querySelector(`.ul-presence-row[data-row="${key}"]`);
             if (!row) return;
             row.classList.toggle('is-disabled', !enabled);

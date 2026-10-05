@@ -22,12 +22,12 @@ namespace commands::presence_commands
             return where.info && where.info->presence;
         }
 
-        // The keys as the UI wants them: true/false, null when the key is absent (on), or the
+        // The fix's keys as the UI wants them: true/false, null when the key is absent (on), or the
         // text as written when it is not a flag.
-        rapidjson::Value values_json(const std::map<std::string, std::string>& values, rapidjson::Document::AllocatorType& allocator)
+        rapidjson::Value values_json(const fix_ini::fix& fix, const std::map<std::string, std::string>& values, rapidjson::Document::AllocatorType& allocator)
         {
             rapidjson::Value object(rapidjson::kObjectType);
-            for (const auto& key : presence_settings::keys())
+            for (const auto& key : presence_settings::keys(fix))
             {
                 rapidjson::Value name = make_string(key, allocator);
                 const auto it = values.find(key);
@@ -38,7 +38,7 @@ namespace commands::presence_commands
                 }
 
                 std::string unused;
-                if (const auto flag = presence_settings::normalise(key, it->second, unused))
+                if (const auto flag = presence_settings::normalise(fix, key, it->second, unused))
                 {
                     object.AddMember(name, *flag == "1", allocator);
                 }
@@ -61,10 +61,10 @@ namespace commands::presence_commands
             }
         }
 
-        // The ini to write, or nullopt with the response set to why not.
-        std::optional<std::filesystem::path> ini_or_fail(const command_context& ctx, const rapidjson::Value& value, rapidjson::Document& response)
+        // The game's fix and its ini to write, or nullopt with the response set to why not.
+        std::optional<fix_ini::location> ini_or_fail(const command_context& ctx, const rapidjson::Value& value, rapidjson::Document& response)
         {
-            const auto where = fix_ini::locate(ctx.get_game_config_from_request(value));
+            auto where = fix_ini::locate(ctx.get_game_config_from_request(value));
             if (!supported(where))
             {
                 set_result(response, false, "This game has no Discord settings.");
@@ -80,14 +80,14 @@ namespace commands::presence_commands
                 set_result(response, false, "Install the " + where.info->name + " first.");
                 return std::nullopt;
             }
-            return where.ini();
+            return where;
         }
     }
 
     void register_commands(cef::cef_ui& cef_ui, command_context& ctx)
     {
-        // { supported, installed, fixInstalled, running, fix, file, ini,
-        //   values: { Enabled, ShowZone, ShowParty }, defaults: { same, all true } }
+        // { supported, installed, fixInstalled, running, fix, file, ini, keys: [the fix's switches, Enabled first],
+        //   values: { Enabled, ShowZone, ShowParty | ShowHero }, defaults: { same, all true } }
         cef_ui.add_command("get-presence-settings", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
         {
             response.SetObject();
@@ -103,23 +103,32 @@ namespace commands::presence_commands
             response.AddMember("installed", installed, allocator);
             response.AddMember("fixInstalled", fix_installed, allocator);
             response.AddMember("running", is_supported && game_config::is_game_process_running(config->id), allocator);
+            static const fix_ini::fix no_fix{};
+            const auto& fix = is_supported ? *where.info : no_fix; // no fix: no keys
             if (is_supported)
             {
                 response.AddMember("fix", make_string(where.info->name, allocator), allocator);
                 response.AddMember("file", make_string(utils::string::convert(where.info->ini), allocator), allocator);
             }
 
+            rapidjson::Value keys(rapidjson::kArrayType);
+            for (const auto& key : presence_settings::keys(fix))
+            {
+                keys.PushBack(make_string(key, allocator), allocator);
+            }
+            response.AddMember("keys", keys, allocator);
+
             std::map<std::string, std::string> values;
             if (fix_installed)
             {
                 const auto ini = *where.ini();
                 response.AddMember("ini", make_string(utils::string::path_to_utf8(ini), allocator), allocator);
-                values = presence_settings::read(ini);
+                values = presence_settings::read(ini, fix);
             }
-            response.AddMember("values", values_json(values, allocator), allocator);
+            response.AddMember("values", values_json(fix, values, allocator), allocator);
 
             rapidjson::Value defaults(rapidjson::kObjectType);
-            for (const auto& key : presence_settings::keys())
+            for (const auto& key : presence_settings::keys(fix))
             {
                 rapidjson::Value name = make_string(key, allocator);
                 defaults.AddMember(name, presence_settings::default_value, allocator);
@@ -131,11 +140,13 @@ namespace commands::presence_commands
         // keys (null removes one) and answers { success, error, values } with the ini's values after.
         cef_ui.add_command("set-presence-settings", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
         {
-            const auto ini = ini_or_fail(ctx, value, response);
-            if (!ini)
+            const auto where = ini_or_fail(ctx, value, response);
+            if (!where)
             {
                 return;
             }
+            const auto& fix = *where->info;
+            const auto ini = *where->ini();
 
             std::vector<presence_settings::change> changes;
             if (value.HasMember("values") && value["values"].IsObject())
@@ -173,9 +184,9 @@ namespace commands::presence_commands
             }
 
             std::string error;
-            const auto ok = presence_settings::write(*ini, changes, error);
+            const auto ok = presence_settings::write(ini, fix, changes, error);
             set_result(response, ok, error);
-            response.AddMember("values", values_json(presence_settings::read(*ini), response.GetAllocator()), response.GetAllocator());
+            response.AddMember("values", values_json(fix, presence_settings::read(ini, fix), response.GetAllocator()), response.GetAllocator());
         });
     }
 }

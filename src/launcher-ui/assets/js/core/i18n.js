@@ -335,10 +335,13 @@
                 on: 'ON',
                 enabled: 'Show what I’m playing on Discord',
                 enabledBody: 'Friends see the game, your zone and your party. No names or addresses.',
+                enabledBodyHero: 'Friends see the game, where you are and your hero. No names or addresses.',
                 showZone: 'Show my zone',
                 showZoneBody: 'Where you are in the game.',
                 showParty: 'Show my party',
                 showPartyBody: 'Your party in the game.',
+                showHero: 'Show my hero',
+                showHeroBody: 'The hero you play as (player 1’s in co-op).',
                 saveFailed: 'The Discord setting could not be saved.'
             },
             // X-Men Legends (community port): setup wizard, Build section, builder errors.

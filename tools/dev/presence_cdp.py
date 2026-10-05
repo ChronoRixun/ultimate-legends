@@ -3,7 +3,9 @@
 Points the XML2 entry of the Debug launcher at a throwaway folder with a dummy XMen2.exe and a
 dummy dinput.dll (the XML2 Fix), then reads and writes that folder's xml2-fix.ini [Discord] section
 through the same commands the page uses and through the page's own toggles, and saves a screenshot
-of the section. Never touches a real game install.
+of the section. Then the same for MUA (a dummy Marvel.exe and dinput8.dll, MUA Controller Fix's
+mua-controller-fix.ini), whose switches are Enabled, ShowZone and ShowHero. Never touches a real
+game install.
 
     tools\\run-test-debug.bat
     python tools\\dev\\presence_cdp.py
@@ -67,11 +69,11 @@ def main():
     def get(game="xml2"):
         return launcher.command("get-presence-settings", {"game": game})
 
-    def put(values):
-        return launcher.command("set-presence-settings", {"game": "xml2", "values": values})
+    def put(values, game="xml2"):
+        return launcher.command("set-presence-settings", {"game": game, "values": values})
 
-    def ui(expression):
-        return launcher.evaluate(f"(() => {{ const panel = document.getElementById('xml2-presence-panel'); {expression} }})()")
+    def ui(expression, game="xml2"):
+        return launcher.evaluate(f"(() => {{ const panel = document.getElementById('{game}-presence-panel'); {expression} }})()")
 
     def click(key, value):
         return ui(f"const b = panel.querySelector('.ul-presence-toggle[data-key=\"{key}\"] .toggle-btn[data-value=\"{value}\"]'); "
@@ -83,8 +85,8 @@ def main():
     def disabled(key):
         return ui(f"return [...panel.querySelectorAll('.ul-presence-toggle[data-key=\"{key}\"] .toggle-btn')].every(b => b.disabled);")
 
-    def open_page():
-        launcher.evaluate("document.querySelector('.game-item[data-game=\"xml2\"]').click()")
+    def open_page(game="xml2"):
+        launcher.evaluate(f"document.querySelector('.game-item[data-game=\"{game}\"]').click()")
         time.sleep(1.5)
 
     with tempfile.TemporaryDirectory(prefix="ul-fake-xml2-") as folder:
@@ -110,7 +112,11 @@ def main():
             check(state.get("fix") == "XML2 Fix" and state.get("file") == "xml2-fix.ini", f"fix named {state.get('fix')!r}, file {state.get('file')!r}")
             check(put({"Enabled": False}).get("success") is False, "refuses to write without the fix")
             check(not ini.exists(), "no ini created")
-            check(get("mua")["supported"] is False, "MUA has no Discord settings (yet)")
+            check(state.get("keys") == ["Enabled", "ShowZone", "ShowParty"], f"XML2 Fix switches {state.get('keys')}")
+            mua = get("mua")
+            check(mua["supported"] is True and mua.get("fix") == "MUA Controller Fix" and mua.get("file") == "mua-controller-fix.ini",
+                  f"MUA has Discord settings: {mua.get('fix')!r}, {mua.get('file')!r}")
+            check(mua.get("keys") == ["Enabled", "ShowZone", "ShowHero"], f"MUA Controller Fix switches {mua.get('keys')}")
             check(get("nope")["supported"] is False, "unknown game: not supported")
 
             print("read: absent means on")
@@ -297,6 +303,73 @@ def main():
         finally:
             if original:
                 launcher.command("set-game-path", {"game": "xml2", "path": original, "existing_install": True})
+
+    # MUA: the same section on MUA Controller Fix's ini, with the hero instead of the party.
+    with tempfile.TemporaryDirectory(prefix="ul-fake-mua-") as folder:
+        game = pathlib.Path(folder)
+        (game / "Marvel.exe").write_bytes(b"placeholder - not a real game")
+        ini = game / "mua-controller-fix.ini"
+        fix = game / "dinput8.dll"
+
+        def mua_text():
+            return ini.read_bytes().decode("utf-8", errors="replace") if ini.exists() else ""
+
+        def mua_ui(expression):
+            return ui(expression, "mua")
+
+        def mua_shown(key):
+            return mua_ui(f"const b = panel.querySelector('.ul-presence-toggle[data-key=\"{key}\"] .toggle-btn.active'); return b ? b.dataset.value : null;")
+
+        original = launcher.command("get-game-property", {"game": "mua", "suffix": "install"})
+        try:
+            print("MUA")
+            check(launcher.command("set-game-path", {"game": "mua", "path": str(game), "existing_install": True}) is True,
+                  "MUA pointed at the fake game folder")
+            state = get("mua")
+            check(state["installed"] and not state["fixInstalled"], "game set up, fix not installed")
+            check(put({"Enabled": False}, "mua").get("success") is False and not ini.exists(), "refuses to write without the fix")
+
+            fix.write_bytes(b"placeholder - not the real fix")
+            state = get("mua")
+            check(state["fixInstalled"] and state["values"] == {"Enabled": None, "ShowZone": None, "ShowHero": None},
+                  f"fix seen, no [Discord] yet: {state['values']}")
+            check(state["defaults"] == {"Enabled": True, "ShowZone": True, "ShowHero": True}, "every key defaults to on")
+
+            result = put({"ShowHero": False}, "mua")
+            check(result.get("success") is True and mua_text() == "[Discord]\r\nShowHero=0\r\n", "ShowHero=0 written to a new mua-controller-fix.ini")
+            check(result["values"] == {"Enabled": None, "ShowZone": None, "ShowHero": False}, f"answer {result['values']}")
+            check(put({"ShowParty": False}, "mua").get("success") is False, "ShowParty isn't MUA's: refused")
+            check(put({"ShowHero": False}).get("success") is False, "ShowHero isn't the XML2 Fix's: refused")
+
+            ini.write_bytes(b"[Discord]\r\nClientId=123456789012345678 ; own app\r\nEnabled=1\r\n")
+            check(put({"ShowZone": False}, "mua").get("success") is True
+                  and mua_text() == "[Discord]\r\nClientId=123456789012345678 ; own app\r\nEnabled=1\r\nShowZone=0\r\n",
+                  "ClientId and its comment kept")
+
+            print("MUA page")
+            ini.write_bytes(b"[Discord]\r\nShowHero=0\r\n")
+            open_page("mua")
+            rows = mua_ui("return [...panel.querySelectorAll('.ul-presence-row')].map(r => r.dataset.row).join(',');")
+            check(rows == "Enabled,ShowZone,ShowHero", f"rows {rows}")
+            check(mua_ui("return panel.querySelector('.ul-presence-row[data-row=\"ShowHero\"] .ul-display-label').textContent;") == "Show my hero",
+                  "hero toggle label")
+            check(mua_ui("return panel.querySelector('.ul-presence-row[data-row=\"Enabled\"] .ul-display-description').textContent;")
+                  == "Friends see the game, where you are and your hero. No names or addresses.", "main toggle note")
+            check([mua_shown(k) for k in ("Enabled", "ShowZone", "ShowHero")] == ["1", "1", "0"], "the file shown")
+            check(mua_ui("const b = panel.querySelector('.ul-presence-toggle[data-key=\"ShowHero\"] .toggle-btn[data-value=\"1\"]'); "
+                         "if (!b) return 'missing'; b.click(); return 'clicked';") == "clicked", "click hero ON")
+            time.sleep(SAVE_WAIT)
+            check(mua_text() == "[Discord]\r\nShowHero=1\r\n", "ShowHero=1 saved from the page")
+
+            launcher.evaluate("document.querySelector('#mua-page .detail-presence').scrollIntoView({ block: 'center' })")
+            time.sleep(0.5)
+            shot = pathlib.Path(__file__).with_name("presence-section-mua.png")
+            launcher.screenshot(shot)
+            print(f"  screenshot: {shot}")
+            check((game / "Marvel.exe").exists(), "game folder untouched")
+        finally:
+            if original:
+                launcher.command("set-game-path", {"game": "mua", "path": original, "existing_install": True})
 
     print(f"\n{'PASSED' if not failures else 'FAILED'} ({failures} failure{'s' if failures != 1 else ''})")
     return 1 if failures else 0

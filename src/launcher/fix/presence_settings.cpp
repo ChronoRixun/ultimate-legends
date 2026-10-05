@@ -4,20 +4,28 @@
 
 namespace presence_settings
 {
-    const std::vector<std::string>& keys()
+    namespace
     {
-        static const std::vector<std::string> list{"Enabled", "ShowZone", "ShowParty"};
-        return list;
+        bool known(const fix_ini::fix& fix, const std::string& key)
+        {
+            const auto& list = keys(fix);
+            return std::find(list.begin(), list.end(), key) != list.end();
+        }
     }
 
-    std::map<std::string, std::string> read(const std::filesystem::path& ini)
+    const std::vector<std::string>& keys(const fix_ini::fix& fix)
     {
-        return fix_ini::read(ini, section, keys());
+        return fix.presence_keys;
     }
 
-    std::optional<std::string> normalise(const std::string& key, const std::string& value, std::string& error)
+    std::map<std::string, std::string> read(const std::filesystem::path& ini, const fix_ini::fix& fix)
     {
-        if (std::find(keys().begin(), keys().end(), key) == keys().end())
+        return fix_ini::read(ini, section, keys(fix));
+    }
+
+    std::optional<std::string> normalise(const fix_ini::fix& fix, const std::string& key, const std::string& value, std::string& error)
+    {
+        if (!known(fix, key))
         {
             error = "Unknown Discord setting: " + key;
             return std::nullopt;
@@ -30,7 +38,7 @@ namespace presence_settings
         return std::nullopt;
     }
 
-    bool write(const std::filesystem::path& ini, const std::vector<change>& changes, std::string& error)
+    bool write(const std::filesystem::path& ini, const fix_ini::fix& fix, const std::vector<change>& changes, std::string& error)
     {
         fix_ini::changes prepared;
         for (const auto& change : changes)
@@ -38,13 +46,13 @@ namespace presence_settings
             std::optional<std::string> value;
             if (change.value)
             {
-                value = normalise(change.key, *change.value, error);
+                value = normalise(fix, change.key, *change.value, error);
                 if (!value)
                 {
                     return false;
                 }
             }
-            else if (std::find(keys().begin(), keys().end(), change.key) == keys().end())
+            else if (!known(fix, change.key))
             {
                 error = "Unknown Discord setting: " + change.key;
                 return false;

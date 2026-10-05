@@ -10,10 +10,10 @@
 #include <vector>
 
 // The settings file of a game's fix: the XML2 Fix (dinput.dll) reads xml2-fix.ini next to the
-// game's exe. The launcher's sections for it (Display, Discord) all go through here, so a game
-// whose fix reads the same kind of file only needs an entry in the table in fix_ini.cpp: the
-// X-Men Legends port runs on the XML2 engine with the same fix, and MUA's controller fix may grow
-// the same sections.
+// game's exe, MUA Controller Fix (dinput8.dll) mua-controller-fix.ini. The launcher's sections for
+// them (Display, Discord) all go through here, so a game whose fix reads the same kind of file only
+// needs an entry in the table in fix_ini.cpp: the X-Men Legends port runs on the XML2 engine with
+// the same fix, and both MUA games share MUA Controller Fix.
 //
 // Files are read and written with the Windows profile API (Get/WritePrivateProfileStringW), the
 // same one the fixes use, one key at a time: every other key, section, comment and blank line
@@ -36,6 +36,10 @@ namespace fix_ini
         // The sections the launcher edits for this fix.
         bool display{};  // [Display], display/xml2_display.hpp (the XML2 engine's Direct3D 8 options)
         bool presence{}; // [Discord], fix/presence_settings.hpp
+
+        // The [Discord] switches the launcher shows for this fix, in order: Enabled, then what it
+        // shares (the XML2 Fix's ShowZone and ShowParty, MUA Controller Fix's ShowZone and ShowHero).
+        std::vector<std::string> presence_keys{};
     };
 
     // The fix of the game with this key (game_config's game_key), or nullptr when the game's fix

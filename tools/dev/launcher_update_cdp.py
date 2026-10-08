@@ -459,6 +459,11 @@ def main():
         check("launcher-ui" in update_log.split("files still held after")[-2].lower(), "updates\\update.log names the held folder")
         check(json_field(UPDATES / "ready" / "held.json", "count") == "2", "the held start is counted again (held.json)")
         (ROOT / "data" / "cef" / "pre-swap.txt").unlink()
+        check(wait_for(lambda: js("window.LauncherUpdate.status && window.LauncherUpdate.status.state === 'ready' "
+                                  "&& typeof document.querySelector('#launcher-update-action').onclick === 'function' "
+                                  "&& !document.querySelector('#launcher-update-action').disabled "
+                                  "&& !document.querySelector('#launcher-update-bar').hidden"), 10),
+              "the updater UI is ready for retry")
         js("document.querySelector('#launcher-update-action').click()")  # Restart now, nothing held this time
         time.sleep(3)
         launcher = connect(120)

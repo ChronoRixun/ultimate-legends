@@ -492,20 +492,20 @@ def main():
                   and not builder["installed"], f"an older builder's zip: refused, naming both versions ({builder['error'][:80]!r})")
             check(not DEBUG_TOOLS.exists() or not [p for p in DEBUG_TOOLS.iterdir() if p.is_dir()], "nothing installed from them")
 
-            good = hand / "good" / manifest["zip"]
-            shutil.copy2(release_zip, good)
+            good_zip = hand / "good" / manifest["zip"]
+            shutil.copy2(release_zip, good_zip)
             release_zip.rename(release_zip.with_name("away.zip"))  # a download would fail now
             try:
-                builder = install_zip(good)
+                builder = install_zip(good_zip)
                 check(builder["installed"] and builder["version"] == "1.0.0" and builder["source"] == "zip" and not builder["code"],
                       f"the release's zip: installed from it, nothing downloaded ({builder['source']!r})")
-                check((DEBUG_TOOLS / "1.0.0" / "xml1-builder.exe").exists() and good.read_bytes() == (www / "away.zip").read_bytes(),
+                check((DEBUG_TOOLS / "1.0.0" / "xml1-builder.exe").exists() and good_zip.read_bytes() == (www / "away.zip").read_bytes(),
                       "into tools/xml1-builder/1.0.0; the player's zip left as it was")
                 check(not [p for p in DEBUG_TOOLS.iterdir() if p.name.startswith(".staging")], "no staging folder left")
 
                 forget_builder()
                 DEBUG_TOOLS.mkdir(parents=True)
-                shutil.copy2(good, DEBUG_TOOLS / manifest["zip"])
+                shutil.copy2(good_zip, DEBUG_TOOLS / manifest["zip"])
                 cmd("xml1-builder-check", {"install": True})
                 builder = builder_settled()
                 check(builder["installed"] and builder["source"] == "zip", "the release's zip put in tools/xml1-builder is found and used")

@@ -406,15 +406,23 @@ namespace tool_install
     std::optional<std::filesystem::path> find_local_zip(const tool& tool, const manifest& manifest)
     {
         const auto name = utils::string::utf8_to_path(manifest.zip);
+        std::vector<std::filesystem::path> candidates;
         for (const auto& folder : {root(tool), utils::com::get_downloads_path()})
         {
             std::error_code error;
             if (!folder.empty() && std::filesystem::is_regular_file(folder / name, error))
             {
-                return folder / name;
+                candidates.push_back(folder / name);
             }
         }
-        return std::nullopt;
+        // A damaged copy in one place must not hide the release's zip in the next.
+        return pick_local_zip(manifest, candidates, [&](const std::filesystem::path& zip)
+        {
+            return measure(zip, manifest.size);
+        }, [&](const std::filesystem::path& zip, const std::string& reason)
+        {
+            utils::logger::write("{} {}: {} not used: {}", tool.id, manifest.version, utils::string::path_to_utf8(zip), reason);
+        });
     }
 
     std::optional<installed> install_from_zip(const tool& tool, const manifest& manifest, const std::filesystem::path& zip,

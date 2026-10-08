@@ -98,3 +98,55 @@ TEST(versions_compare_numerically)
     CHECK(tool_install::compare_versions("0.9.0", "1.0.0") < 0);
     CHECK(tool_install::is_safe_version("1.0.0") && !tool_install::is_safe_version("../1") && !tool_install::is_safe_version(""));
 }
+
+TEST(a_damaged_zip_in_the_tools_folder_does_not_hide_the_one_in_downloads)
+{
+    // find_local_zip looks in tools\xml1-builder, then Downloads: the first that is the release's zip is used.
+    const std::filesystem::path tools_zip = "tools/xml1-builder/xml1-builder-1.1.0-win64.zip";
+    const std::filesystem::path downloads_zip = "Downloads/xml1-builder-1.1.0-win64.zip";
+    std::vector<std::filesystem::path> measured;
+    std::vector<std::string> rejected;
+    const auto picked = tool_install::pick_local_zip(release(), {tools_zip, downloads_zip}, [&](const std::filesystem::path& file)
+    {
+        measured.push_back(file);
+        return std::optional{zip(file.filename().string(), 20971520, file == tools_zip ? std::string(64, 'b') : release_sha)};
+    }, [&](const std::filesystem::path& file, const std::string& reason)
+    {
+        rejected.push_back(file.string() + ": " + reason);
+    });
+    CHECK(picked == downloads_zip);
+    CHECK(measured.size() == 2);
+    CHECK(rejected.size() == 1 && rejected[0].find("tools/xml1-builder") != std::string::npos && rejected[0].find("SHA-256") != std::string::npos);
+}
+
+TEST(a_local_zip_is_picked_in_order_or_none_is)
+{
+    const std::filesystem::path tools_zip = "tools/xml1-builder/xml1-builder-1.1.0-win64.zip";
+    const std::filesystem::path downloads_zip = "Downloads/xml1-builder-1.1.0-win64.zip";
+    int measured = 0;
+    std::vector<std::string> rejected;
+    const auto on_rejected = [&](const std::filesystem::path&, const std::string& reason)
+    {
+        rejected.push_back(reason);
+    };
+
+    // Both good: the tools folder's, and Downloads isn't read.
+    auto picked = tool_install::pick_local_zip(release(), {tools_zip, downloads_zip}, [&](const std::filesystem::path& file)
+    {
+        ++measured;
+        return std::optional{zip(file.filename().string(), 20971520, release_sha)};
+    }, on_rejected);
+    CHECK(picked == tools_zip && measured == 1 && rejected.empty());
+
+    // Unreadable, then incomplete: none, each with its reason (the release is downloaded).
+    picked = tool_install::pick_local_zip(release(), {tools_zip, downloads_zip}, [&](const std::filesystem::path& file)
+    {
+        return file == tools_zip ? std::optional<tool_install::zip_facts>{} : std::optional{zip(file.filename().string(), 1000, "")};
+    }, on_rejected);
+    CHECK(!picked);
+    CHECK(rejected.size() == 2 && rejected[0].find("could not be read") != std::string::npos
+          && rejected[1].find("1000 bytes") != std::string::npos);
+
+    CHECK(!tool_install::pick_local_zip(release(), {}, [](const std::filesystem::path&) { return std::optional<tool_install::zip_facts>{}; },
+                                        on_rejected));
+}

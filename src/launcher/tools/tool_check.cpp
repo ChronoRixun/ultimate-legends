@@ -128,4 +128,25 @@ namespace tool_install
         return std::format("{} does not match the SHA-256 of the release's {} (a damaged download, or not the release's "
                            "file), so it was not installed.", facts.name, manifest.zip);
     }
+
+    std::optional<std::filesystem::path> pick_local_zip(const manifest& manifest, const std::vector<std::filesystem::path>& candidates,
+                                                        const measure_zip& measure, const zip_rejected& rejected)
+    {
+        for (const auto& candidate : candidates)
+        {
+            const auto facts = measure(candidate);
+            if (!facts)
+            {
+                rejected(candidate, "it could not be read");
+                continue;
+            }
+            const auto match = match_zip(manifest, *facts);
+            if (match == zip_match::same)
+            {
+                return candidate;
+            }
+            rejected(candidate, describe_zip_match(manifest, *facts, match));
+        }
+        return std::nullopt;
+    }
 }

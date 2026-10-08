@@ -108,8 +108,17 @@ namespace tool_install
     // What is wrong with a zip that is not `same`, for the player.
     std::string describe_zip_match(const manifest& manifest, const zip_facts& facts, zip_match match);
 
+    // The first of `candidates` that is the release's zip (match_zip: same), in order; `measure`
+    // reads one (nullopt: it could not be read) and `rejected` is told about each one passed over
+    // and why. nullopt when none is.
+    using measure_zip = std::function<std::optional<zip_facts>(const std::filesystem::path& zip)>;
+    using zip_rejected = std::function<void(const std::filesystem::path& zip, const std::string& reason)>;
+    std::optional<std::filesystem::path> pick_local_zip(const manifest& manifest, const std::vector<std::filesystem::path>& candidates,
+                                                        const measure_zip& measure, const zip_rejected& rejected);
+
     // The release's zip (manifest.zip, by its exact name) if the player put it in root() or it is in
-    // their Downloads folder; not checked yet.
+    // their Downloads folder, checked against `manifest` (size and SHA-256): the first place that has
+    // it, in that order. One that doesn't match is logged and the next place is looked at.
     std::optional<std::filesystem::path> find_local_zip(const tool& tool, const manifest& manifest);
 
     // Checks `zip` against `manifest` (size, then SHA-256) and installs it like install(); the zip

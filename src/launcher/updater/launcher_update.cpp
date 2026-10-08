@@ -1,6 +1,7 @@
 #include "std_include.hpp"
 #include "launcher_update.hpp"
 #include "progress_tracker.hpp"
+#include "swap_retry.hpp"
 
 #include "tools/archive.hpp"
 #include "tools/tool_install.hpp"
@@ -29,6 +30,7 @@ namespace launcher_update
         constexpr auto release_page = "https://github.com/ChronoRixun/ultimate-legends/releases/latest";
         constexpr auto exe_name = "ultimate-legends.exe";
         constexpr auto sums_name = "SHA256SUMS.txt";
+        constexpr auto restart_flag = L"update-restart";
 
         struct release
         {
@@ -156,6 +158,34 @@ namespace launcher_update
             return portable_root() / "updates";
         }
 
+        // The install path's log lines also go to updates\update.log, with the time and the process:
+        // ultimate-legends.log starts over with every start, and an update spans several (issue #2:
+        // the start that hung could not be told apart from the ones around it). Kept under 256 KB.
+        template <typename... Args>
+        void trace(const std::format_string<Args...> fmt, Args&&... args)
+        {
+            const auto message = std::format(fmt, std::forward<Args>(args)...);
+            utils::logger::write("launcher update: {}", message);
+
+            static std::mutex trace_mutex;
+            std::lock_guard lock(trace_mutex);
+            const auto file = updates_folder() / "update.log";
+            std::error_code error;
+            if (!std::filesystem::is_directory(updates_folder(), error))
+            {
+                return;
+            }
+            if (const auto size = std::filesystem::file_size(file, error); !error && size > 256 * 1024)
+            {
+                auto old = file;
+                old += L".old";
+                std::filesystem::rename(file, old, error);
+            }
+            std::ofstream stream(file, std::ios::binary | std::ios::app);
+            const auto now = std::chrono::floor<std::chrono::milliseconds>(std::chrono::system_clock::now());
+            stream << std::format("{:%Y-%m-%d %H:%M:%S}Z [{}] {}\r\n", now, GetCurrentProcessId(), message);
+        }
+
         std::filesystem::path exe_path()
         {
             static const auto path = utils::nt::library{}.get_path();
@@ -182,8 +212,9 @@ namespace launcher_update
             {
                 return true;
             }
-            utils::logger::write("launcher update: rename {} -> {} failed: {}", utils::string::path_to_utf8(from),
-                                 utils::string::path_to_utf8(to), std::system_category().message(static_cast<int>(GetLastError())));
+            const auto error = GetLastError();
+            trace("rename {} -> {} failed: {} ({})", utils::string::path_to_utf8(from), utils::string::path_to_utf8(to),
+                  std::system_category().message(static_cast<int>(error)), error);
             return false;
         }
 
@@ -376,18 +407,33 @@ namespace launcher_update
             return ok;
         }
 
+        // Real files and time for swap_retry.
+        swap_retry::hooks hooks_for(const std::vector<item>& items)
+        {
+            swap_retry::hooks hooks;
+            hooks.swap = [&items]
+            {
+                return swap(items);
+            };
+            hooks.roll_back = [&items]
+            {
+                return roll_back(items);
+            };
+            hooks.sleep = [](const std::chrono::milliseconds pause)
+            {
+                std::this_thread::sleep_for(pause);
+            };
+            hooks.log = [](const std::string& line)
+            {
+                trace("{}", line);
+            };
+            return hooks;
+        }
+
         // Retries while the files are still held (by the processes of the version that just ran).
         bool roll_back_retrying(const std::vector<item>& items)
         {
-            for (auto attempt = 0; attempt < 30; ++attempt)
-            {
-                if (roll_back(items))
-                {
-                    return true;
-                }
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-            }
-            return false;
+            return swap_retry::roll_back(hooks_for(items));
         }
 
         bool write_journal(const std::filesystem::path& file, const std::string& version, const std::vector<item>& items)
@@ -431,7 +477,7 @@ namespace launcher_update
 
         void note_failure(const std::string& version, const std::string& message)
         {
-            utils::logger::write("launcher update {}: {}", version, message);
+            trace("{}: {}", version, message);
             write_json(updates_folder() / "failed.json", {{"version", version}, {"error", message}});
         }
 
@@ -471,7 +517,7 @@ namespace launcher_update
                 "Ultimate Legends again: it tries again. If this keeps happening, download the launcher again from {} and "
                 "unzip it over this one; your settings are kept.",
                 what, utils::string::path_to_utf8(updates_folder() / "previous"), release_page);
-            utils::logger::write("launcher update: stuck: {}", what);
+            trace("stuck: {}", what);
             MessageBoxW(nullptr, utils::string::convert(text).c_str(), L"Ultimate Legends", MB_ICONERROR | MB_OK);
         }
 
@@ -731,7 +777,7 @@ namespace launcher_update
             }
             for (int i = 1; i < count; ++i)
             {
-                if (argv[i][0] == L'-')
+                if (argv[i][0] == L'-' && _wcsicmp(argv[i] + 1, restart_flag) != 0)
                 {
                     flags.emplace_back(argv[i]);
                 }
@@ -765,6 +811,7 @@ namespace launcher_update
             }
             const auto items = items_for(swap_names(read_journal(journal)));
             const auto exe_moved = path_exists(previous / exe_name);
+            trace("found the journal of an interrupted swap to {}; rolling it back", version.empty() ? "?" : version);
             if (!roll_back_retrying(items))
             {
                 stuck("an interrupted update to " + (version.empty() ? std::string("a new version") : version));
@@ -793,7 +840,7 @@ namespace launcher_update
                 return result::none;
             }
 
-            utils::logger::write("launcher update: {} did not start {} times; restoring the previous version", to, starts);
+            trace("{} did not start {} times; restoring the previous version", to, starts);
             const auto items = items_for(swap_names({}));
             if (!roll_back_retrying(items))
             {
@@ -866,26 +913,18 @@ namespace launcher_update
                                   "Nothing was changed; it installs the next time the launcher starts.");
             return result::none;
         }
-        utils::logger::write("launcher update: installing {} over {}", version, current);
+        trace("installing {} over {} (held on {} earlier starts)", version, current, held);
 
         // The previous launcher's processes (CEF's helpers outlive it by a few seconds) hold its
-        // files: a folder that can't be renamed yet rolls everything back, and it waits and retries.
-        auto installed = false;
-        for (auto attempt = 0; attempt < 30; ++attempt)
+        // files: a folder that can't be renamed yet rolls everything back, and it waits and retries,
+        // for about 30 s in all however long the roll backs take (swap_retry.hpp).
+        const auto outcome = swap_retry::install(hooks_for(items));
+        if (outcome == swap_retry::outcome::stuck)
         {
-            installed = swap(items);
-            if (installed)
-            {
-                break;
-            }
-            if (!roll_back_retrying(items))
-            {
-                stuck("installing " + version);
-                return result::stop;
-            }
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            stuck("installing " + version);
+            return result::stop;
         }
-        if (!installed)
+        if (outcome == swap_retry::outcome::held)
         {
             utils::io::remove_file(journal);
             remove_tree(previous);
@@ -899,32 +938,49 @@ namespace launcher_update
         utils::io::remove_file(journal);
         write_json(applied, {{"from", current}, {"to", version}});
         remove_tree(ready);
-        utils::logger::write("launcher update: installed {}", version);
+        trace("installed {}", version);
         return result::relaunch;
     }
 
-    void relaunch()
+    bool relaunch()
     {
-        std::wstring command_line = L"\"" + exe_path().wstring() + L"\"";
+        // -update-restart: the new process waits for this one to let go of the single-instance lock
+        // (main.cpp) instead of the usual 3 s, which a slow exit can outlast; it is not passed on.
+        std::wstring command_line = L"\"" + exe_path().wstring() + L"\" \"-" + restart_flag + L"\"";
         for (const auto& flag : flag_arguments())
         {
             command_line += L" \"" + flag + L"\"";
         }
 
-        STARTUPINFOW startup_info{};
-        startup_info.cb = sizeof(startup_info);
-        PROCESS_INFORMATION process_info{};
-        if (CreateProcessW(exe_path().c_str(), command_line.data(), nullptr, nullptr, FALSE, CREATE_NEW_PROCESS_GROUP, nullptr,
-                           nullptr, &startup_info, &process_info))
+        // A start refused for a moment (a scanner looking at a just-swapped executable) is tried again:
+        // without the new process there is no launcher at all once this one exits.
+        for (auto attempt = 1;; ++attempt)
         {
-            CloseHandle(process_info.hThread);
-            CloseHandle(process_info.hProcess);
+            STARTUPINFOW startup_info{};
+            startup_info.cb = sizeof(startup_info);
+            PROCESS_INFORMATION process_info{};
+            if (CreateProcessW(exe_path().c_str(), command_line.data(), nullptr, nullptr, FALSE, CREATE_NEW_PROCESS_GROUP, nullptr,
+                               nullptr, &startup_info, &process_info))
+            {
+                trace("started {} (pid {})", utils::string::path_to_utf8(exe_path().filename()), process_info.dwProcessId);
+                CloseHandle(process_info.hThread);
+                CloseHandle(process_info.hProcess);
+                return true;
+            }
+            const auto error = GetLastError();
+            trace("could not start {} (try {}): {} ({})", utils::string::path_to_utf8(exe_path()), attempt,
+                  std::system_category().message(static_cast<int>(error)), error);
+            if (attempt >= 5)
+            {
+                return false;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(500 * attempt));
         }
-        else
-        {
-            utils::logger::write("launcher update: could not start {}: {}", utils::string::path_to_utf8(exe_path()),
-                                 std::system_category().message(static_cast<int>(GetLastError())));
-        }
+    }
+
+    bool is_restart()
+    {
+        return utils::flags::has_flag("update-restart");
     }
 
     void cleanup()
@@ -1000,7 +1056,7 @@ namespace launcher_update
         }
         // The new version's window is up: it stands, and the previous one can go.
         utils::io::remove_file(updates / "applied.json");
-        utils::logger::write("launcher update: the new version started");
+        trace("the new version started");
         std::thread([updates]
         {
             // The previous executable may still run for a moment (it started this one).
@@ -1106,9 +1162,18 @@ namespace launcher_update
         std::thread([]
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(300)); // let the answer reach the UI
-            utils::logger::write("launcher update: restarting to install it");
-            relaunch();
-            utils::nt::terminate();
+            trace("restarting to install {}", read_json_string(updates_folder() / "ready" / "update.json", "version"));
+            if (relaunch())
+            {
+                utils::nt::terminate();
+            }
+            // Never exit without a launcher to take over: this one stays, and says so.
+            utils::io::remove_file(updates_folder() / "ready" / "install-now");
+            with_state([](state_t& state)
+            {
+                state.install_error = "Restart now could not start the launcher again. Close Ultimate Legends and start it "
+                                      "again to install the update.";
+            });
         }).detach();
         return true;
     }

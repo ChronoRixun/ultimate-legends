@@ -36,8 +36,12 @@ namespace launcher_update
     // new version whose first start never got its window up, installs a downloaded update.
     result apply_pending();
 
-    // Starts the launcher's executable again with this process's -flags.
-    void relaunch();
+    // Starts the launcher's executable again with this process's -flags (tried a few times); false
+    // when it could not be started, so the caller must not leave the player without a launcher.
+    bool relaunch();
+
+    // A start by relaunch(): the previous process may still hold the single-instance lock for a moment.
+    bool is_restart();
 
     // Startup, after apply_pending(): reads what an earlier start left for the UI, deletes
     // interrupted downloads and leftovers.

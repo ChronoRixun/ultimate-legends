@@ -15,9 +15,10 @@ and SHA256SUMS.txt, listed in a releases/latest JSON of GitHub's shape.
 Covers: the check (update available, the bar), a download whose SHA-256 doesn't match (refused, nothing
 changed, nothing left behind), the download, Restart now (the swap: the new UI is live; user\\, tools\\,
 cache\\, mods\\, portable.marker and the settings untouched; updates\\ cleaned up; "updated" reported),
-up to date, a file held open in data\\cef during the swap (retried, rolled back, said, then installed by
-the next Restart now), a swap interrupted before and after the exe moved and with an empty journal, a new
-version whose page never comes up (kept for two starts, then rolled back; all from what is on the disk), a
+up to date, a file held open in data\\cef during the swap (retried for a bounded time, rolled back, said,
+logged in updates\\update.log), a file held in the download's launcher-ui (data\\cef swapped and rolled back
+on each try), then installed by the next Restart now, a swap interrupted before and after the exe moved and
+with an empty journal, a new version whose page never comes up (kept for two starts, then rolled back; all from what is on the disk), a
 first start whose page fails after it is shown (kept), files held on three starts (the fourth doesn't
 retry), and
 development builds (no checks).
@@ -136,6 +137,10 @@ def connect(timeout=90):
         print("    launcher processes:", tasks or "none")
         if UPDATES.exists():
             print("    updates\\:", sorted(p.name for p in UPDATES.iterdir()))
+        # The install path's own log spans the starts (ultimate-legends.log is the last start's only).
+        update_log = UPDATES / "update.log"
+        if update_log.exists():
+            print("    updates\\update.log (last lines):", *update_log.read_text(errors="replace").splitlines()[-30:], sep="\n      ")
         raise RuntimeError("the test launcher did not come up")
     return launcher
 
@@ -412,9 +417,17 @@ def main():
             time.sleep(3)
             launcher = connect(180)
             js = launcher.evaluate
-            check(time.time() - started > 25, f"the swap was retried for a while ({time.time() - started:.0f} s)")
+            took = time.time() - started
+            check(25 < took < 120, f"the swap was retried for a while, and for a bounded time ({took:.0f} s)")
         finally:
             held.close()
+        update_log = (UPDATES / "update.log").read_text(errors="replace")
+        check("restarting to install " + NEW_VERSION in update_log and "started ultimate-legends.exe (pid" in update_log,
+              "updates\\update.log: the restart and the new process's pid")
+        check("swap try 1 failed" in update_log and "files still held after" in update_log,
+              "updates\\update.log: each failed try, and that it gave up on held files")
+        check("cef" in update_log.split("files still held after")[0].lower() and "failed:" in update_log,
+              "updates\\update.log: the rename that failed (data\\cef) and why")
         check((ROOT / "data" / "launcher-ui" / "pre-swap.txt").exists(), "rolled back: the UI before the swap is live")
         s = status()
         check("could not be put in place" in s["installError"] and s["state"] == "ready",
@@ -424,6 +437,28 @@ def main():
         check((UPDATES / "ready" / "update.json").exists() and not (UPDATES / "applying.json").exists()
               and not (UPDATES / "previous").exists(), "the download kept, no journal, no previous\\")
         check(json_field(UPDATES / "ready" / "held.json", "count") == "1", "the held start is counted (held.json)")
+
+        print("a file held in the download's launcher-ui: data\\cef is swapped, then rolled back each try")
+        (ROOT / "data" / "cef" / "pre-swap.txt").write_text("the CEF folder before this swap")
+        held = open(UPDATES / "ready" / "data" / "launcher-ui" / "main.html", "rb")  # ready\data\launcher-ui can't be renamed
+        try:
+            started = time.time()
+            js("document.querySelector('#launcher-update-action').click()")
+            time.sleep(3)
+            launcher = connect(180)
+            js = launcher.evaluate
+            took = time.time() - started
+            check(25 < took < 120, f"retried, rolled back, and back up in a bounded time ({took:.0f} s)")
+        finally:
+            held.close()
+        check((ROOT / "data" / "cef" / "pre-swap.txt").exists() and (ROOT / "data" / "launcher-ui" / "pre-swap.txt").exists(),
+              "rolled back: the CEF and the UI before the swap are live")
+        check((UPDATES / "ready" / "data" / "cef").is_dir() and not (UPDATES / "ready" / "data" / "cef" / "pre-swap.txt").exists(),
+              "the download's CEF went back to updates\\ready")
+        update_log = (UPDATES / "update.log").read_text(errors="replace")
+        check("launcher-ui" in update_log.split("files still held after")[-2].lower(), "updates\\update.log names the held folder")
+        check(json_field(UPDATES / "ready" / "held.json", "count") == "2", "the held start is counted again (held.json)")
+        (ROOT / "data" / "cef" / "pre-swap.txt").unlink()
         js("document.querySelector('#launcher-update-action').click()")  # Restart now, nothing held this time
         time.sleep(3)
         launcher = connect(120)

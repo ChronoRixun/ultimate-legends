@@ -107,7 +107,9 @@ namespace
 
     bool try_become_singleton()
     {
-        return singleton_mutex().try_lock(3s);
+        // Started by the self-update's restart: the previous process lets go of the lock only as it
+        // exits, which can take longer than a few seconds on a busy PC.
+        return singleton_mutex().try_lock(launcher_update::is_restart() ? 30s : 3s);
     }
 
     bool is_subprocess()
@@ -310,7 +312,12 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
 #if !defined(DEBUG)
             singleton_mutex().unlock(); // the new launcher takes it
 #endif
-            launcher_update::relaunch();
+            if (!launcher_update::relaunch())
+            {
+                MessageBoxW(nullptr, L"Ultimate Legends could not start itself again after an update step. Start it again.",
+                            L"Ultimate Legends", MB_ICONERROR | MB_OK);
+                return 1;
+            }
             return 0;
         case launcher_update::result::stop:
             return 1;

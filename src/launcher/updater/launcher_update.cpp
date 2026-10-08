@@ -161,14 +161,11 @@ namespace launcher_update
         // The install path's log lines also go to updates\update.log, with the time and the process:
         // ultimate-legends.log starts over with every start, and an update spans several (issue #2:
         // the start that hung could not be told apart from the ones around it). Kept under 256 KB.
-        template <typename... Args>
-        void trace(const std::format_string<Args...> fmt, Args&&... args)
+        void append_to_update_log(const std::string& message)
         {
-            const auto message = std::format(fmt, std::forward<Args>(args)...);
-            utils::logger::write("launcher update: {}", message);
-
-            static std::mutex trace_mutex;
-            std::lock_guard lock(trace_mutex);
+            // One mutex for every trace() call, whatever its arguments' types.
+            static std::mutex update_log_mutex;
+            std::lock_guard lock(update_log_mutex);
             const auto file = updates_folder() / "update.log";
             std::error_code error;
             if (!std::filesystem::is_directory(updates_folder(), error))
@@ -184,6 +181,14 @@ namespace launcher_update
             std::ofstream stream(file, std::ios::binary | std::ios::app);
             const auto now = std::chrono::floor<std::chrono::milliseconds>(std::chrono::system_clock::now());
             stream << std::format("{:%Y-%m-%d %H:%M:%S}Z [{}] {}\r\n", now, GetCurrentProcessId(), message);
+        }
+
+        template <typename... Args>
+        void trace(const std::format_string<Args...> fmt, Args&&... args)
+        {
+            const auto message = std::format(fmt, std::forward<Args>(args)...);
+            utils::logger::write("launcher update: {}", message);
+            append_to_update_log(message);
         }
 
         std::filesystem::path exe_path()

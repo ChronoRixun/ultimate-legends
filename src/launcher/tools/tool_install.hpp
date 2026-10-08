@@ -20,6 +20,12 @@
 // tools\<id>\<version>\, so a version folder is either complete or absent. Older versions stay
 // until the caller prunes them (the builder keeps the previous one until a build with the new one
 // has succeeded).
+//
+// A zip the player already has (downloaded by hand, for a slow or metered connection or when the
+// launcher's own download fails) installs the same way: install_from_zip() checks it against the
+// same release manifest (its size and SHA-256, before anything is unpacked) and then unpacks and
+// places it as install() does. find_local_zip() looks for the release's zip, by its exact name, in
+// root() and in the player's Downloads folder.
 namespace tool_install
 {
     struct tool
@@ -76,6 +82,41 @@ namespace tool_install
     // (at once when that folder is already complete). nullopt with `error` set on failure or cancel.
     std::optional<installed> install(const tool& tool, const manifest& manifest, const progress_callback& progress,
                                      const cancel_check& cancelled, std::string& error);
+
+    // A zip the player has, measured against the release's manifest.
+    enum class zip_match
+    {
+        same,       // the release's zip: its size and SHA-256
+        older,      // named as an older version than the release ("xml1-builder-0.9.0-win64.zip")
+        newer,      // named as a newer version than the release
+        other_size, // not the release's zip (an incomplete download?)
+        other_hash, // the release's size, not its SHA-256 (damaged, or not the release's file)
+    };
+
+    struct zip_facts
+    {
+        std::string name; // the file's name ("xml1-builder-1.0.0-win64.zip")
+        std::uint64_t size{};
+        std::string sha256; // lower-case hex; may be empty when the size already differs
+    };
+
+    // The version a zip's name gives, by the release's naming: manifest.zip with manifest.version
+    // in it ("xml1-builder-1.0.0-win64.zip"); empty when the name doesn't follow it.
+    std::string version_in_zip_name(const manifest& manifest, const std::string& name);
+    // Only `same` may be installed: the name never overrides the size and the SHA-256.
+    zip_match match_zip(const manifest& manifest, const zip_facts& facts);
+    // What is wrong with a zip that is not `same`, for the player.
+    std::string describe_zip_match(const manifest& manifest, const zip_facts& facts, zip_match match);
+
+    // The release's zip (manifest.zip, by its exact name) if the player put it in root() or it is in
+    // their Downloads folder; not checked yet.
+    std::optional<std::filesystem::path> find_local_zip(const tool& tool, const manifest& manifest);
+
+    // Checks `zip` against `manifest` (size, then SHA-256) and installs it like install(); the zip
+    // itself is only read. nullopt with `error` set on failure; `match` says how the zip compared
+    // when it could be read.
+    std::optional<installed> install_from_zip(const tool& tool, const manifest& manifest, const std::filesystem::path& zip,
+                                              std::optional<zip_match>& match, std::string& error);
 
     // Deletes every version folder not in `keep`, and leftovers of interrupted installs.
     void prune(const tool& tool, const std::vector<std::string>& keep);

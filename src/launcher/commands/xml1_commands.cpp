@@ -184,6 +184,15 @@ namespace commands::xml1_commands
             response.SetBool(true);
         });
 
+        // { path }: installs a builder zip the player already has, once it matches the release
+        // (size and SHA-256, like a download); get-xml1-status shows how it went. False while a
+        // check or install is already under way.
+        cef_ui.add_command("xml1-builder-install-zip", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            const auto zip = json_path(value, "path");
+            response.SetBool(zip.has_value() && xml1_port::check_builder(true, zip));
+        });
+
         // { iso?, out? }: the builder's `info` (the disc check, the state of a build).
         cef_ui.add_command("xml1-info", [](const rapidjson::Value& value, rapidjson::Document& response)
         {

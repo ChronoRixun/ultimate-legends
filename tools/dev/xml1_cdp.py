@@ -31,7 +31,9 @@ fails the build with E_IO (exit 6, detail.cause "held"), which the page says in 
 Covers: the states (not set up, builder missing / unpublished, building, incomplete / resume, needs
 the fix, ready, update available, damaged, failed), the wizard (requirements, disc errors mapped to
 plain messages, disc check, options, progress, cancel, hide), the builder install (SHA-256 checked,
-staging, update, pruning), the build (stamp, ini keys merged with the launcher's Display defaults, fix
+staging, update, pruning), a builder zip the player already has (checked like a download: refused when
+damaged, incomplete or older; installed from it with no download; found in tools\\xml1-builder; a damaged one
+there skipped for the download), the build (stamp, ini keys merged with the launcher's Display defaults, fix
 installed), Play and Stop by path, Display / Discord / Mods on the port's page, Verify (the groups and
 counts) / Repair, warnings after a build (their counts from detail.count), E_IO per cause in plain
 words, Report a problem (the saved report, paths masked), a rebuild without the disc image, Free up,
@@ -454,6 +456,73 @@ def main():
             check(builder["code"] == "L_BUILDER_HASH" and not builder["installed"], f"refused: {builder['code']}")
             check(not DEBUG_TOOLS.exists() or not [p for p in DEBUG_TOOLS.iterdir()], "nothing left in the tools folder")
             test.prop("builder-manifest", f"{base}/xml1-builder.json")
+
+            print("builder: a zip the player already has is checked like a download")
+
+            def builder_settled(timeout=30):
+                wait_for(lambda: not test.status()["builder"]["checking"] and not test.status()["builder"]["installing"], timeout)
+                return test.status()["builder"]
+
+            def install_zip(path):
+                check(cmd("xml1-builder-install-zip", {"path": str(path)}) is True, f"{path.name}: taken")
+                return builder_settled()
+
+            def forget_builder():
+                shutil.rmtree(DEBUG_TOOLS, ignore_errors=True)
+                test.prop("builder-version", "")
+                test.prop("builder-content", "")
+
+            release_zip = www / manifest["zip"]
+            hand = root / "by-hand"
+            (hand / "good").mkdir(parents=True)
+            damaged_bytes = bytearray(release_zip.read_bytes())
+            damaged_bytes[len(damaged_bytes) // 2] ^= 0xFF
+            damaged = hand / manifest["zip"]
+            damaged.write_bytes(bytes(damaged_bytes))
+            builder = install_zip(damaged)
+            check(builder["code"] == "L_BUILDER_ZIP_MISMATCH" and "SHA-256" in builder["error"] and not builder["installed"],
+                  f"the release's size, other bytes: refused ({builder['code']}: {builder['error'][:80]!r})")
+            damaged.write_bytes(bytes(damaged_bytes[:1000]))
+            builder = install_zip(damaged)
+            check(builder["code"] == "L_BUILDER_ZIP_MISMATCH" and "1000 bytes" in builder["error"] and not builder["installed"],
+                  f"an incomplete zip: refused, with both sizes ({builder['error'][:80]!r})")
+            older, _ = fake.make_package(hand / "old", version="0.9.0", content_version=2, shim=native.builder_shim())
+            builder = install_zip(older)
+            check(builder["code"] == "L_BUILDER_ZIP_OLD" and "0.9.0" in builder["error"] and "1.0.0" in builder["error"]
+                  and not builder["installed"], f"an older builder's zip: refused, naming both versions ({builder['error'][:80]!r})")
+            check(not DEBUG_TOOLS.exists() or not [p for p in DEBUG_TOOLS.iterdir() if p.is_dir()], "nothing installed from them")
+
+            good = hand / "good" / manifest["zip"]
+            shutil.copy2(release_zip, good)
+            release_zip.rename(release_zip.with_name("away.zip"))  # a download would fail now
+            try:
+                builder = install_zip(good)
+                check(builder["installed"] and builder["version"] == "1.0.0" and builder["source"] == "zip" and not builder["code"],
+                      f"the release's zip: installed from it, nothing downloaded ({builder['source']!r})")
+                check((DEBUG_TOOLS / "1.0.0" / "xml1-builder.exe").exists() and good.read_bytes() == (www / "away.zip").read_bytes(),
+                      "into tools/xml1-builder/1.0.0; the player's zip left as it was")
+                check(not [p for p in DEBUG_TOOLS.iterdir() if p.name.startswith(".staging")], "no staging folder left")
+
+                forget_builder()
+                DEBUG_TOOLS.mkdir(parents=True)
+                shutil.copy2(good, DEBUG_TOOLS / manifest["zip"])
+                cmd("xml1-builder-check", {"install": True})
+                builder = builder_settled()
+                check(builder["installed"] and builder["source"] == "zip", "the release's zip put in tools/xml1-builder is found and used")
+            finally:
+                (www / "away.zip").rename(release_zip)
+
+            forget_builder()
+            DEBUG_TOOLS.mkdir(parents=True)
+            (DEBUG_TOOLS / manifest["zip"]).write_bytes(bytes(damaged_bytes))
+            cmd("xml1-builder-check", {"install": True})
+            builder = builder_settled()
+            check(builder["installed"] and builder["source"] == "download", "a damaged one there is not used: the release is downloaded")
+            forget_builder()
+
+            js("window.Xml1Setup.show()")
+            check(wait_for(lambda: test.exists(".xml1-setup [data-act='builder-zip']"), 20), "the wizard offers a zip you already have")
+            js("window.Xml1Setup.hide()")
 
         print("wizard: the disc check" + ("" if real else " installs the builder, then") + " maps disc errors to plain messages")
         js("window.Xml1Setup.show()")

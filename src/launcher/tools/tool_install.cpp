@@ -2,6 +2,7 @@
 #include "tool_install.hpp"
 #include "archive.hpp"
 
+#include <utils/com.hpp>
 #include <utils/cryptography.hpp>
 #include <utils/finally.hpp>
 #include <utils/http.hpp>
@@ -80,6 +81,85 @@ namespace tool_install
             }
             return std::nullopt;
         }
+
+        // Unpacks a checked zip in `staging` and renames its content to root\<version>.
+        std::optional<installed> place(const tool& tool, const manifest& manifest, const std::filesystem::path& archive_path,
+                                       const std::filesystem::path& staging, std::string& error)
+        {
+            const auto destination = root(tool) / utils::string::utf8_to_path(manifest.version);
+            const auto exe_name = utils::string::utf8_to_path(tool.exe);
+            const auto unpacked = staging / "unpacked";
+            const auto unpack_error = archive::extract_zip(archive_path, unpacked);
+            if (!unpack_error.empty())
+            {
+                error = unpack_error;
+                return std::nullopt;
+            }
+            const auto content = content_root(unpacked, tool.exe);
+            if (!content)
+            {
+                error = "The downloaded zip does not contain " + tool.exe + ".";
+                return std::nullopt;
+            }
+
+            std::error_code fs_error;
+            std::filesystem::remove_all(destination, fs_error); // an earlier, incomplete copy
+            // A scanner (antivirus, the indexer) can hold a just-unpacked file open for a moment, and a
+            // folder with an open file can't be renamed: wait for it.
+            for (auto attempt = 0; attempt < 40; ++attempt)
+            {
+                std::filesystem::rename(*content, destination, fs_error);
+                if (fs_error != std::errc::permission_denied && fs_error.value() != ERROR_SHARING_VIOLATION)
+                {
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(250));
+            }
+            if (fs_error)
+            {
+                error = "Could not install into the launcher's tools folder: " + fs_error.message();
+                return std::nullopt;
+            }
+            utils::logger::write("Installed {} {} into {}", tool.id, manifest.version, utils::string::path_to_utf8(destination));
+            return installed{manifest.version, destination, destination / exe_name};
+        }
+
+        // The size and SHA-256 of a file, read in blocks (a builder zip is tens of MB).
+        std::optional<zip_facts> measure(const std::filesystem::path& file, const std::uint64_t expected_size)
+        {
+            std::error_code error;
+            const auto size = std::filesystem::file_size(file, error);
+            if (error)
+            {
+                return std::nullopt;
+            }
+            zip_facts facts{utils::string::path_to_utf8(file.filename()), size, {}};
+            if (size != expected_size)
+            {
+                return facts; // not the release's zip whatever its contents: no need to read it
+            }
+            std::ifstream stream(file, std::ios::binary);
+            if (!stream)
+            {
+                return std::nullopt;
+            }
+            utils::cryptography::sha256::stream hasher;
+            std::vector<char> block(1024 * 1024);
+            std::uint64_t read = 0;
+            while (stream)
+            {
+                stream.read(block.data(), static_cast<std::streamsize>(block.size()));
+                const auto count = static_cast<std::size_t>(stream.gcount());
+                hasher.update(block.data(), count);
+                read += count;
+            }
+            if (stream.bad() || read != size)
+            {
+                return std::nullopt;
+            }
+            facts.sha256 = hasher.finish_hex();
+            return facts;
+        }
     }
 
     std::string download_file(const std::string& url, const std::filesystem::path& file, const std::uint64_t size,
@@ -144,58 +224,6 @@ namespace tool_install
     std::filesystem::path root(const tool& tool)
     {
         return utils::properties::get_appdata_path() / "tools" / utils::string::utf8_to_path(tool.id);
-    }
-
-    bool is_safe_version(const std::string& version)
-    {
-        if (version.empty() || version.size() > 64 || version.front() == '.' || version.find("..") != std::string::npos)
-        {
-            return false;
-        }
-        return std::all_of(version.begin(), version.end(), [](const char c)
-        {
-            return std::isalnum(static_cast<unsigned char>(c)) || c == '.' || c == '-' || c == '+' || c == '_';
-        });
-    }
-
-    int compare_versions(const std::string& a, const std::string& b)
-    {
-        const auto numbers = [](const std::string& text)
-        {
-            std::vector<long long> parts;
-            std::size_t start = 0;
-            while (start <= text.size())
-            {
-                const auto end = std::min(text.find('.', start), text.size());
-                const auto part = text.substr(start, end - start);
-                long long value = 0;
-                for (const auto c : part)
-                {
-                    if (!std::isdigit(static_cast<unsigned char>(c)))
-                    {
-                        break; // "1.2.0-beta" compares as 1.2.0
-                    }
-                    value = value * 10 + (c - '0');
-                }
-                parts.push_back(value);
-                start = end + 1;
-            }
-            return parts;
-        };
-
-        auto left = numbers(a);
-        auto right = numbers(b);
-        const auto size = std::max(left.size(), right.size());
-        left.resize(size);
-        right.resize(size);
-        for (std::size_t i = 0; i < size; ++i)
-        {
-            if (left[i] != right[i])
-            {
-                return left[i] < right[i] ? -1 : 1;
-            }
-        }
-        return 0;
     }
 
     std::vector<installed> list(const tool& tool)
@@ -372,39 +400,73 @@ namespace tool_install
             return std::nullopt;
         }
 
-        const auto unpacked = staging / "unpacked";
-        const auto unpack_error = archive::extract_zip(archive_path, unpacked);
-        if (!unpack_error.empty())
+        return place(tool, manifest, archive_path, staging, error);
+    }
+
+    std::optional<std::filesystem::path> find_local_zip(const tool& tool, const manifest& manifest)
+    {
+        const auto name = utils::string::utf8_to_path(manifest.zip);
+        for (const auto& folder : {root(tool), utils::com::get_downloads_path()})
         {
-            error = unpack_error;
+            std::error_code error;
+            if (!folder.empty() && std::filesystem::is_regular_file(folder / name, error))
+            {
+                return folder / name;
+            }
+        }
+        return std::nullopt;
+    }
+
+    std::optional<installed> install_from_zip(const tool& tool, const manifest& manifest, const std::filesystem::path& zip,
+                                              std::optional<zip_match>& match, std::string& error)
+    {
+        match.reset();
+        // The same checks as a download, before anything is unpacked: the release's size and SHA-256.
+        const auto facts = measure(zip, manifest.size);
+        if (!facts)
+        {
+            error = "Could not read " + utils::string::path_to_utf8(zip) + ".";
             return std::nullopt;
         }
-        const auto content = content_root(unpacked, tool.exe);
-        if (!content)
+        match = match_zip(manifest, *facts);
+        if (*match != zip_match::same)
         {
-            error = "The downloaded zip does not contain " + tool.exe + ".";
+            error = describe_zip_match(manifest, *facts, *match);
+            utils::logger::write("{} {}: {} ({} bytes, SHA-256 {}) is not the release's zip ({} bytes, SHA-256 {})", tool.id,
+                                 manifest.version, utils::string::path_to_utf8(zip), facts->size,
+                                 facts->sha256.empty() ? "not read" : facts->sha256, manifest.size, manifest.sha256);
             return std::nullopt;
         }
 
-        std::filesystem::remove_all(destination, fs_error); // an earlier, incomplete copy
-        // A scanner (antivirus, the indexer) can hold a just-unpacked file open for a moment, and a
-        // folder with an open file can't be renamed: wait for it.
-        for (auto attempt = 0; attempt < 40; ++attempt)
+        const auto tool_root = root(tool);
+        const auto destination = tool_root / utils::string::utf8_to_path(manifest.version);
+        const auto exe_name = utils::string::utf8_to_path(tool.exe);
+        if (utils::io::file_exists(destination / exe_name))
         {
-            std::filesystem::rename(*content, destination, fs_error);
-            if (fs_error != std::errc::permission_denied && fs_error.value() != ERROR_SHARING_VIOLATION)
-            {
-                break;
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(250));
+            return installed{manifest.version, destination, destination / exe_name};
         }
-        if (fs_error)
+
+        std::error_code fs_error;
+        std::filesystem::create_directories(tool_root, fs_error);
+        const auto staging = make_staging(tool_root);
+        const auto cleanup = utils::finally([&staging]
         {
-            error = "Could not install into the launcher's tools folder: " + fs_error.message();
+            std::error_code ignored;
+            std::filesystem::remove_all(staging, ignored);
+        });
+
+        // Unpacked from a copy in staging: the player's file is only read, and what is unpacked is
+        // what was checked even if the original changes meanwhile.
+        const auto archive_path = staging / utils::string::utf8_to_path(manifest.zip);
+        std::filesystem::copy_file(zip, archive_path, std::filesystem::copy_options::overwrite_existing, fs_error);
+        const auto copied = fs_error ? std::optional<zip_facts>{} : measure(archive_path, manifest.size);
+        if (!copied || match_zip(manifest, *copied) != zip_match::same)
+        {
+            error = "Could not copy " + utils::string::path_to_utf8(zip) + " into the launcher's tools folder.";
             return std::nullopt;
         }
-        utils::logger::write("Installed {} {} into {}", tool.id, manifest.version, utils::string::path_to_utf8(destination));
-        return installed{manifest.version, destination, destination / exe_name};
+        utils::logger::write("{} {}: installing from {}", tool.id, manifest.version, utils::string::path_to_utf8(zip));
+        return place(tool, manifest, archive_path, staging, error);
     }
 
     void prune(const tool& tool, const std::vector<std::string>& keep)

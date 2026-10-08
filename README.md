@@ -32,6 +32,13 @@ community port, rebuilds it on the engine of X-Men Legends II's PC version, and 
    cancel and resume it.
 4. The launcher installs the XML2 Fix into the new folder. Play.
 
+If the launcher can't download the builder (a slow or metered connection, or a download that keeps failing),
+download the builder's zip from its [release page](https://github.com/ChronoRixun/legends-classic/releases/latest)
+yourself and choose it under **Already downloaded the builder? Use its zip** in the setup, or leave it in your
+Downloads folder or in the launcher's `tools\xml1-builder` folder, where the launcher looks before downloading. It is
+checked against the release exactly like a download (its size and SHA-256); a damaged, incomplete or older zip is
+refused with the reason.
+
 The page shows whether your build is up to date and offers a rebuild when the builder is updated. Display, Discord
 and Mods work as for X-Men Legends II. Uninstalling removes the built game and, if you want, the build cache; your
 saves in `Documents\Activision\X-Men Legends` are kept.
@@ -90,6 +97,7 @@ You need Windows, [Git](https://git-scm.com/install/windows) and Visual Studio 2
 2. Run `generate.bat`. It updates the submodules and generates `build\ultimate-legends.sln`. The first run also downloads CEF (about 260 MB) into `deps\cef`.
 3. Build the `Release` / `x64` configuration of `build\ultimate-legends.sln`.
 4. Run `tools\run-test-release.bat`. It copies the CEF runtime and the launcher UI into `%LOCALAPPDATA%\ultimate-legends` (`tools\stage-runtime.ps1`) and starts `build\bin\x64\Release\ultimate-legends.exe`.
+5. Optional: run `build\bin\x64\Release\ultimate-legends-tests.exe`, the unit tests (the build workflow runs them too).
 
 The repository holds no game files, store art, screenshots, secrets or personal data. `tools/check_no_game_content.py` enforces that on every push and pull request; run `python tools/check_no_game_content.py --staged` before you commit. Exceptions, such as the launcher's own artwork from `docs/art-source`, are listed with a reason in `.content-guard-allow`.
 
@@ -102,6 +110,7 @@ Ultimate Legends sends no telemetry. It only connects to the internet in these c
 - When you open the page of one of those games (or X-Men Legends), it asks GitHub's API for the patch's latest release, at most once an hour, to show whether a newer one is out. It is downloaded only when you launch or verify the game or press Update now. `-offline` turns the check off.
 - When you set up X-Men Legends (community port), or its page checks for updates, the launcher checks the latest
   release of the port's builder on GitHub and downloads it if it is missing or out of date (its SHA-256 is checked).
+  A builder zip you downloaded yourself is checked against that same release before it is used.
   The builder itself never connects to the internet: it reads your disc image and your X-Men Legends II install and
   writes the new game folder on your PC.
 - When the launcher starts (and every six hours while it runs, or when you press Check for updates in Settings), it

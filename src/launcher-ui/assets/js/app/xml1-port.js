@@ -147,6 +147,30 @@
             return status.builder;
         },
 
+        // Installs a builder zip the player already has (checked against the release like a
+        // download); waits for a check already under way first. The builder's status afterwards.
+        async installBuilderZip(path, onUpdate) {
+            let started = await run('xml1-builder-install-zip', { path });
+            if (!started) {
+                let status;
+                do {
+                    await sleep(250);
+                    status = await run('get-xml1-status');
+                } while (status.builder.checking || status.builder.installing);
+                started = await run('xml1-builder-install-zip', { path });
+            }
+            let status;
+            do {
+                await sleep(250);
+                status = await run('get-xml1-status');
+                if (onUpdate) onUpdate(status.builder);
+            } while (status.builder.checking || status.builder.installing);
+            this.lastCheck = Date.now();
+            this.status = status;
+            this.emit();
+            return status.builder;
+        },
+
         // The builder's view of the build in the folder: stale, cache size, and so on.
         async refreshInfo() {
             const status = this.status;

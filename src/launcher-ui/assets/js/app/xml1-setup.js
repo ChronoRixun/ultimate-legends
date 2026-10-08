@@ -38,6 +38,7 @@
             this.busy = '';         // what the check step is doing right now
             this.free = null;       // free bytes where the game goes
             this.startError = null;
+            this.zipNote = null;    // how installing a builder zip the player chose went: { ok, text }
             this.rendered = '';
             // The build's steps follow every change; the other steps only re-render on the player's
             // actions (a re-render would drop the focus of a field being typed in).
@@ -192,6 +193,11 @@
             else if (builder.latest) builderText = t('xml1.builderWillDownload', { version: builder.latest.version, size: bytes(builder.latest.size) });
             else if (builder.code) builderText = this.port().describe({ code: builder.code, msg: builder.error }).title;
             else builderText = t('xml1.builderUnknown');
+            // A builder zip the player already has (a slow or metered connection, or a download that
+            // failed): offered while the builder is missing or out of date.
+            const offerZip = !builder.notPublished && (!builder.installed || builder.updateAvailable) && !builder.installing;
+            const zipNote = this.zipNote
+                ? `<div class="xml1-req-detail xml1-zip-note ${this.zipNote.ok ? 'is-ok' : 'is-error'}">${escapeHtml(this.zipNote.text)}</div>` : '';
             const resumeNote = s.state === 'incomplete'
                 ? `<p class="xml1-note is-info">${escapeHtml(t(s.isoExists || s.cacheHasDisc ? 'xml1.resumeNote' : 'xml1.resumeNeedsDisc'))}</p>` : '';
 
@@ -234,6 +240,8 @@
                         <div class="xml1-req-body">
                             <div class="xml1-req-title">${escapeHtml(t('xml1.reqBuilder'))}</div>
                             <div class="xml1-req-detail">${escapeHtml(builderText)}</div>
+                            ${zipNote}
+                            ${offerZip ? `<div class="xml1-req-detail"><a href="#" data-act="builder-zip">${escapeHtml(t('xml1.useBuilderZip'))}</a></div>` : ''}
                         </div>
                     </div>
                 </div>
@@ -552,6 +560,24 @@
                         this.form.iso = file;
                         this.render();
                     }
+                    break;
+                }
+                case 'builder-zip': {
+                    const file = await run('browse-file', {
+                        title: t('xml1.pickBuilderZip'),
+                        filters: [{ name: t('xml1.zipFilter'), pattern: '*.zip' }, { name: t('xml1.allFiles'), pattern: '*.*' }]
+                    });
+                    if (!file) break;
+                    this.zipNote = { ok: true, text: t('xml1.checkingBuilderZip') };
+                    this.render();
+                    const builder = await port.installBuilderZip(file);
+                    if (builder.installed && builder.source === 'zip' && !builder.code) {
+                        this.zipNote = { ok: true, text: t('xml1.builderFromZip', { version: builder.version }) };
+                    } else {
+                        const described = port.describe({ code: builder.code || 'L_BUILDER_ZIP_MISMATCH', msg: builder.error });
+                        this.zipNote = { ok: false, text: `${described.title} ${described.hint}`.trim() };
+                    }
+                    this.render();
                     break;
                 }
                 case 'browse-out': {

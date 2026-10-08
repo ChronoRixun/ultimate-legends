@@ -171,6 +171,11 @@ namespace utils::com
         return get_known_folder_path(FOLDERID_Desktop);
     }
 
+    std::filesystem::path get_downloads_path()
+    {
+        return get_known_folder_path(FOLDERID_Downloads);
+    }
+
     std::filesystem::path get_start_menu_programs_path()
     {
         return get_known_folder_path(FOLDERID_Programs);

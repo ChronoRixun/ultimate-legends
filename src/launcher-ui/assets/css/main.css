@@ -4428,6 +4428,8 @@ html:not([data-color-uninstalled]) .library-card:not(.is-installed):not(.is-comi
 .xml1-req-title { color: #fff; font-size: 13px; font-weight: 600; }
 .xml1-req-detail { color: var(--text-muted); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
 .xml1-req-detail a { color: var(--accent); }
+.xml1-zip-note.is-ok { color: var(--text); }
+.xml1-zip-note.is-error { color: #ff8a9a; }
 .xml1-mark { flex-shrink: 0; width: 18px; height: 18px; margin-top: 1px; border-radius: 50%; border: 2px solid var(--text-dim); position: relative; box-sizing: border-box; }
 .xml1-req.is-ok .xml1-mark { border-color: var(--play); background: var(--play); }
 .xml1-req.is-ok .xml1-mark::after { content: ''; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid #0a0a0f; border-width: 0 2px 2px 0; transform: rotate(45deg); }

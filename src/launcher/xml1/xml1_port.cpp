@@ -39,6 +39,7 @@ namespace xml1_port
             std::string error;
             bool not_published{};
             std::optional<tool_install::manifest> latest;
+            std::string source; // where the last install came from: "download", or "zip" (one the player had)
         };
         builder_check check_;
 
@@ -765,21 +766,22 @@ namespace xml1_port
         return work_active_locked();
     }
 
-    void check_builder(const bool install)
+    bool check_builder(const bool install, const std::optional<std::filesystem::path>& zip)
     {
         {
             std::lock_guard lock(mutex_);
             if (check_.checking || check_.installing)
             {
-                return;
+                return false;
             }
             check_.checking = true;
             check_.code.clear();
             check_.error.clear();
             check_.not_published = false;
+            check_.source.clear();
         }
 
-        std::thread([install]
+        std::thread([install, zip]
         {
             const auto tool = builder_tool();
             std::string error;
@@ -793,7 +795,8 @@ namespace xml1_port
                     check.checking = false;
                     check.latest.reset(); // what an earlier check found no longer holds
                     check.not_published = not_published;
-                    check.code = not_published ? "L_BUILDER_UNPUBLISHED" : "L_BUILDER_OFFLINE";
+                    // A zip the player has is checked against the release, so it needs the manifest too.
+                    check.code = not_published ? "L_BUILDER_UNPUBLISHED" : zip ? "L_BUILDER_ZIP_OFFLINE" : "L_BUILDER_OFFLINE";
                     check.error = error;
                 });
                 return;
@@ -813,8 +816,9 @@ namespace xml1_port
                 return;
             }
 
+            // A zip the player chose is always checked (and installed when it is the release's).
             const auto installed = find_builder();
-            const auto wanted = install && (!installed || (!installed->dev && tool_install::compare_versions(latest->version, installed->version) > 0));
+            const auto wanted = zip || (install && (!installed || (!installed->dev && tool_install::compare_versions(latest->version, installed->version) > 0)));
             set_check([&](builder_check& check)
             {
                 check.checking = false;
@@ -834,14 +838,51 @@ namespace xml1_port
                 std::this_thread::sleep_for(std::chrono::seconds(1));
             }
 
-            const auto result = tool_install::install(tool, *latest, [](const std::uint64_t done, const std::uint64_t total)
+            std::optional<tool_install::installed> result;
+            std::string code;
+            std::string source;
+            if (zip)
             {
-                set_check([&](builder_check& check)
+                std::optional<tool_install::zip_match> match;
+                result = tool_install::install_from_zip(tool, *latest, *zip, match, error);
+                source = "zip";
+                code = !match ? "L_BUILDER_ZIP_UNREADABLE"
+                     : *match == tool_install::zip_match::older ? "L_BUILDER_ZIP_OLD"
+                     : *match != tool_install::zip_match::same ? "L_BUILDER_ZIP_MISMATCH"
+                     : "L_BUILDER_EXTRACT";
+            }
+            else
+            {
+                // The release's zip already on this PC (put in tools\xml1-builder or in Downloads by
+                // hand): used when it checks out, else downloaded as usual.
+                if (const auto local = tool_install::find_local_zip(tool, *latest))
                 {
-                    check.done = done;
-                    check.total = total;
-                });
-            }, {}, error);
+                    std::optional<tool_install::zip_match> match;
+                    std::string local_error;
+                    result = tool_install::install_from_zip(tool, *latest, *local, match, local_error);
+                    source = "zip";
+                    if (!result)
+                    {
+                        utils::logger::write("xml1-builder: {} not used ({}); downloading the release", utils::string::path_to_utf8(*local),
+                                             local_error);
+                    }
+                }
+                if (!result)
+                {
+                    result = tool_install::install(tool, *latest, [](const std::uint64_t done, const std::uint64_t total)
+                    {
+                        set_check([&](builder_check& check)
+                        {
+                            check.done = done;
+                            check.total = total;
+                        });
+                    }, {}, error);
+                    source = "download";
+                    code = error.find("SHA-256") != std::string::npos ? "L_BUILDER_HASH"
+                         : error.find("zip") != std::string::npos || error.find("unpack") != std::string::npos ? "L_BUILDER_EXTRACT"
+                         : "L_BUILDER_DOWNLOAD";
+                }
+            }
 
             if (result)
             {
@@ -852,16 +893,19 @@ namespace xml1_port
             set_check([&](builder_check& check)
             {
                 check.installing = false;
-                if (!result)
+                if (result)
+                {
+                    check.source = source;
+                }
+                else
                 {
                     utils::logger::write("xml1 builder install failed: {}", error);
-                    check.code = error.find("SHA-256") != std::string::npos ? "L_BUILDER_HASH"
-                               : error.find("zip") != std::string::npos || error.find("unpack") != std::string::npos ? "L_BUILDER_EXTRACT"
-                               : "L_BUILDER_DOWNLOAD";
+                    check.code = code;
                     check.error = error;
                 }
             });
         }).detach();
+        return true;
     }
 
     void write_status(rapidjson::Value& out, rapidjson::Document::AllocatorType& allocator)
@@ -992,6 +1036,7 @@ namespace xml1_port
             builder.AddMember("code", make_string(check_.code, allocator), allocator);
             builder.AddMember("error", make_string(check_.error, allocator), allocator);
             builder.AddMember("notPublished", check_.not_published, allocator);
+            builder.AddMember("source", make_string(check_.source, allocator), allocator);
             if (check_.latest)
             {
                 rapidjson::Value latest(rapidjson::kObjectType);

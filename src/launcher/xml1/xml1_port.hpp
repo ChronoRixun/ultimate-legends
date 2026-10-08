@@ -60,8 +60,11 @@ namespace xml1_port
     bool is_working();
 
     // Fetches the builder's manifest in the background and, with `install`, installs it when it is
-    // missing or older. Progress and errors show in write_status().
-    void check_builder(bool install);
+    // missing or older: from the release's zip when it is already on this PC (tools\xml1-builder or
+    // Downloads) and checks out, else downloaded. With `zip` (one the player chose), checks that zip
+    // against the release and installs it, never downloading. Progress and errors show in
+    // write_status(). False when a check or install is already under way.
+    bool check_builder(bool install, const std::optional<std::filesystem::path>& zip = std::nullopt);
 
     // Everything the X-Men Legends page and the setup wizard show, as one JSON object.
     void write_status(rapidjson::Value& out, rapidjson::Document::AllocatorType& allocator);

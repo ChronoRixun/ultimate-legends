@@ -17,6 +17,7 @@ namespace utils::com
     bool select_file(std::string& out_file, const std::string& title = "Select a File", const std::vector<file_filter>& filters = {}, const std::string& selected_folder = {});
 
     std::filesystem::path get_desktop_path();
+    std::filesystem::path get_downloads_path();
     std::filesystem::path get_start_menu_programs_path();
     std::filesystem::path read_shortcut_target(const std::filesystem::path& shortcut_path);
     bool create_shortcut(

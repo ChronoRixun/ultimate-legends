@@ -294,5 +294,18 @@ end
 
 dependencies.imports()
 
+-- Unit tests of the launcher's parts that need no Windows, CEF or network (src/tests). The build
+-- workflow runs them after the build; locally: build\bin\x64\<config>\ultimate-legends-tests.exe.
+project "ultimate-legends-tests"
+kind "ConsoleApp"
+language "C++"
+
+targetname "ultimate-legends-tests"
+
+files {"./src/tests/**.hpp", "./src/tests/**.cpp", "./src/launcher/tools/tool_check.cpp"}
+
+-- src/tests first: its std_include.hpp stands in for the launcher's precompiled header.
+includedirs {"./src/tests", "./src/launcher"}
+
 group "Dependencies"
 dependencies.projects()

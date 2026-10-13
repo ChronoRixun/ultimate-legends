@@ -68,6 +68,12 @@ namespace updater
 
     folder_work::~folder_work()
     {
+        // A hold reserve() never committed (it ran out of memory, or the folder was taken) gave nothing
+        // to the registry: nothing to give back, and no lock - its caller may hold it.
+        if (!this->committed_)
+        {
+            return;
+        }
         std::lock_guard lock(mutex_);
         const auto it = held_.find(this->key_);
         if (it == held_.end())
@@ -87,16 +93,25 @@ namespace updater
 
     std::shared_ptr<folder_work> reserve(const std::filesystem::path& folder, const folder_use use)
     {
-        auto key = folder_key(folder);
+        // Every allocation of the hold comes before anything is committed, and no hold is destroyed under
+        // the registry's lock: running out of memory anywhere here leaves the registry as it was. The hold
+        // first, then its shared ownership (a failure there leaves it with `token`, which frees it
+        // uncommitted).
+        const auto key = folder_key(folder);
+        auto token_key = key;
+        std::unique_ptr<folder_work> token(new folder_work(std::move(token_key), use));
+        std::shared_ptr<folder_work> hold(std::move(token));
+
         std::lock_guard lock(mutex_);
         const auto it = held_.find(key);
         if (it != held_.end() && (it->second.builder > 0 || (use == folder_use::builder && it->second.patch > 0)))
         {
-            return nullptr;
+            return nullptr; // (`hold`, never committed, goes after the lock)
         }
-        auto& holds = held_[key];
+        auto& holds = held_[key]; // may run out of memory too: nothing is committed yet
         ++(use == folder_use::patch ? holds.patch : holds.builder);
-        return std::shared_ptr<folder_work>(new folder_work(std::move(key), use));
+        hold->committed_ = true;
+        return hold;
     }
 
     bool folder_patching(const std::filesystem::path& folder)

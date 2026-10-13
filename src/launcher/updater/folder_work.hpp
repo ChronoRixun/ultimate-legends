@@ -37,6 +37,7 @@ namespace updater
 
         std::wstring key_;
         folder_use use_;
+        bool committed_{}; // counted in the registry (reserve() succeeded)
     };
 
     // Takes `folder` for `use`, or nullptr when that would overlap: patch work never alongside the

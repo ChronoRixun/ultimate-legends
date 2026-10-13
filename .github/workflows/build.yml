@@ -63,11 +63,14 @@ jobs:
       - name: Build ${{ matrix.configuration }}
         run: msbuild /m /v:minimal /p:Configuration=${{ matrix.configuration }} /p:Platform=x64 build/ultimate-legends.sln
 
+      # (A time limit: a test that hangs - a lock taken twice, say - fails the job instead of stalling it.)
       - name: Unit tests
+        timeout-minutes: 5
         run: build/bin/x64/${{ matrix.configuration }}/ultimate-legends-tests.exe
 
       # The launcher UI's (src/tests/ui): the real scripts on a small DOM, a fake clock and a fake backend.
       - name: UI tests
+        timeout-minutes: 5
         run: |
           node --version
           node src/tests/ui/run.js

@@ -3,7 +3,7 @@
 // (dinput.dll) reads when the game starts and its in-game Advanced
 // options write too. Every change is saved on its own (debounced) through the same
 // WritePrivateProfileString semantics, so the rest of the file and its comments stay as they are;
-// "Game default" removes the key.
+// "Game default" removes the key. Fullscreen also writes Width=0 / Height=0 (the game's resolution).
 (function () {
     'use strict';
 
@@ -247,6 +247,14 @@
         if (key === 'Resolution') {
             const [width, height] = value ? value.split('x').map(Number) : [null, null];
             queue(gameId, { Width: value ? width : null, Height: value ? height : null });
+            return;
+        }
+        if (key === 'Mode' && value === 'fullscreen') {
+            // Fullscreen takes the resolution from the game's Video options: Width=0 / Height=0 (the
+            // backend writes them with it too), never a size left from Windowed or Borderless.
+            const resolution = panel(gameId) && panel(gameId).querySelector('select[data-key="Resolution"]');
+            if (resolution) resolution.value = '';
+            queue(gameId, { Mode: value, Width: 0, Height: 0 });
             return;
         }
         queue(gameId, { [key]: value === '' ? null : value });

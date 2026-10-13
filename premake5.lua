@@ -302,7 +302,8 @@ language "C++"
 
 targetname "ultimate-legends-tests"
 
-files {"./src/tests/**.hpp", "./src/tests/**.cpp", "./src/launcher/tools/tool_check.cpp", "./src/launcher/updater/swap_retry.cpp"}
+files {"./src/tests/**.hpp", "./src/tests/**.cpp", "./src/launcher/tools/tool_check.cpp", "./src/launcher/updater/swap_retry.cpp",
+       "./src/launcher/display/display_changes.cpp"}
 
 -- src/tests first: its std_include.hpp stands in for the launcher's precompiled header.
 includedirs {"./src/tests", "./src/launcher"}

@@ -46,6 +46,8 @@ namespace xml1_port
                                   failure& error);
     std::optional<int> start_verify(failure& error);
     std::optional<int> start_build(const build_options& options, failure& error);
+    // A build and a clean of the output folder hold that folder for the builder alone until it has
+    // exited (updater/folder_work.hpp): refused (L_FIX_UPDATING) while patch work is under way there.
     // Deletes the build (builder clean): the registered files, the synced base files and _build;
     // mods only with `mods`; the build cache of its disc with `cache`. After it, the launcher
     // removes the fix's own files it left (xml2-fix.ini / .log) and the folder when empty.
@@ -64,12 +66,6 @@ namespace xml1_port
     // the build anyway (the fix is installed after it, as always).
     bool start_fix_update(const std::filesystem::path& out, failure& error);
 
-    // Registers patch work in the port's `folder` (updater/folder_work.hpp) for a command about to
-    // start an updater worker there (verify-game, a launch's update, delete-game, start_fix_update);
-    // the worker holds it to its end. Null with `error` while a build or clean runs: nothing else
-    // writes the folder then. Checked and registered under the same lock as start_build's check
-    // that no patch work is under way, so the two never overlap.
-    std::shared_ptr<updater::folder_work> begin_patch_work(const std::filesystem::path& folder, failure& error);
 
     std::optional<xml1::builder_snapshot> job(int id);
     // The last build or clean run (the one a page shows), if any.

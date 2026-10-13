@@ -5,6 +5,7 @@
 #include "game_config.hpp"
 #include "updater/updater.hpp"
 
+#include <utils/finally.hpp>
 #include <utils/flags.hpp>
 #include <utils/io.hpp>
 #include <utils/nt.hpp>
@@ -177,9 +178,10 @@ namespace xml1_port
             return job;
         }
 
-        // Starts `builder <command> --events jsonl <args>`. The caller holds mutex_.
+        // Starts `builder <command> --events jsonl <args>`. The caller holds mutex_. `hold`: the folder the
+        // run writes (updater/folder_work.hpp), kept until the builder has exited and `on_finish` has run.
         std::optional<int> run_locked(const std::string& command, std::vector<std::wstring> args, xml1::builder_process::finish_callback on_finish,
-                                      failure& error, const bool work)
+                                      failure& error, const bool work, std::shared_ptr<updater::folder_work> hold = nullptr)
         {
             const auto builder = find_builder();
             if (!builder)
@@ -192,8 +194,14 @@ namespace xml1_port
             const auto job = new_job(command);
             std::string start_error;
             const auto builder_version = builder->version;
-            auto finish = [on_finish = std::move(on_finish), builder_version](const xml1::builder_snapshot& snapshot)
+            auto finish = [on_finish = std::move(on_finish), builder_version, hold = std::move(hold)](const xml1::builder_snapshot& snapshot) mutable
             {
+                // The folder is free for patch work (the fix install after a build) once this has run,
+                // before the run reads as finished.
+                const auto release = utils::finally([&hold]
+                {
+                    hold.reset();
+                });
                 if (snapshot.content_version > 0 && builder_version != "dev")
                 {
                     config().set(property_keys::BUILDER_CONTENT, std::to_string(snapshot.content_version));
@@ -381,6 +389,12 @@ namespace xml1_port
             {
                 std::filesystem::remove(out / name, ignored);
             }
+        }
+
+        // A build or clean refused because patch work is under way in its folder.
+        failure fix_updating()
+        {
+            return {"L_FIX_UPDATING", "The XML2 Fix is being installed or updated in this folder. Wait for it to finish, then try again."};
         }
 
         void set_check(const std::function<void(builder_check&)>& change)
@@ -636,12 +650,14 @@ namespace xml1_port
             error = {"L_BUILD_RUNNING", "A build is already running."};
             return std::nullopt;
         }
-        // Nor while the launcher's updater works in the folder (verify-game, the update before a build,
-        // a launch's update, even one whose progress bar a cancel already hid): the builder's last step
-        // reads the XML2 Fix there. begin_patch_work registers under this same lock.
-        if (updater::folder_busy(options.out))
+        // The folder is the builder's alone until it has exited: never while patch work is under way in
+        // it (verify-game, a launch's update, delete-game, the update before a build - from any game
+        // entry pointed at it, and even one whose progress bar a cancel already hid), and no patch work
+        // starts in it meanwhile. The builder's last step reads the XML2 Fix there.
+        auto hold = updater::reserve(options.out, updater::folder_use::builder);
+        if (!hold)
         {
-            error = {"L_FIX_UPDATING", "The XML2 Fix is being installed or updated in this folder. Wait for it to finish, then build."};
+            error = fix_updating();
             return std::nullopt;
         }
 
@@ -689,7 +705,7 @@ namespace xml1_port
                     tool_install::prune(builder_tool(), {builder->version});
                 }
             }
-        }, error, true);
+        }, error, true, std::move(hold));
     }
 
     std::optional<int> start_clean(const bool mods, const bool cache, failure& error)
@@ -722,6 +738,15 @@ namespace xml1_port
             error = {"L_BUILD_RUNNING", "A build is running."};
             return std::nullopt;
         }
+        // The output folder is the builder's alone, as for a build (a cache-only clean writes no game
+        // folder and takes no hold): a patch worker still alive there - a cancelled Verify, say - could
+        // write the fix back, folder and all, after the clean.
+        auto hold = updater::reserve(*out, updater::folder_use::builder);
+        if (!hold)
+        {
+            error = fix_updating();
+            return std::nullopt;
+        }
         const auto folder = *out;
         return run_locked("clean", std::move(args), [folder](const xml1::builder_snapshot& snapshot)
         {
@@ -729,7 +754,7 @@ namespace xml1_port
             {
                 remove_fix_leftovers(folder);
             }
-        }, error, true);
+        }, error, true, std::move(hold));
     }
 
     std::optional<int> start_free_cache(failure& error)
@@ -770,7 +795,7 @@ namespace xml1_port
             return false;
         }
         // Another updater in the folder (an install still unwinding after a cancel): the page waits for it.
-        if (updater::folder_busy(out))
+        if (updater::folder_patching(out))
         {
             error = {"L_FIX_UPDATING", "The XML2 Fix is already being installed or updated in this folder."};
             return false;
@@ -782,9 +807,10 @@ namespace xml1_port
             return false;
         }
         // Held by the worker to its last line: no build starts in the folder before then.
-        auto work = begin_patch_work(out, error);
+        auto work = updater::reserve(out, updater::folder_use::patch);
         if (!work)
         {
+            error = {"L_BUILD_RUNNING", "X-Men Legends is being built in this folder: its XML2 Fix is updated when the build has finished."};
             return false;
         }
 
@@ -822,17 +848,6 @@ namespace xml1_port
             listener->done_update();
         }).detach();
         return true;
-    }
-
-    std::shared_ptr<updater::folder_work> begin_patch_work(const std::filesystem::path& folder, failure& error)
-    {
-        std::lock_guard lock(mutex_);
-        if (work_active_locked())
-        {
-            error = {"L_BUILD_RUNNING", "X-Men Legends is being built: its XML2 Fix is updated when the build has finished."};
-            return nullptr;
-        }
-        return std::make_shared<updater::folder_work>(folder);
     }
 
     std::optional<xml1::builder_snapshot> job(const int id)

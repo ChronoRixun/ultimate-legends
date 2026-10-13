@@ -252,9 +252,11 @@ namespace commands::game_commands
             return false;
         }
 
-        // Registers the patch work a command is about to start in the game's folder
-        // (updater/folder_work.hpp); its worker holds `work` to its last line. False for a built game
-        // while its builder runs: nothing else writes that folder then (xml1_port::begin_patch_work).
+        // Takes the game's folder for the patch work a command is about to start there
+        // (updater/folder_work.hpp); its worker holds `work` to its last line. By folder, whatever the
+        // entry: false while the X-Men Legends builder holds that folder (a build or a clean of it),
+        // also for an X-Men Legends II entry pointed at the port's folder. Separate installs are never
+        // held by it, so for them nothing changes.
         bool begin_patch_work(const game_config::game_config_t& config, std::shared_ptr<updater::folder_work>& work)
         {
             const auto folder = config.get_install_path();
@@ -262,14 +264,15 @@ namespace commands::game_commands
             {
                 return true;
             }
-            if (config.built)
-            {
-                xml1_port::failure error{};
-                work = xml1_port::begin_patch_work(*folder, error);
-                return work != nullptr;
-            }
-            work = std::make_shared<updater::folder_work>(*folder);
-            return true;
+            work = updater::reserve(*folder, updater::folder_use::patch);
+            return work != nullptr;
+        }
+
+        // Why patch work can't start in the game's folder now.
+        std::string folder_held(const game_config::game_config_t& config, const std::string& then)
+        {
+            return config.built ? config.display_name + " is being built. " + then
+                                : "X-Men Legends is being built in the folder of " + config.display_name + ". " + then;
         }
 
         // Patch-update-then-launch sequence; assumes the caller holds the barrier and reserved `generation`.
@@ -345,7 +348,7 @@ namespace commands::game_commands
             std::shared_ptr<updater::folder_work> work;
             if (!begin_patch_work(*config, work))
             {
-                cef_ui.show_message_box("Game Launch Error", config->display_name + " is being built. Wait for the build to finish, or cancel it, before playing.");
+                cef_ui.show_message_box("Game Launch Error", folder_held(*config, "Wait for the build to finish, or cancel it, before playing."));
                 return;
             }
             if (config->built)
@@ -476,7 +479,7 @@ namespace commands::game_commands
             std::shared_ptr<updater::folder_work> work;
             if (!begin_patch_work(*config, work))
             {
-                cef_ui.show_toast(config->display_name + " is being built: its patch is checked when the build has finished.", "error");
+                cef_ui.show_toast(folder_held(*config, "Verify its files when the build has finished."), "error");
                 return;
             }
 
@@ -558,7 +561,7 @@ namespace commands::game_commands
             std::shared_ptr<updater::folder_work> work;
             if (!begin_patch_work(*config, work))
             {
-                cef_ui.show_message_box("Cannot Uninstall", config->display_name + " is being built. Wait for the build to finish, or cancel it, before uninstalling.");
+                cef_ui.show_message_box("Cannot Uninstall", folder_held(*config, "Wait for the build to finish, or cancel it, before uninstalling."));
                 return;
             }
 

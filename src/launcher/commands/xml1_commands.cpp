@@ -288,7 +288,7 @@ namespace commands::xml1_commands
             response.AddMember("builder", facts.builder, allocator);
             response.AddMember("launcherOnly", facts.launcher_only, allocator);
             response.AddMember("fix", facts.fix, allocator);
-            response.AddMember("updating", path.has_value() && updater::folder_busy(*path), allocator);
+            response.AddMember("updating", path.has_value() && updater::folder_patching(*path), allocator);
         });
 
         // -> { verifyReport (text or null), verifyReportPath, logTail [lines], logPath }: what "Report

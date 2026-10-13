@@ -894,6 +894,25 @@ def main():
             started = cmd("xml1-build-start", {"iso": str(stubborn), "out": str(out), "movies": True, "keepCache": True})
             check(started["success"], "started")
             wait_for(lambda: (cmd("get-xml1-build") or {}).get("overall", 0) > 5, 30)
+
+            print("no patch work in the folder the builder holds, whatever entry asks (review R2)")
+            # The X-Men Legends II entry pointed at the port's folder (it holds an XMen2.exe), its patch from
+            # the test server, and an older fix in the folder: an admitted Verify would replace it mid-build.
+            saved_xml2_manifest = test.prop("patch-manifest", game="xml2")
+            shutil.copy2(native.fix_dll("1.1.0"), out / "dinput.dll")
+            old_fix = (out / "dinput.dll").read_bytes()
+            try:
+                test.prop("patch-manifest", f"{base}/fix/ultimate-legends.json", game="xml2")
+                cmd("set-game-property", {"game": "xml2", "suffix": "install", "value": str(out)})
+                cmd("verify-game", {"game": "xml2"})
+                time.sleep(3)
+                check((out / "dinput.dll").read_bytes() == old_fix and not (cmd("get-update-progress") or {}).get("active"),
+                      "Verify for X-Men Legends II in the port's folder: refused while the build runs")
+                check(cmd("xml1-folder", {"path": str(out)}).get("updating") is False, "no updater alive in the folder")
+            finally:
+                test.prop("patch-manifest", saved_xml2_manifest or "", game="xml2")
+                cmd("set-game-property", {"game": "xml2", "suffix": "install", "value": str(xml2)})
+
             cmd("xml1-build-cancel")
             began = time.time()
             job = test.build_done(40)

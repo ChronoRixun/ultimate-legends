@@ -706,7 +706,12 @@
 
         // Uninstall (section 4.6): the builder deletes the build it made (and, if asked, its mods
         // and the build cache); then the launcher removes the XML2 Fix and forgets the folder.
+        // Patch work in the folder ends first (a Verify cancelled but still fetching, say): neither the clean
+        // nor the patch's removal runs beside an updater that could write the fix back afterwards, folder
+        // and all. Resolves once the patch's removal has ended, not its progress bar.
         async uninstall({ deleteGame, mods, cache }) {
+            const folder = (this.status && this.status.install) || '';
+            await this.waitForPatchWork(folder);
             if (deleteGame) {
                 const job = await this.runJob('xml1-clean', { mods: !!mods, cache: !!cache });
                 if (!job || job.exitCode !== 0) {
@@ -725,6 +730,7 @@
                 initialMessage: t('xml1.uninstalling'),
                 completeMessage: t('progress.uninstallComplete')
             }).catch(error => console.error('xml1: delete-game failed', error));
+            await this.waitForPatchWork(folder);
             this.info = null;
             this.verify = null;
             window.dispatchEvent(new CustomEvent('gameInstallationUpdated', { detail: { game: GAME } }));

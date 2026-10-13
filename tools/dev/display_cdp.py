@@ -221,6 +221,18 @@ def main():
             check(ui("return panel.querySelector('select[data-key=\"Resolution\"]').disabled;") is True, "Resolution disabled again")
             check("Mode=" not in ini_text() and f"Width={desktop['width']}" in ini_text(), "Mode removed, resolution kept for later")
 
+            # Fullscreen picked and left again within the page's 250 ms save delay is never saved: the size stays.
+            set_select("Mode", "windowed")
+            time.sleep(0.8)
+            set_select("Mode", "fullscreen")
+            set_select("Mode", "windowed")
+            time.sleep(0.8)
+            text = ini_text()
+            check("Mode=windowed" in text and f"Width={desktop['width']}" in text and "Width=0" not in text,
+                  "Fullscreen then Windowed before the save: Windowed with its size, no Width=0 / Height=0")
+            check(ui("return panel.querySelector('select[data-key=\"Resolution\"]').value;") == f"{desktop['width']}x{desktop['height']}",
+                  "the Resolution row shows the size again")
+
             set_select("Mode", "fullscreen")
             time.sleep(0.8)
             text = ini_text()

@@ -222,6 +222,24 @@ namespace commands::xml1_commands
             write_started(response, id, error);
         });
 
+        // { out }: before a build into `out`, brings the XML2 Fix already there up to date
+        // (xml1_port::start_fix_update), with verify-game's progress (get-update-progress).
+        // -> { started } or { started: false, code, error } when nothing was started.
+        cef_ui.add_command("xml1-update-fix", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            xml1_port::failure error{"L_USAGE", "Choose a folder first."};
+            const auto out = json_path(value, "out");
+            const auto started = out && xml1_port::start_fix_update(*out, error);
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+            response.AddMember("started", started, allocator);
+            if (!started)
+            {
+                response.AddMember("code", make_string(error.code, allocator), allocator);
+                response.AddMember("error", make_string(error.message, allocator), allocator);
+            }
+        });
+
         cef_ui.add_command("xml1-build-cancel", [](const rapidjson::Value&, rapidjson::Document& response)
         {
             response.SetBool(xml1_port::cancel_build());
@@ -257,7 +275,7 @@ namespace commands::xml1_commands
             add("cache", sizes.cache);
         });
 
-        // { path } -> { exists, empty, builder, launcherOnly }: what a destination folder holds.
+        // { path } -> { exists, empty, builder, launcherOnly, fix }: what a destination folder holds.
         cef_ui.add_command("xml1-folder", [](const rapidjson::Value& value, rapidjson::Document& response)
         {
             response.SetObject();
@@ -268,6 +286,7 @@ namespace commands::xml1_commands
             response.AddMember("empty", facts.empty, allocator);
             response.AddMember("builder", facts.builder, allocator);
             response.AddMember("launcherOnly", facts.launcher_only, allocator);
+            response.AddMember("fix", facts.fix, allocator);
         });
 
         // -> { verifyReport (text or null), verifyReportPath, logTail [lines], logPath }: what "Report

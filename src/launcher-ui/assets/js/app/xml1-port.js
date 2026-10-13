@@ -39,8 +39,10 @@
     }
 
     // Warnings (W_*) a player should hear about after a build or a disc check. W_PIPELINE (the
-    // pipeline's own notes, counted per stage) stays in the log and report.json.
-    const NOTICES = ['W_XML2_UNKNOWN_EXE', 'W_XML2_MODIFIED', 'W_EXTRA_FILES', 'W_LINK_BASE', 'W_ISO_UNKNOWN_DUMP'];
+    // pipeline's own notes, counted per stage) stays in the log and report.json. W_XML2FIX_OLD
+    // (builder 0.2.2 on): the folder's dinput.dll doesn't know detail.count of the keys the build
+    // wrote; the fix is installed right after the build.
+    const NOTICES = ['W_XML2_UNKNOWN_EXE', 'W_XML2_MODIFIED', 'W_EXTRA_FILES', 'W_LINK_BASE', 'W_ISO_UNKNOWN_DUMP', 'W_XML2FIX_OLD'];
     // The verification groups that make a build "damaged" (the builder's REPAIRS).
     const REPAIRS = ['missing', 'changed', 'unreadable'];
 
@@ -51,6 +53,7 @@
         verify: null,    // the last `verify` (result.verify)
         build: null,     // the last build/clean run (get-xml1-build)
         finishing: false, // installing the XML2 Fix after a build
+        starting: null,   // a build being started (its folder's XML2 Fix updated first): that start's promise
         buildTimer: null,
         watched: new Set(), // build ids seen running in this session
         handled: new Set(),
@@ -191,7 +194,7 @@
         },
 
         isWorking() {
-            return !!(this.build && this.build.active) || !!(this.status && this.status.work && this.status.work.active);
+            return !!this.starting || !!(this.build && this.build.active) || !!(this.status && this.status.work && this.status.work.active);
         },
 
         isBuilding() {
@@ -235,6 +238,14 @@
             if (window.Xml1Setup) window.Xml1Setup.show();
         },
 
+        // Verify Files (the XML2 Fix install, verify-game) for a build that did not finish but has the game
+        // in its folder: a finish that failed on an older fix is then no dead end (Resume alone met the
+        // same fix again).
+        canVerifyUnfinished() {
+            const s = this.status;
+            return !!(s && s.build && s.build.game && this.state() === 'incomplete');
+        },
+
         // A build into the folder can run now: with the disc image, or - once a build prepared it -
         // with the disc from the build cache (the image may be deleted or unmounted after that).
         canRebuild() {
@@ -270,7 +281,56 @@
                 });
         },
 
-        async startBuild(options) {
+        // Starts a build: the XML2 Fix already in its folder first (updateFixBefore; `onFixUpdate` runs when
+        // it is updated), then the builder. One start at a time: a second call while one is under way gets
+        // that one's answer.
+        startBuild(options, onFixUpdate) {
+            if (!this.starting) {
+                this.starting = this.startBuildNow(options, onFixUpdate).finally(() => {
+                    this.starting = null;
+                    this.emit();
+                });
+                this.emit();
+            }
+            return this.starting;
+        },
+
+        // The XML2 Fix in the build's folder is brought up to date before the builder runs, so a build
+        // never meets an older one: a Rebuild over an older folder used to, and builders before 0.2.2
+        // failed their last step on it (0.2.2 warns: W_XML2FIX_OLD). When it can't be (offline, a failed
+        // download), the build starts anyway: the backend logs it, the builder's warning says it, and
+        // the fix is installed after the build as always.
+        async updateFixBefore(out, onFixUpdate) {
+            if (!out) return;
+            let folder = null;
+            try {
+                folder = await run('xml1-folder', { path: out });
+            } catch (error) {
+                console.error('xml1: the folder check before the build failed', error);
+            }
+            if (!folder || !folder.fix) return;
+            if (window.IS_OFFLINE) {
+                // Starts nothing offline; the backend logs that the build keeps the fix in the folder.
+                await run('xml1-update-fix', { out }).catch(() => null);
+                return;
+            }
+            if (onFixUpdate) onFixUpdate();
+            try {
+                await GameUtils.trackCommandProgress({
+                    gameId: GAME,
+                    command: 'xml1-update-fix',
+                    op: 'install',
+                    commandArgs: { out },
+                    initialMessage: t('xml1.updatingFix'),
+                    completeMessage: t('progress.verificationComplete')
+                });
+            } catch (error) {
+                console.error('xml1: the XML2 Fix update before the build failed; building anyway', error);
+            }
+        },
+
+        async startBuildNow(options, onFixUpdate) {
+            await this.updateFixBefore(options && options.out, onFixUpdate);
             const started = await run('xml1-build-start', options);
             if (!started || !started.success) return started;
             this.verify = null;
@@ -367,17 +427,18 @@
         },
 
         // The XML2 Fix into the built folder, through the launcher's patch install (verify-game);
-        // it marks the port installed once the fix is there.
-        async installFix() {
+        // it marks the port installed once the fix is there and the build finished. op 'verify':
+        // Verify Files (an unfinished build's).
+        async installFix(op = 'install') {
             if (!await window.guardOnline()) return false;
             const name = t('xml1.name');
             try {
                 await GameUtils.trackCommandProgress({
                     gameId: GAME,
                     command: 'verify-game',
-                    op: 'install',
+                    op,
                     commandArgs: { game: GAME },
-                    initialMessage: t('progress.installingPatch', { game: name }),
+                    initialMessage: t(op === 'verify' ? 'progress.verifying' : 'progress.installingPatch', { game: name }),
                     completeMessage: t('progress.verificationComplete')
                 });
             } catch (error) {

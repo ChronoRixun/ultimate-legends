@@ -461,9 +461,10 @@ namespace commands::game_commands
                     const auto patch_fetched = client_updater::run(config, progress_listener.get());
 
                     // Installed means the patch files are in place (and, for a built game, that
-                    // the build in its folder finished).
+                    // the build in its folder finished: Verify Files also runs on an unfinished one,
+                    // whose folder may still hold the stamp of the build before).
                     const auto folder = config.get_install_path();
-                    const auto complete = !config.built || (folder && game_config::validate_game_path(config.game_key, *folder));
+                    const auto complete = !config.built || (folder && xml1_port::is_playable(*folder));
                     if (patch_fetched && complete)
                     {
                         config.set_installed(true);

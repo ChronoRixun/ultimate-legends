@@ -7,11 +7,12 @@
 namespace client_updater
 {
     // Installs, updates and removes a game's patch: the files its manifest lists, all of them
-    // inside the game's install folder.
+    // inside the game's install folder (or `install_path`, when given).
     class client_updater
     {
     public:
-        client_updater(const game_config::game_config_t& config, updater::ui_progress_listener* listener = nullptr);
+        client_updater(const game_config::game_config_t& config, updater::ui_progress_listener* listener = nullptr,
+                       const std::optional<std::filesystem::path>& install_path = std::nullopt);
 
         void run() const;
         void delete_client() const;

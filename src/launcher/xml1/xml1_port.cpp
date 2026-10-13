@@ -3,7 +3,9 @@
 
 #include "display/xml2_display.hpp"
 #include "game_config.hpp"
+#include "updater/updater.hpp"
 
+#include <utils/flags.hpp>
 #include <utils/io.hpp>
 #include <utils/nt.hpp>
 #include <utils/logger.hpp>
@@ -398,6 +400,7 @@ namespace xml1_port
             return facts;
         }
         facts.builder = utils::io::file_exists(folder / L"_build" / L"stamp.json") || utils::io::file_exists(folder / L"_build" / L"building.json");
+        facts.fix = utils::io::file_exists(folder / L"dinput.dll");
         bool any = false;
         bool only_owned = true;
         for (std::filesystem::directory_iterator it(folder, std::filesystem::directory_options::skip_permission_denied, error), end;
@@ -744,6 +747,68 @@ namespace xml1_port
         return true;
     }
 
+    bool start_fix_update(const std::filesystem::path& out, failure& error)
+    {
+        if (out.empty() || !utils::io::file_exists(out / L"dinput.dll"))
+        {
+            error = {"L_NO_FIX", "There is no XML2 Fix in the folder to update."};
+            return false;
+        }
+        const auto folder = utils::string::path_to_utf8(out);
+        if (utils::flags::has_flag("offline"))
+        {
+            utils::logger::write("xml1: offline, so the XML2 Fix in {} is not updated before the build", folder);
+            error = {"L_OFFLINE", "The launcher is offline."};
+            return false;
+        }
+        if (is_working())
+        {
+            error = {"L_BUILD_RUNNING", "A build is already running."};
+            return false;
+        }
+        // Its dinput.dll is loaded while the port runs from the folder.
+        if (utils::nt::is_any_image_running({out / L"XMen2.exe"}, 0))
+        {
+            error = {"L_GAME_RUNNING", "Close X-Men Legends before building it again."};
+            return false;
+        }
+
+        // Shared, not a local: the detached worker reports progress after this returns (as verify-game's).
+        const auto listener = std::make_shared<updater::ui_progress_listener>();
+        listener->reset(true);
+        std::thread([out, folder, listener]
+        {
+            try
+            {
+                const auto fetched = client_updater::run(config(), listener.get(), out);
+                if (listener->is_update_cancelled())
+                {
+                    utils::logger::write("xml1: the XML2 Fix update in {} was cancelled; the build starts with the fix there", folder);
+                }
+                else if (!fetched)
+                {
+                    utils::logger::write("xml1: the XML2 Fix release could not be reached; the build in {} starts with the fix there", folder);
+                }
+                else
+                {
+                    utils::logger::write("xml1: the XML2 Fix in {} is up to date for the build", folder);
+                }
+            }
+            catch (const updater::update_cancelled&)
+            {
+                listener->cancel_update();
+                utils::logger::write("xml1: the XML2 Fix update in {} was cancelled; the build starts with the fix there", folder);
+            }
+            catch (const std::exception& e)
+            {
+                listener->cancel_update();
+                utils::logger::write("xml1: the XML2 Fix in {} could not be updated ({}); the build starts with the fix there", folder, e.what());
+            }
+            listener->done_update();
+        }).detach();
+        return true;
+    }
+
     std::optional<xml1::builder_snapshot> job(const int id)
     {
         std::lock_guard lock(mutex_);
@@ -958,6 +1023,8 @@ namespace xml1_port
             const auto building = folder && utils::io::file_exists(*folder / L"_build" / L"building.json");
             build.AddMember("stamp", stamp.has_value(), allocator);
             build.AddMember("building", building, allocator);
+            // The built game is in the folder (an unfinished build may have it): the XML2 Fix can go in.
+            build.AddMember("game", folder && utils::io::file_exists(*folder / L"XMen2.exe"), allocator);
             if (stamp)
             {
                 const auto& doc = *stamp;

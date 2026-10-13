@@ -1,7 +1,8 @@
 """Small native test fixtures for the launcher's CDP tests, compiled on demand with MSVC.
 
     dummy_game()        an XMen2.exe stand-in that opens no window and just waits (up to 10 min)
-    fix_dll(version)    a dinput.dll stand-in (never loaded) with a VERSIONINFO of `version`
+    fix_dll(version, keys)  a dinput.dll stand-in (never loaded) with a VERSIONINFO of `version` (and
+                        the ini key names `keys` in it, as the real fix has the keys it reads)
     builder_shim()      xml1-builder.exe for the fake builder (tools/dev/fake_xml1_builder.py)
 
 Sources are in tools/dev/native/; outputs go to build/dev-tools/ (gitignored) and are rebuilt when
@@ -86,11 +87,14 @@ def dummy_game():
     return _build("dummy_game.exe", ["dummy_game.c"], windows=True)
 
 
-def fix_dll(version="1.2.0"):
-    """A dinput.dll stand-in whose file version is `version` (e.g. "1.2.0")."""
+def fix_dll(version="1.2.0", keys=()):
+    """A dinput.dll stand-in whose file version is `version` (e.g. "1.2.0"). `keys`: ini key names it holds
+    as UTF-16LE text (its version resource's Comments), as the real fix holds the keys it reads: the
+    builder takes a dinput.dll without the keys a build writes for an older fix (W_XML2FIX_OLD)."""
     parts = [int(p) for p in version.split(".")] + [0, 0, 0, 0]
     numbers = ",".join(str(p) for p in parts[:4])
     dotted = ".".join(str(p) for p in parts[:4])
+    comments = f'\n      VALUE "Comments", "{" ".join(keys)}"' if keys else ""
     rc = f"""#include <winver.h>
 VS_VERSION_INFO VERSIONINFO
 FILEVERSION {numbers}
@@ -105,7 +109,7 @@ BEGIN
       VALUE "FileDescription", "Test stand-in for the XML2 Fix"
       VALUE "FileVersion", "{dotted}"
       VALUE "ProductName", "Ultimate Legends test fixture"
-      VALUE "ProductVersion", "{dotted}"
+      VALUE "ProductVersion", "{dotted}"{comments}
     END
   END
   BLOCK "VarFileInfo"
@@ -114,7 +118,8 @@ BEGIN
   END
 END
 """
-    built = _build(f"dummy_fix-{version}.dll", ["dummy_fix.c"], dll=True, windows=True, rc_text=rc, extra_key=version)
+    name = f"dummy_fix-{version}-{hashlib.sha1(' '.join(keys).encode()).hexdigest()[:8]}.dll" if keys else f"dummy_fix-{version}.dll"
+    built = _build(name, ["dummy_fix.c"], dll=True, windows=True, rc_text=rc, extra_key=version)
     return built
 
 

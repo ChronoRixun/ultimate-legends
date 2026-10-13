@@ -66,6 +66,12 @@ jobs:
       - name: Unit tests
         run: build/bin/x64/${{ matrix.configuration }}/ultimate-legends-tests.exe
 
+      # The launcher UI's (src/tests/ui): the real scripts on a small DOM, a fake clock and a fake backend.
+      - name: UI tests
+        run: |
+          node --version
+          node src/tests/ui/run.js
+
       - name: Upload ${{ matrix.configuration }} binary
         uses: actions/upload-artifact@v7
         with:

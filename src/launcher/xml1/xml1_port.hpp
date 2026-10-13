@@ -2,8 +2,10 @@
 
 #include "builder_process.hpp"
 #include "tools/tool_install.hpp"
+#include "updater/folder_work.hpp"
 
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <string>
 
@@ -61,6 +63,13 @@ namespace xml1_port
     // a build running, the game running from it. An update that fails is logged; the page starts
     // the build anyway (the fix is installed after it, as always).
     bool start_fix_update(const std::filesystem::path& out, failure& error);
+
+    // Registers patch work in the port's `folder` (updater/folder_work.hpp) for a command about to
+    // start an updater worker there (verify-game, a launch's update, delete-game, start_fix_update);
+    // the worker holds it to its end. Null with `error` while a build or clean runs: nothing else
+    // writes the folder then. Checked and registered under the same lock as start_build's check
+    // that no patch work is under way, so the two never overlap.
+    std::shared_ptr<updater::folder_work> begin_patch_work(const std::filesystem::path& folder, failure& error);
 
     std::optional<xml1::builder_snapshot> job(int id);
     // The last build or clean run (the one a page shows), if any.

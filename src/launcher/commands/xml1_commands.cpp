@@ -275,7 +275,8 @@ namespace commands::xml1_commands
             add("cache", sizes.cache);
         });
 
-        // { path } -> { exists, empty, builder, launcherOnly, fix }: what a destination folder holds.
+        // { path } -> { exists, empty, builder, launcherOnly, fix, updating }: what a destination folder
+        // holds; updating: an updater worker is alive in it (updater/folder_work.hpp), so no build starts.
         cef_ui.add_command("xml1-folder", [](const rapidjson::Value& value, rapidjson::Document& response)
         {
             response.SetObject();
@@ -287,6 +288,7 @@ namespace commands::xml1_commands
             response.AddMember("builder", facts.builder, allocator);
             response.AddMember("launcherOnly", facts.launcher_only, allocator);
             response.AddMember("fix", facts.fix, allocator);
+            response.AddMember("updating", path.has_value() && updater::folder_busy(*path), allocator);
         });
 
         // -> { verifyReport (text or null), verifyReportPath, logTail [lines], logPath }: what "Report

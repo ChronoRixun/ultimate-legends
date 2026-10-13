@@ -281,12 +281,27 @@
                 });
         },
 
-        // Starts a build: the XML2 Fix already in its folder first (updateFixBefore; `onFixUpdate` runs when
-        // it is updated), then the builder. One start at a time: a second call while one is under way gets
-        // that one's answer.
-        startBuild(options, onFixUpdate) {
+        // Patch work of the port in the launcher's queue (installing or verifying its XML2 Fix, a launch's
+        // update), running or waiting: no build starts until it has finished, and the Build section's
+        // buttons wait for it too.
+        patchQueued() {
+            const queue = window.DownloadQueueManager;
+            if (!queue) return false;
+            return !!(queue.active && queue.active.gameId === GAME) || (queue.queue || []).some(item => item && item.gameId === GAME);
+        },
+
+        // A build can't start now: one is running or starting, or patch work of the port is queued or running.
+        buildBlocked() {
+            return this.isWorking() || this.patchQueued();
+        },
+
+        // Starts a build, one writer at a time in its folder: patch work already there runs to its end, then
+        // the XML2 Fix in the folder is updated (updateFixBefore), then the builder. `onFixWork` runs once
+        // when the start has to wait for or update the fix. One start at a time: a second call while one is
+        // under way gets that one's answer.
+        startBuild(options, onFixWork) {
             if (!this.starting) {
-                this.starting = this.startBuildNow(options, onFixUpdate).finally(() => {
+                this.starting = this.startBuildNow(options, onFixWork).finally(() => {
                     this.starting = null;
                     this.emit();
                 });
@@ -295,26 +310,45 @@
             return this.starting;
         },
 
+        // Waits until no patch work of the port is queued or running in the launcher and no updater worker
+        // is alive in `out` (xml1-folder's `updating`, the backend's word). Neither the end of a progress
+        // bar nor the queue's answer to a request it drops as a duplicate says that: a cancelled update's
+        // worker can outlive its bar (cancel gives up waiting after 5 s), and a duplicate resolves at once
+        // while the one under way goes on. `onWait` runs once if it has to wait. -> xml1-folder about `out`.
+        async waitForPatchWork(out, onWait) {
+            let waited = false;
+            for (;;) {
+                if (!this.patchQueued()) {
+                    if (!out) return null;
+                    let folder;
+                    try {
+                        folder = await run('xml1-folder', { path: out });
+                    } catch (error) {
+                        // The backend still refuses a build while an updater works in the folder.
+                        console.error('xml1: the folder check before the build failed', error);
+                        return null;
+                    }
+                    if (!folder || !folder.updating) return folder;
+                }
+                if (!waited && onWait) onWait();
+                waited = true;
+                await sleep(250);
+            }
+        },
+
         // The XML2 Fix in the build's folder is brought up to date before the builder runs, so a build
         // never meets an older one: a Rebuild over an older folder used to, and builders before 0.2.2
         // failed their last step on it (0.2.2 warns: W_XML2FIX_OLD). When it can't be (offline, a failed
-        // download), the build starts anyway: the backend logs it, the builder's warning says it, and
-        // the fix is installed after the build as always.
-        async updateFixBefore(out, onFixUpdate) {
-            if (!out) return;
-            let folder = null;
-            try {
-                folder = await run('xml1-folder', { path: out });
-            } catch (error) {
-                console.error('xml1: the folder check before the build failed', error);
-            }
-            if (!folder || !folder.fix) return;
+        // download, a cancel), the build starts anyway once the updater has ended: the backend logs it,
+        // the builder's warning says it, and the fix is installed after the build as always.
+        async updateFixBefore(out, folder, onFixWork) {
+            if (!out || !folder || !folder.fix) return;
             if (window.IS_OFFLINE) {
                 // Starts nothing offline; the backend logs that the build keeps the fix in the folder.
                 await run('xml1-update-fix', { out }).catch(() => null);
                 return;
             }
-            if (onFixUpdate) onFixUpdate();
+            if (onFixWork) onFixWork();
             try {
                 await GameUtils.trackCommandProgress({
                     gameId: GAME,
@@ -329,8 +363,17 @@
             }
         },
 
-        async startBuildNow(options, onFixUpdate) {
-            await this.updateFixBefore(options && options.out, onFixUpdate);
+        async startBuildNow(options, onFixWork) {
+            const out = options && options.out;
+            let told = false;
+            const tell = () => {
+                if (!told && onFixWork) onFixWork();
+                told = true;
+            };
+            const folder = await this.waitForPatchWork(out, tell);
+            await this.updateFixBefore(out, folder, tell);
+            // Its end, not its progress bar's: only then may the builder meet the folder's fix.
+            await this.waitForPatchWork(out, tell);
             const started = await run('xml1-build-start', options);
             if (!started || !started.success) return started;
             this.verify = null;

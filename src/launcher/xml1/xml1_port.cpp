@@ -636,6 +636,14 @@ namespace xml1_port
             error = {"L_BUILD_RUNNING", "A build is already running."};
             return std::nullopt;
         }
+        // Nor while the launcher's updater works in the folder (verify-game, the update before a build,
+        // a launch's update, even one whose progress bar a cancel already hid): the builder's last step
+        // reads the XML2 Fix there. begin_patch_work registers under this same lock.
+        if (updater::folder_busy(options.out))
+        {
+            error = {"L_FIX_UPDATING", "The XML2 Fix is being installed or updated in this folder. Wait for it to finish, then build."};
+            return std::nullopt;
+        }
 
         // Remember the choices now, so a cancelled or failed build can be resumed.
         const auto game = config();
@@ -761,9 +769,10 @@ namespace xml1_port
             error = {"L_OFFLINE", "The launcher is offline."};
             return false;
         }
-        if (is_working())
+        // Another updater in the folder (an install still unwinding after a cancel): the page waits for it.
+        if (updater::folder_busy(out))
         {
-            error = {"L_BUILD_RUNNING", "A build is already running."};
+            error = {"L_FIX_UPDATING", "The XML2 Fix is already being installed or updated in this folder."};
             return false;
         }
         // Its dinput.dll is loaded while the port runs from the folder.
@@ -772,11 +781,17 @@ namespace xml1_port
             error = {"L_GAME_RUNNING", "Close X-Men Legends before building it again."};
             return false;
         }
+        // Held by the worker to its last line: no build starts in the folder before then.
+        auto work = begin_patch_work(out, error);
+        if (!work)
+        {
+            return false;
+        }
 
         // Shared, not a local: the detached worker reports progress after this returns (as verify-game's).
         const auto listener = std::make_shared<updater::ui_progress_listener>();
         listener->reset(true);
-        std::thread([out, folder, listener]
+        std::thread([out, folder, listener, work = std::move(work)]
         {
             try
             {
@@ -807,6 +822,17 @@ namespace xml1_port
             listener->done_update();
         }).detach();
         return true;
+    }
+
+    std::shared_ptr<updater::folder_work> begin_patch_work(const std::filesystem::path& folder, failure& error)
+    {
+        std::lock_guard lock(mutex_);
+        if (work_active_locked())
+        {
+            error = {"L_BUILD_RUNNING", "X-Men Legends is being built: its XML2 Fix is updated when the build has finished."};
+            return nullptr;
+        }
+        return std::make_shared<updater::folder_work>(folder);
     }
 
     std::optional<xml1::builder_snapshot> job(const int id)

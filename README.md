@@ -98,7 +98,7 @@ You need Windows, [Git](https://git-scm.com/install/windows) and Visual Studio 2
 2. Run `generate.bat`. It updates the submodules and generates `build\ultimate-legends.sln`. The first run also downloads CEF (about 260 MB) into `deps\cef`.
 3. Build the `Release` / `x64` configuration of `build\ultimate-legends.sln`.
 4. Run `tools\run-test-release.bat`. It copies the CEF runtime and the launcher UI into `%LOCALAPPDATA%\ultimate-legends` (`tools\stage-runtime.ps1`) and starts `build\bin\x64\Release\ultimate-legends.exe`.
-5. Optional: run `build\bin\x64\Release\ultimate-legends-tests.exe`, the unit tests (the build workflow runs them too).
+5. Optional: run `build\bin\x64\Release\ultimate-legends-tests.exe`, the unit tests (the build workflow runs them too), and `node src\tests\ui\run.js`, the launcher UI's (Node.js, no packages).
 
 The repository holds no game files, store art, screenshots, secrets or personal data. `tools/check_no_game_content.py` enforces that on every push and pull request; run `python tools/check_no_game_content.py --staged` before you commit. Exceptions, such as the launcher's own artwork from `docs/art-source`, are listed with a reason in `.content-guard-allow`.
 

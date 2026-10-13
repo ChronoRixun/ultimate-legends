@@ -12,6 +12,7 @@
 #include <game_config.hpp>
 
 #include "updater/updater.hpp"
+#include "updater/folder_work.hpp"
 #include "mods/game_mods.hpp"
 #include "updater/client_updater.hpp"
 #include "updater/patch_status.hpp"
@@ -251,6 +252,26 @@ namespace commands::game_commands
             return false;
         }
 
+        // Registers the patch work a command is about to start in the game's folder
+        // (updater/folder_work.hpp); its worker holds `work` to its last line. False for a built game
+        // while its builder runs: nothing else writes that folder then (xml1_port::begin_patch_work).
+        bool begin_patch_work(const game_config::game_config_t& config, std::shared_ptr<updater::folder_work>& work)
+        {
+            const auto folder = config.get_install_path();
+            if (!folder || folder->empty())
+            {
+                return true;
+            }
+            if (config.built)
+            {
+                xml1_port::failure error{};
+                work = xml1_port::begin_patch_work(*folder, error);
+                return work != nullptr;
+            }
+            work = std::make_shared<updater::folder_work>(*folder);
+            return true;
+        }
+
         // Patch-update-then-launch sequence; assumes the caller holds the barrier and reserved `generation`.
         void run_launch_worker(game_config::game_config_t config, cef::cef_ui& cef_ui, const uint64_t generation)
         {
@@ -319,8 +340,10 @@ namespace commands::game_commands
                 return;
             }
 
-            // A built game starts only from a finished build, and never while its builder writes the folder.
-            if (config->built && xml1_port::is_working())
+            // A built game starts only from a finished build, and never while its builder writes the
+            // folder; the launch's patch update is patch work there, so no build starts during it.
+            std::shared_ptr<updater::folder_work> work;
+            if (!begin_patch_work(*config, work))
             {
                 cef_ui.show_message_box("Game Launch Error", config->display_name + " is being built. Wait for the build to finish, or cancel it, before playing.");
                 return;
@@ -362,7 +385,7 @@ namespace commands::game_commands
 
             // Run update and launch in a separate thread with progress tracking
             const auto generation = reserve_launch_generation();
-            std::thread([config = *config, &cef_ui, generation]()
+            std::thread([config = *config, &cef_ui, generation, work = std::move(work)]()
             {
                 run_launch_worker(config, cef_ui, generation);
             }).detach();
@@ -449,12 +472,20 @@ namespace commands::game_commands
                 return;
             }
 
+            // Patch work in the game's folder until the worker's last line (never during a built game's build).
+            std::shared_ptr<updater::folder_work> work;
+            if (!begin_patch_work(*config, work))
+            {
+                cef_ui.show_toast(config->display_name + " is being built: its patch is checked when the build has finished.", "error");
+                return;
+            }
+
             // Shared, not a local: this handler returns while the detached worker still reports progress.
             const auto progress_listener = std::make_shared<updater::ui_progress_listener>();
             progress_listener->reset(true);
 
             // Run verification in a separate thread with progress tracking
-            std::thread([config = *config, progress_listener, &cef_ui]()
+            std::thread([config = *config, progress_listener, &cef_ui, work = std::move(work)]()
             {
                 try
                 {
@@ -523,11 +554,19 @@ namespace commands::game_commands
                 return;
             }
 
+            // Patch work in the game's folder until the worker's last line (never during a built game's build).
+            std::shared_ptr<updater::folder_work> work;
+            if (!begin_patch_work(*config, work))
+            {
+                cef_ui.show_message_box("Cannot Uninstall", config->display_name + " is being built. Wait for the build to finish, or cancel it, before uninstalling.");
+                return;
+            }
+
             // Shared, not a local: this handler returns while the detached worker still reports progress.
             const auto progress_listener = std::make_shared<updater::ui_progress_listener>();
             progress_listener->reset(true);
 
-            std::thread([config = *config, progress_listener, &cef_ui]()
+            std::thread([config = *config, progress_listener, &cef_ui, work = std::move(work)]()
             {
                 try
                 {

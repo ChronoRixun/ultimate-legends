@@ -168,6 +168,8 @@
             : t('xml1.fixNotInstalled');
         const cacheValue = cache ? (cache.bytes > 0 ? bytes(cache.bytes) : t('xml1.cacheEmpty')) : '…';
         const working = port.isWorking();
+        // Nothing that writes the folder while a build runs or starts, or the port's patch work is queued or running.
+        const blocked = port.buildBlocked();
 
         const discValue = !s.iso ? (s.cacheHasDisc ? t('xml1.discInCache') : t('xml1.none'))
             : s.isoExists ? s.iso : t(s.cacheHasDisc ? 'xml1.discMissingCached' : 'xml1.discMissing', { path: s.iso });
@@ -187,15 +189,16 @@
             actions.push(button('cancel-build', t('xml1.cancelBuild'), job && job.cancelRequested ? 'disabled' : ''));
             actions.push(button('show-progress', t('xml1.showProgress')));
         } else if (s.install) {
+            const disabled = blocked ? 'disabled' : '';
             if (state === 'incomplete') {
-                actions.push(button('resume', t('xml1.resume')));
+                actions.push(button('resume', t('xml1.resume'), disabled));
                 // The game is in the folder: its XML2 Fix can be installed or updated (verify-game).
-                if (port.canVerifyUnfinished()) actions.push(button('verify-files', t('common.verify'), working ? 'disabled' : ''));
-            } else if (state === 'damaged') actions.push(button('rebuild', t('xml1.repair')), button('report', t('xml1.reportProblem')));
+                if (port.canVerifyUnfinished()) actions.push(button('verify-files', t('common.verify'), disabled));
+            } else if (state === 'damaged') actions.push(button('rebuild', t('xml1.repair'), disabled), button('report', t('xml1.reportProblem')));
             else if (state === 'absent') actions.push(button('setup', t('xml1.build')));
-            else if (state === 'needs-fix') actions.push(button('install-fix', t('xml1.installFix')));
-            if (['ready', 'stale', 'needs-fix'].includes(state)) actions.push(button('rebuild', t('xml1.rebuild'), working ? 'disabled' : ''));
-            if (s.build && s.build.stamp) actions.push(button('verify', t('xml1.verifyBuild'), working || !builder.installed ? 'disabled' : ''));
+            else if (state === 'needs-fix') actions.push(button('install-fix', t('xml1.installFix'), disabled));
+            if (['ready', 'stale', 'needs-fix'].includes(state)) actions.push(button('rebuild', t('xml1.rebuild'), disabled));
+            if (s.build && s.build.stamp) actions.push(button('verify', t('xml1.verifyBuild'), blocked || !builder.installed ? 'disabled' : ''));
             actions.push(button('open-log', t('xml1.openLog')));
         } else {
             actions.push(button('setup', t('common.setUp')));
@@ -308,6 +311,10 @@
     }
 
     window.addEventListener('ul-xml1-changed', () => {
+        SUPPORTED.forEach(gameId => render(gameId));
+    });
+    // The port's patch work coming and going in the download queue enables or disables the build buttons.
+    window.addEventListener('ul-download-queue-changed', () => {
         SUPPORTED.forEach(gameId => render(gameId));
     });
 

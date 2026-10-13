@@ -396,7 +396,8 @@
             const port = this.port();
             this.startError = null;
             const f = this.form;
-            // An XML2 Fix already in the folder is updated before the build starts: the check step says so.
+            // An XML2 Fix already in the folder is updated (after any patch work under way there) before the
+            // build starts: the check step says so.
             const started = await port.startBuild({ iso: f.iso.trim(), out: f.out.trim(), movies: f.movies, keepCache: f.keepCache, linkBase: f.linkBase },
                 () => {
                     this.busy = t('xml1.updatingFix');

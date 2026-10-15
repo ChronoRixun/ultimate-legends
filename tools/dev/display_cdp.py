@@ -160,12 +160,17 @@ def main():
             ini.write_bytes(INI_TEMPLATE.replace("Mode=fullscreen\r\n", "Mode=windowed\r\nWidth=1280\r\nHeight=720 ; 720p\r\nVSync=1\r\n")
                             .encode("ascii"))
             result = put({"Mode": "fullscreen"})
-            text = ini_text()
-            check(result.get("success") is True and "Mode=fullscreen" in text and "Width=0\r\n" in text and "Height=0 ; 720p" in text,
-                  f"Windowed 1280x720 -> Fullscreen writes Width=0 / Height=0 {result.get('error', '')}")
+            # The bytes, not ini_text(): read_text() turns "\r\n" into "\n", and the line ends are part of
+            # "the rest of the file as it was".
+            text = ini.read_bytes().decode("ascii")
+            expected = INI_TEMPLATE.replace("Mode=fullscreen\r\n", "Mode=fullscreen\r\nWidth=0\r\nHeight=0 ; 720p\r\nVSync=1\r\n")
+            check(result.get("success") is True and text == expected,
+                  f"Windowed 1280x720 -> Fullscreen writes Width=0 / Height=0, every other line and its CRLF as it was {result.get('error', '')}")
+            if text != expected:
+                print(repr(text))
             check("1280" not in text and "Height=720" not in text, "the windowed size is gone")
             check(result.get("values", {}).get("Width") == 0 and result["values"].get("Height") == 0, f"answer: {result.get('values')}")
-            for kept in ("VSync=1", "; XML2 Fix settings (test copy)", "[Online]", "Domain=openspy.net", "; how the game is shown"):
+            for kept in ("VSync=1\r\n", "; XML2 Fix settings (test copy)\r\n", "[Online]\r\n", "Domain=openspy.net\r\n", "; how the game is shown\r\n"):
                 check(kept in text, f"ini keeps {kept!r}")
             ini.write_bytes(INI_TEMPLATE.replace("Mode=fullscreen\r\n", "Mode=windowed\r\n").encode("ascii"))
             result = put({"Width": 1920, "Height": 1080, "Mode": "fullscreen"})

@@ -59,9 +59,15 @@ class Backend {
         return this.workers.filter(worker => !worker.done && (!folder || key(worker.folder) === key(folder)));
     }
 
-    // A patch worker in `folder`, holding it: `finish(ok)` ends it (ok: it did its job).
+    // A patch worker in `folder`, holding it: `finish(ok)` ends it (ok: it did its job); `landFix()`
+    // puts the release's dinput.dll in place while it still runs (client_updater::run waits a second
+    // after its last file, then verify-game marks the entry installed or not).
     startWorker(kind, folder, release) {
         const worker = { kind, folder, done: false, startedAt: this.clock.now };
+        worker.landFix = () => {
+            this.fix = true;
+            this.fixCurrent = true;
+        };
         worker.finish = (ok = true) => {
             if (worker.done) return;
             worker.done = true;
@@ -258,6 +264,38 @@ test('B3: a Resume during Verify Files on an unfinished build without the fix wa
     await clock.until(() => backend.calls('xml1-build-start').length === 1, 10000, 'the resumed build');
     assert.equal(backend.build.alive, 0, 'no updater alive when the builder starts');
     assert.ok(backend.build.at >= verify.endedAt);
+    assert.equal(backend.build.fixCurrent, true, 'the builder meets the fix Verify installed');
+});
+
+// xml1_cdp.py's click: nothing on a missing or disabled button.
+const click = element => {
+    if (!element || element.disabled) return false;
+    element.click();
+    return true;
+};
+
+test('Verify Files on an unfinished build: Resume waits for its end, not for the new fix; then it builds', async () => {
+    // The hand test of the 0.3.1 fixes (xml1_cdp.py): the new dinput.dll is in the folder before Verify
+    // Files ends - the updater's last second, then the queue's - so a Resume clicked as soon as the page
+    // reads the new fix lands on a disabled button and starts nothing.
+    const { clock, backend, port, button } = await open({ state: 'incomplete', fix: true, autoFinish: { 'xml1-update-fix': 200 } });
+    assert.equal(click(button('verify-files')), true, 'Verify Files clicked');
+    await clock.until(() => backend.alive().length === 1, 2000, 'the Verify worker');
+    const verify = backend.alive()[0];
+    verify.landFix();
+    const landed = clock.now;
+    clock.setTimeout(() => verify.finish(true), 1000);
+    await port.refresh();
+    assert.equal(port.status.fix.version, '1.5.0.0', 'the page reads the new fix already');
+    assert.equal(button('resume').disabled, true, 'Resume still disabled: Verify Files has not ended');
+    assert.equal(click(button('resume')), false, 'a click on it does nothing');
+
+    await clock.until(() => !button('resume').disabled, 5000, 'Resume offered again once Verify Files has ended');
+    assert.ok(verify.done && clock.now - landed >= 2000, `offered after the worker and the queue were done (${clock.now - landed} ms after the fix landed)`);
+    assert.equal(backend.calls('xml1-build-start').length, 0, 'the early click started nothing');
+    assert.equal(click(button('resume')), true, 'Resume clicked');
+    await clock.until(() => backend.calls('xml1-build-start').length === 1, 10000, 'the resumed build');
+    assert.equal(backend.build.alive, 0, 'no updater alive when the builder starts');
     assert.equal(backend.build.fixCurrent, true, 'the builder meets the fix Verify installed');
 });
 

@@ -121,6 +121,9 @@ class Test:
     def exists(self, selector):
         return self.js(f"!!document.querySelector({json.dumps(selector)})")
 
+    def enabled(self, selector):
+        return self.js(f"(() => {{ const e = document.querySelector({json.dumps(selector)}); return !!e && !e.disabled; }})()")
+
     def set_input(self, selector, value):
         self.js(f"""(() => {{ const e = document.querySelector({json.dumps(selector)}); e.value = {json.dumps(value)};
                   e.dispatchEvent(new Event('input')); e.dispatchEvent(new Event('change')); }})()""")
@@ -160,11 +163,16 @@ class Test:
     def build_done(self, timeout=90):
         """Waits for the build started since the last call to finish. The page checks the builder's
         release before every build (and installs a newer one), so a build starts a moment after its
-        click: first wait for a job that is not the one already seen, then for it to finish."""
+        click: first wait for a job that is not the one already seen, then for it to finish. When no
+        new job starts (a click on a disabled button, a refused start), a failed check and an empty
+        job: never the one before, whose result would read as this build's."""
         if self.real:
             timeout = max(timeout, 1500)
         seen = getattr(self, "_seen_job", None)
-        wait_for(lambda: (lambda job: job is not None and job.get("id") != seen)(self.cmd("get-xml1-build")), 20)
+        if not wait_for(lambda: (lambda job: job is not None and job.get("id") != seen)(self.cmd("get-xml1-build")), 120 if self.real else 30):
+            self.check(False, f"a new build started (none did: the last one is still job {seen})")
+            return {"id": None, "finished": False, "exitCode": None, "killed": False, "result": {"ok": False}, "errors": [],
+                    "notices": [], "warnings": 0, "seconds": 0, "version": None}
         wait_for(lambda: (lambda job: job is not None and job["finished"])(self.cmd("get-xml1-build")), timeout)
         job = self.cmd("get-xml1-build")
         self._seen_job = job.get("id") if job else None
@@ -852,18 +860,28 @@ def main():
             pathlib.Path(written["path"]).unlink(missing_ok=True)
         check(code in text and profile not in text and "build log, last" in text, "the saved report: the error, the log, no profile path")
         check(test.status()["state"] == "incomplete", "state incomplete: Resume")
+        # Released here, as before Verify Files on an unfinished build was added: Verify Files only reads
+        # and writes the patch's own files (dinput.dll) and the launcher's record of them, never a file of
+        # the build, so the held one has no part in it.
+        release_file(held)
+        held = None
+
         print("an unfinished build with the game in its folder: Verify Files installs the current XML2 Fix")
         check(test.status()["build"]["game"] and wait_for(lambda: test.exists("#xml1-build-panel [data-act='verify-files']"), 10),
               "Verify Files offered next to Resume")
         check(js("!document.querySelector('.detail-verify-action[data-game=\"xml1\"]').disabled"), "and in the page's side panel")
         shutil.copy2(native.fix_dll("1.1.0"), out / "dinput.dll")  # as a finish that failed on an older fix left it
         test.refresh_port()
-        test.click("#xml1-build-panel [data-act='verify-files']")
+        check(test.click("#xml1-build-panel [data-act='verify-files']"), "Verify Files clicked")
         check(wait_for(lambda: test.status()["fix"]["version"].startswith("1.2.0"), 30), "the folder holds XML2 Fix 1.2.0 again")
+        # The new dinput.dll is there before Verify Files ends: its worker still holds the folder for a
+        # moment (and marks the entry installed, or not, last), and the launcher's queue keeps the job a
+        # second longer. Resume is disabled until both are done, so a click in between does nothing.
+        check(wait_for(lambda: not cmd("xml1-folder", {"path": str(out)})["updating"] and js("!window.Xml1Port.buildBlocked()"), 30)
+              and wait_for(lambda: test.enabled("#xml1-build-panel [data-act='resume']"), 10),
+              "Verify Files has ended: no updater in the folder, Resume offered again")
         status = test.status()
         check(status["state"] == "incomplete" and not status["isInstalled"], "still unfinished, not marked installed: Resume finishes it")
-        release_file(held)
-        held = None
 
         if real:
             test.skip("a failing step (E_PIPELINE): the fake's knob (the real pipeline has no bug to show on demand)")
@@ -871,7 +889,7 @@ def main():
             print("a failed build: a step of the build fails (E_PIPELINE)")
             test.prop("iso", str(failing))
             test.refresh_port()
-            test.click("#xml1-build-panel [data-act='resume']")
+            check(test.click("#xml1-build-panel [data-act='resume']"), "Resume clicked")
             job = test.build_done(60)
             code = job["errors"][0]["code"] if job["errors"] else "-"
             check(job["exitCode"] == 1 and code == "E_PIPELINE", f"exit {job['exitCode']}, {code}")

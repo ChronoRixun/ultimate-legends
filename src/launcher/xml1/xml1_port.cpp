@@ -3,7 +3,10 @@
 
 #include "display/xml2_display.hpp"
 #include "game_config.hpp"
+#include "updater/updater.hpp"
 
+#include <utils/finally.hpp>
+#include <utils/flags.hpp>
 #include <utils/io.hpp>
 #include <utils/nt.hpp>
 #include <utils/logger.hpp>
@@ -175,9 +178,10 @@ namespace xml1_port
             return job;
         }
 
-        // Starts `builder <command> --events jsonl <args>`. The caller holds mutex_.
+        // Starts `builder <command> --events jsonl <args>`. The caller holds mutex_. `hold`: the folder the
+        // run writes (updater/folder_work.hpp), kept until the builder has exited and `on_finish` has run.
         std::optional<int> run_locked(const std::string& command, std::vector<std::wstring> args, xml1::builder_process::finish_callback on_finish,
-                                      failure& error, const bool work)
+                                      failure& error, const bool work, std::shared_ptr<updater::folder_work> hold = nullptr)
         {
             const auto builder = find_builder();
             if (!builder)
@@ -190,8 +194,14 @@ namespace xml1_port
             const auto job = new_job(command);
             std::string start_error;
             const auto builder_version = builder->version;
-            auto finish = [on_finish = std::move(on_finish), builder_version](const xml1::builder_snapshot& snapshot)
+            auto finish = [on_finish = std::move(on_finish), builder_version, hold = std::move(hold)](const xml1::builder_snapshot& snapshot) mutable
             {
+                // The folder is free for patch work (the fix install after a build) once this has run,
+                // before the run reads as finished.
+                const auto release = utils::finally([&hold]
+                {
+                    hold.reset();
+                });
                 if (snapshot.content_version > 0 && builder_version != "dev")
                 {
                     config().set(property_keys::BUILDER_CONTENT, std::to_string(snapshot.content_version));
@@ -381,6 +391,12 @@ namespace xml1_port
             }
         }
 
+        // A build or clean refused because patch work is under way in its folder.
+        failure fix_updating()
+        {
+            return {"L_FIX_UPDATING", "The XML2 Fix is being installed or updated in this folder. Wait for it to finish, then try again."};
+        }
+
         void set_check(const std::function<void(builder_check&)>& change)
         {
             std::lock_guard lock(mutex_);
@@ -398,6 +414,7 @@ namespace xml1_port
             return facts;
         }
         facts.builder = utils::io::file_exists(folder / L"_build" / L"stamp.json") || utils::io::file_exists(folder / L"_build" / L"building.json");
+        facts.fix = utils::io::file_exists(folder / L"dinput.dll");
         bool any = false;
         bool only_owned = true;
         for (std::filesystem::directory_iterator it(folder, std::filesystem::directory_options::skip_permission_denied, error), end;
@@ -633,6 +650,16 @@ namespace xml1_port
             error = {"L_BUILD_RUNNING", "A build is already running."};
             return std::nullopt;
         }
+        // The folder is the builder's alone until it has exited: never while patch work is under way in
+        // it (verify-game, a launch's update, delete-game, the update before a build - from any game
+        // entry pointed at it, and even one whose progress bar a cancel already hid), and no patch work
+        // starts in it meanwhile. The builder's last step reads the XML2 Fix there.
+        auto hold = updater::reserve(options.out, updater::folder_use::builder);
+        if (!hold)
+        {
+            error = fix_updating();
+            return std::nullopt;
+        }
 
         // Remember the choices now, so a cancelled or failed build can be resumed.
         const auto game = config();
@@ -678,7 +705,7 @@ namespace xml1_port
                     tool_install::prune(builder_tool(), {builder->version});
                 }
             }
-        }, error, true);
+        }, error, true, std::move(hold));
     }
 
     std::optional<int> start_clean(const bool mods, const bool cache, failure& error)
@@ -711,6 +738,15 @@ namespace xml1_port
             error = {"L_BUILD_RUNNING", "A build is running."};
             return std::nullopt;
         }
+        // The output folder is the builder's alone, as for a build (a cache-only clean writes no game
+        // folder and takes no hold): a patch worker still alive there - a cancelled Verify, say - could
+        // write the fix back, folder and all, after the clean.
+        auto hold = updater::reserve(*out, updater::folder_use::builder);
+        if (!hold)
+        {
+            error = fix_updating();
+            return std::nullopt;
+        }
         const auto folder = *out;
         return run_locked("clean", std::move(args), [folder](const xml1::builder_snapshot& snapshot)
         {
@@ -718,7 +754,7 @@ namespace xml1_port
             {
                 remove_fix_leftovers(folder);
             }
-        }, error, true);
+        }, error, true, std::move(hold));
     }
 
     std::optional<int> start_free_cache(failure& error)
@@ -741,6 +777,76 @@ namespace xml1_port
             return false;
         }
         it->second->cancel();
+        return true;
+    }
+
+    bool start_fix_update(const std::filesystem::path& out, failure& error)
+    {
+        if (out.empty() || !utils::io::file_exists(out / L"dinput.dll"))
+        {
+            error = {"L_NO_FIX", "There is no XML2 Fix in the folder to update."};
+            return false;
+        }
+        const auto folder = utils::string::path_to_utf8(out);
+        if (utils::flags::has_flag("offline"))
+        {
+            utils::logger::write("xml1: offline, so the XML2 Fix in {} is not updated before the build", folder);
+            error = {"L_OFFLINE", "The launcher is offline."};
+            return false;
+        }
+        // Another updater in the folder (an install still unwinding after a cancel): the page waits for it.
+        if (updater::folder_patching(out))
+        {
+            error = {"L_FIX_UPDATING", "The XML2 Fix is already being installed or updated in this folder."};
+            return false;
+        }
+        // Its dinput.dll is loaded while the port runs from the folder.
+        if (utils::nt::is_any_image_running({out / L"XMen2.exe"}, 0))
+        {
+            error = {"L_GAME_RUNNING", "Close X-Men Legends before building it again."};
+            return false;
+        }
+        // Held by the worker to its last line: no build starts in the folder before then.
+        auto work = updater::reserve(out, updater::folder_use::patch);
+        if (!work)
+        {
+            error = {"L_BUILD_RUNNING", "X-Men Legends is being built in this folder: its XML2 Fix is updated when the build has finished."};
+            return false;
+        }
+
+        // Shared, not a local: the detached worker reports progress after this returns (as verify-game's).
+        const auto listener = std::make_shared<updater::ui_progress_listener>();
+        listener->reset(true);
+        std::thread([out, folder, listener, work = std::move(work)]
+        {
+            try
+            {
+                const auto fetched = client_updater::run(config(), listener.get(), out);
+                if (listener->is_update_cancelled())
+                {
+                    utils::logger::write("xml1: the XML2 Fix update in {} was cancelled; the build starts with the fix there", folder);
+                }
+                else if (!fetched)
+                {
+                    utils::logger::write("xml1: the XML2 Fix release could not be reached; the build in {} starts with the fix there", folder);
+                }
+                else
+                {
+                    utils::logger::write("xml1: the XML2 Fix in {} is up to date for the build", folder);
+                }
+            }
+            catch (const updater::update_cancelled&)
+            {
+                listener->cancel_update();
+                utils::logger::write("xml1: the XML2 Fix update in {} was cancelled; the build starts with the fix there", folder);
+            }
+            catch (const std::exception& e)
+            {
+                listener->cancel_update();
+                utils::logger::write("xml1: the XML2 Fix in {} could not be updated ({}); the build starts with the fix there", folder, e.what());
+            }
+            listener->done_update();
+        }).detach();
         return true;
     }
 
@@ -958,6 +1064,8 @@ namespace xml1_port
             const auto building = folder && utils::io::file_exists(*folder / L"_build" / L"building.json");
             build.AddMember("stamp", stamp.has_value(), allocator);
             build.AddMember("building", building, allocator);
+            // The built game is in the folder (an unfinished build may have it): the XML2 Fix can go in.
+            build.AddMember("game", folder && utils::io::file_exists(*folder / L"XMen2.exe"), allocator);
             if (stamp)
             {
                 const auto& doc = *stamp;

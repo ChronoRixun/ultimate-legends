@@ -1246,12 +1246,13 @@ function applyDownloadQueueButtonState() {
         btn.disabled = status !== 'installed' && status !== 'partial';
     });
 
-    // Verify — installed only.
+    // Verify — installed only, or a built game's unfinished build with the game in its folder (its XML2 Fix).
     document.querySelectorAll('.detail-verify-action').forEach(btn => {
         const gameId = btn.dataset.game;
         if (!gameId) return;
         const status = getStatus(gameId);
-        btn.disabled = queue.isBusy(gameId) || status !== 'installed';
+        const unfinished = isBuiltGame(gameId) && window.Xml1Port && window.Xml1Port.canVerifyUnfinished();
+        btn.disabled = queue.isBusy(gameId) || (status !== 'installed' && !unfinished);
     });
 
     // Settings / Manage Install — installed or partial.

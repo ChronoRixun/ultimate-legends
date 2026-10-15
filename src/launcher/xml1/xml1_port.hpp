@@ -2,8 +2,10 @@
 
 #include "builder_process.hpp"
 #include "tools/tool_install.hpp"
+#include "updater/folder_work.hpp"
 
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <string>
 
@@ -44,6 +46,8 @@ namespace xml1_port
                                   failure& error);
     std::optional<int> start_verify(failure& error);
     std::optional<int> start_build(const build_options& options, failure& error);
+    // A build and a clean of the output folder hold that folder for the builder alone until it has
+    // exited (updater/folder_work.hpp): refused (L_FIX_UPDATING) while patch work is under way there.
     // Deletes the build (builder clean): the registered files, the synced base files and _build;
     // mods only with `mods`; the build cache of its disc with `cache`. After it, the launcher
     // removes the fix's own files it left (xml2-fix.ini / .log) and the folder when empty.
@@ -52,6 +56,16 @@ namespace xml1_port
     std::optional<int> start_free_cache(failure& error);
 
     bool cancel_build();
+
+    // Brings the XML2 Fix already in `out` (its dinput.dll) up to date before a build into it: the
+    // patch install of verify-game (client_updater), into that folder, in the background with the
+    // same progress (get-update-progress). So a build never meets an older fix: a Rebuild over an
+    // older folder used to, and builders before 0.2.2 failed their last step on it (0.2.2 warns,
+    // W_XML2FIX_OLD). False with `error` when nothing was started: no fix in the folder, offline,
+    // a build running, the game running from it. An update that fails is logged; the page starts
+    // the build anyway (the fix is installed after it, as always).
+    bool start_fix_update(const std::filesystem::path& out, failure& error);
+
 
     std::optional<xml1::builder_snapshot> job(int id);
     // The last build or clean run (the one a page shows), if any.
@@ -82,6 +96,7 @@ namespace xml1_port
         bool empty{};
         bool builder{};       // _build\stamp.json or _build\building.json: the builder made it
         bool launcher_only{};
+        bool fix{};           // dinput.dll: the XML2 Fix (start_fix_update brings it up to date)
     };
     folder_facts inspect_folder(const std::filesystem::path& folder);
 

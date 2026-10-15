@@ -3,7 +3,9 @@
 // (dinput.dll) reads when the game starts and its in-game Advanced
 // options write too. Every change is saved on its own (debounced) through the same
 // WritePrivateProfileString semantics, so the rest of the file and its comments stay as they are;
-// "Game default" removes the key.
+// "Game default" removes the key. Saving Fullscreen also writes Width=0 / Height=0 (the game's
+// resolution): the backend derives that from the Mode it writes (xml2_display::implied_changes), so
+// a Fullscreen picked and left again before the save never touches the size.
 (function () {
     'use strict';
 
@@ -220,7 +222,10 @@
         showStatus(gameId, data.running ? t('display.appliesNextLaunch') : '', 'info');
     }
 
-    // Rows that depend on other rows: the resolution only counts for borderless and windowed.
+    // Rows that depend on other rows: the resolution only counts for borderless and windowed. In
+    // fullscreen the game's Video options decide (saving Mode=fullscreen writes Width=0 / Height=0), so
+    // the row shows Game setting; otherwise the size the values hold - a pending Fullscreen left
+    // again before the save shows it back.
     function syncRows(gameId) {
         const host = panel(gameId);
         const s = getState(gameId);
@@ -232,7 +237,11 @@
         if (!row) return;
         row.classList.toggle('is-disabled', !windowed);
         const select = row.querySelector('select');
-        if (select) select.disabled = !windowed;
+        if (select) {
+            select.disabled = !windowed;
+            const shown = mode === 'fullscreen' ? '' : resolutionValue(s.data.values);
+            if (Array.from(select.options).some(option => option.value === shown)) select.value = shown;
+        }
         const description = row.querySelector('.ul-display-description');
         if (description) description.textContent = windowed ? t('display.resolutionBody') : t('display.resolutionHint');
     }

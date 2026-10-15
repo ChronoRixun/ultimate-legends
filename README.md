@@ -39,9 +39,10 @@ Downloads folder or in the launcher's `tools\xml1-builder` folder, where the lau
 checked against the release exactly like a download (its size and SHA-256); a damaged, incomplete or older zip is
 refused with the reason.
 
-The page shows whether your build is up to date and offers a rebuild when the builder is updated. Display, Discord
-and Mods work as for X-Men Legends II. Uninstalling removes the built game and, if you want, the build cache; your
-saves in `Documents\Activision\X-Men Legends` are kept.
+The page shows whether your build is up to date and offers a rebuild when the builder is updated; your saves carry
+over. A build first brings the XML2 Fix already in its folder up to date, and a build that did not finish offers
+**Verify Files** (the fix) next to **Resume**. Display, Discord and Mods work as for X-Men Legends II. Uninstalling
+removes the built game and, if you want, the build cache; your saves in `Documents\Activision\X-Men Legends` are kept.
 
 Nothing from the games is downloaded: the builder uses only your disc image and your XML2 install, and it never
 connects to the internet. The first build takes about 6-8 minutes on a current PC and needs about 8 GB free.
@@ -97,7 +98,7 @@ You need Windows, [Git](https://git-scm.com/install/windows) and Visual Studio 2
 2. Run `generate.bat`. It updates the submodules and generates `build\ultimate-legends.sln`. The first run also downloads CEF (about 260 MB) into `deps\cef`.
 3. Build the `Release` / `x64` configuration of `build\ultimate-legends.sln`.
 4. Run `tools\run-test-release.bat`. It copies the CEF runtime and the launcher UI into `%LOCALAPPDATA%\ultimate-legends` (`tools\stage-runtime.ps1`) and starts `build\bin\x64\Release\ultimate-legends.exe`.
-5. Optional: run `build\bin\x64\Release\ultimate-legends-tests.exe`, the unit tests (the build workflow runs them too).
+5. Optional: run `build\bin\x64\Release\ultimate-legends-tests.exe`, the unit tests (the build workflow runs them too), and `node src\tests\ui\run.js`, the launcher UI's (Node.js, no packages).
 
 The repository holds no game files, store art, screenshots, secrets or personal data. `tools/check_no_game_content.py` enforces that on every push and pull request; run `python tools/check_no_game_content.py --staged` before you commit. Exceptions, such as the launcher's own artwork from `docs/art-source`, are listed with a reason in `.content-guard-allow`.
 

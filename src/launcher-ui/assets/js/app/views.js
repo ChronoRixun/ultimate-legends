@@ -169,6 +169,13 @@
         return !!(config && config.built && window.Xml1Port && window.Xml1Port.isBuilding());
     }
 
+    // A built game whose build did not finish but has the game in its folder: Verify Files installs or
+    // updates its XML2 Fix, so a finish that failed on an older fix is no dead end.
+    function verifiesUnfinished(gameId) {
+        const config = GameUtils.getGameConfigByUIId(gameId);
+        return !!(config && config.built && window.Xml1Port && window.Xml1Port.canVerifyUnfinished());
+    }
+
     function homeActionLabel(status, busyKind, gameId) {
         if (GameUtils.isComingSoon(gameId)) return t('common.comingSoon');
         if (busyKind === 'queued') return t('common.queued');
@@ -700,7 +707,7 @@
 
         if (isInstalled || isPartial) {
             items.push({ label: t('common.browseLocalFiles'), action: () => openInstallFolder(gameId) });
-            if (isInstalled) {
+            if (isInstalled || verifiesUnfinished(gameId)) {
                 items.push({ label: t('common.verify'), action: () => callGlobal('verifyGame', gameId), hidden: isBusy });
             }
             items.push({ label: t('common.manageInstall'), action: () => callGlobal('showManageInstall', gameId), hidden: isBusy });

@@ -13,6 +13,7 @@
 //   [Display]
 //   Mode = fullscreen | borderless | windowed   ; absent = the game's own exclusive fullscreen
 //   Width = 0 / Height = 0                      ; 0 = desktop size (borderless) / the game's setting
+//                                               ; (Mode=fullscreen writes both as 0: implied_changes)
 //   Topmost = 0
 //   RunInBackground = 1
 //   FrameRate = <n> | refresh | 0               ; absent = the stock 60 fps cap; 0 = unlimited
@@ -59,8 +60,15 @@ namespace xml2_display
         std::optional<std::string> value; // nullopt removes the key
     };
 
-    // Writes every change (validated first, so nothing is written when one is bad). Creates the
-    // ini when it does not exist yet.
+    // The changes to write for `changes` (normalised values): a change of Mode to fullscreen also sets
+    // Width=0 and Height=0, the game's own Video options, in place of any Width/Height change with it.
+    // The XML2 Fix honours both in exclusive fullscreen, so a size left from Windowed (1280x720, say)
+    // would otherwise become the fullscreen mode instead of the resolution chosen in the game. Every
+    // other change stays as it is, in its order; nothing else in the ini is touched.
+    std::vector<change> implied_changes(const std::vector<change>& changes);
+
+    // Writes every change (validated first, so nothing is written when one is bad), with what it
+    // implies (implied_changes). Creates the ini when it does not exist yet.
     bool write(const std::filesystem::path& ini, const std::vector<change>& changes, std::string& error);
 
     // The primary display's 32-bit modes from 640x480 up, each size once, smallest first.

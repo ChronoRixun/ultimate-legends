@@ -21,3 +21,33 @@ generates the project, so a release only needs this entry and the tag.
     controller mapped to the keyboard, a touchscreen or a mouse all work.
   - Nothing is written while a build runs in the folder. Rebuild, Repair, Verify Files and the XML2 Fix update
     before a build keep the keys; Uninstall deletes `xml2-fix.ini`, test mode with it, as before.
+
+## 0.3.1 (unreleased)
+
+### Added
+- The X-Men Legends builder installs from a zip the player already has (chosen in the setup, or found in Downloads
+  or `tools\xml1-builder`), checked like a download; a damaged one in `tools\xml1-builder` no longer hides the one in
+  Downloads.
+- Verify Files for an unfinished X-Men Legends build: installs or updates its XML2 Fix without marking the game
+  playable.
+- The page shows `W_XML2FIX_OLD` (an XML2 Fix older than the build needs) with its count, in en/fr/es.
+
+### Fixed
+- A build first brings the XML2 Fix in its folder up to date, and nothing else writes that folder meanwhile: one
+  hold per folder for the builder and every updater (Verify, a launch's update, Uninstall, the pre-build update),
+  whatever game entry asks. Rebuild, Resume, Repair, Install the XML2 Fix and Verify Files wait for patch work under
+  way; Uninstall waits for it before the clean.
+- Display: Fullscreen clears Width/Height to the game's own Video options; Fullscreen left again before the save
+  keeps the windowed size.
+- Self-update: the swap's retries are bounded in time, and every start logs to `updates\update.log`.
+- Rebuild wording for an update available; fr/es get their first X-Men Legends strings.
+
+## 0.3.0 (2026-10-04)
+
+### Added
+- Game pages show the patch's installed release and offer a newer one.
+- A Discord section on the MUA and MUA2 pages (MUA Controller Fix's `[Discord]`: Rich Presence, the area, the hero);
+  the pages mention Discord and mods.
+
+### Fixed
+- `mua-controller-fix.ini` values are read as MUA Controller Fix reads them: a comment starts at `;` or `#`.

@@ -970,6 +970,18 @@ def main():
                       and (out / "xml2-fix.ini").read_bytes() == before, "Test mode: no write while the builder holds the folder")
                 check(js("window.Xml1Port.refresh().then(() => { const all = [...document.querySelectorAll('#xml1-testmode-panel .toggle-btn')]; "
                          "return all.length === 4 && all.every(b => b.disabled); })"), "and its toggles are disabled meanwhile")
+                refused = cmd("set-display-settings", {"game": "xml1", "values": {"Topmost": True, "Mode": "borderless"}})
+                check(refused.get("success") is False and "being built" in (refused.get("error") or "")
+                      and (out / "xml2-fix.ini").read_bytes() == before, "Display: no write while the builder holds the folder")
+                refused = cmd("set-presence-settings", {"game": "xml1", "values": {"ShowZone": False}})
+                check(refused.get("success") is False and "being built" in (refused.get("error") or "")
+                      and (out / "xml2-fix.ini").read_bytes() == before, "Discord: no write while the builder holds the folder")
+                # Read again here: the sections first loaded before the fix was in the folder.
+                check(js("Promise.all([window.DisplayView.reload('xml1'), window.PresenceView.reload('xml1')]).then(() => { "
+                         "const display = [...document.querySelectorAll('#xml1-display-panel .ul-display-select, #xml1-display-panel .toggle-btn')]; "
+                         "const presence = [...document.querySelectorAll('#xml1-presence-panel .toggle-btn')]; "
+                         "return display.length === 8 && presence.length === 6 && display.concat(presence).every(c => c.disabled); })"),
+                      "and the Display and Discord controls are disabled meanwhile")
             finally:
                 test.prop("patch-manifest", saved_xml2_manifest or "", game="xml2")
                 cmd("set-game-property", {"game": "xml2", "suffix": "install", "value": str(xml2)})
@@ -981,6 +993,11 @@ def main():
             check(job["killed"] and job["errors"][0]["code"] == "L_BUILDER_KILLED" and 14 <= waited <= 30,
                   f"killed after {waited:.0f} s ({job['errors'][0]['code'] if job['errors'] else '-'})")
             check(wait_for(lambda: not builder_processes(str(root)), 10), "no builder process left")
+            check(wait_for(lambda: js("window.Xml1Port.refresh().then(() => { "
+                                      "const display = [...document.querySelectorAll('#xml1-display-panel select[data-key=\"Mode\"], #xml1-display-panel .toggle-btn')]; "
+                                      "const presence = [...document.querySelectorAll('#xml1-presence-panel .ul-presence-toggle[data-key=\"Enabled\"] .toggle-btn')]; "
+                                      "return display.length === 5 && presence.length === 2 && display.concat(presence).every(c => !c.disabled); })"), 15),
+                  "the Display and Discord controls are enabled again")
 
         print("the disc image is gone: the build cache has the disc, so the build resumes without it")
         test.prop("iso", str(root / "moved away.iso"))

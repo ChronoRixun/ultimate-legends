@@ -3,6 +3,7 @@
 #include "cef/cef_ui.hpp"
 #include "display/xml2_display.hpp"
 #include "fix/fix_ini.hpp"
+#include "updater/folder_work.hpp"
 
 #include <utils/string.hpp>
 
@@ -97,10 +98,10 @@ namespace commands::display_commands
             }
         }
 
-        // The ini to write, or nullopt with the response set to why not.
-        std::optional<std::filesystem::path> ini_or_fail(const command_context& ctx, const rapidjson::Value& value, rapidjson::Document& response)
+        // The game's fix and its ini to write, or nullopt with the response set to why not.
+        std::optional<fix_ini::location> ini_or_fail(const command_context& ctx, const rapidjson::Value& value, rapidjson::Document& response)
         {
-            const auto where = fix_ini::locate(ctx.get_game_config_from_request(value));
+            auto where = fix_ini::locate(ctx.get_game_config_from_request(value));
             if (!supported(where))
             {
                 set_result(response, false, "This game has no display settings.");
@@ -116,7 +117,7 @@ namespace commands::display_commands
                 set_result(response, false, "Install the " + where.info->name + " first.");
                 return std::nullopt;
             }
-            return where.ini();
+            return where;
         }
     }
 
@@ -168,14 +169,16 @@ namespace commands::display_commands
         });
 
         // { game, values: { Key: value | null, ... } }: writes the given keys (null removes one) and
-        // answers { success, error, values } with the ini's values afterwards.
+        // answers { success, error, values } with the ini's values afterwards. Nothing is written while
+        // the builder holds the folder (its ini merge would put the file back as it read it).
         cef_ui.add_command("set-display-settings", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
         {
-            const auto ini = ini_or_fail(ctx, value, response);
-            if (!ini)
+            const auto where = ini_or_fail(ctx, value, response);
+            if (!where)
             {
                 return;
             }
+            const auto ini = *where->ini();
 
             std::vector<xml2_display::change> changes;
             if (value.HasMember("values") && value["values"].IsObject())
@@ -212,10 +215,18 @@ namespace commands::display_commands
                 return;
             }
 
+            // Writing the fix's settings is patch work in the folder, for as long as the write takes.
+            const auto hold = updater::reserve(*where->game_dir, updater::folder_use::patch);
+            if (!hold)
+            {
+                set_result(response, false, "X-Men Legends is being built in this folder. Change the display settings when the build has finished.");
+                return;
+            }
+
             std::string error;
-            const auto ok = xml2_display::write(*ini, changes, error);
+            const auto ok = xml2_display::write(ini, changes, error);
             set_result(response, ok, error);
-            response.AddMember("values", values_json(xml2_display::read(*ini), response.GetAllocator()), response.GetAllocator());
+            response.AddMember("values", values_json(xml2_display::read(ini), response.GetAllocator()), response.GetAllocator());
         });
     }
 }

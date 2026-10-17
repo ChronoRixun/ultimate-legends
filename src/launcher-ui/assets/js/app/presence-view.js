@@ -7,11 +7,17 @@
 // Nothing here is game-specific: the backend (fix/fix_ini.cpp) says which fix, file and switches a
 // game has (the XML2 Fix shares the zone and the party, MUA Controller Fix the area and the hero),
 // so another game whose fix gets the section only needs adding to SUPPORTED and to that table.
+//
+// On the X-Men Legends port's page the toggles are disabled while a build runs or starts: the
+// builder merges its own keys into the same file (read, change, replace), so a write meanwhile could
+// be lost; the backend refuses one anyway (set-presence-settings takes the folder's patch hold).
 (function () {
     'use strict';
 
     // Games whose fix has a [Discord] section (fix_ini's table, fix::presence).
     const SUPPORTED = new Set(['xml2', 'xml1', 'mua', 'mua2']);
+    // The game whose folder the X-Men Legends builder writes (xml1-port.js).
+    const BUILT = 'xml1';
     // The main switch, then what it shares; the rest only count while it is on.
     const MAIN_KEY = 'Enabled';
     // Each switch the fixes have: its label and its note.
@@ -43,7 +49,7 @@
 
     function getState(gameId) {
         if (!state[gameId]) {
-            state[gameId] = { data: null, pending: {}, timer: null };
+            state[gameId] = { data: null, pending: {}, timer: null, busy: false };
         }
         return state[gameId];
     }
@@ -51,6 +57,13 @@
     function reportError(error) {
         console.error(error);
         window.showToast(String((error && error.message) || error), 'error');
+    }
+
+    // A build running or starting in the X-Men Legends port's folder: the builder merges the ini, so
+    // nothing else writes it. Other games' folders are not the builder's.
+    function building(gameId) {
+        const port = window.Xml1Port;
+        return backendId(gameId) === BUILT && !!(port && (port.starting || port.isBuilding()));
     }
 
     // What this game's fix shares besides the main switch, in the backend's order (keys).
@@ -124,6 +137,7 @@
             reportError(error);
             return;
         }
+        s.busy = building(gameId);
         renderBody(gameId);
     }
 
@@ -152,15 +166,16 @@
             ${details.map(key => rowHTML(key, t(DETAILS[key][0]), t(DETAILS[key][1]), isOn(data, key), 'is-sub')).join('')}
             <p class="ul-display-footer">${escapeHtml(t('presence.storedIn', { file: data.ini || data.file || '' }))}</p>`;
         syncRows(gameId);
-        showStatus(gameId, data.running ? t('presence.appliesNextLaunch') : '', 'info');
     }
 
-    // The toggles follow the values; the detail rows only count while presence is on.
+    // The toggles follow the values; the detail rows only count while presence is on. Every toggle is
+    // disabled while a build runs or starts.
     function syncRows(gameId) {
         const host = panel(gameId);
         const data = getState(gameId).data;
-        if (!host || !data || !data.values) return;
+        if (!host || !data || !data.fixInstalled || !data.values) return;
 
+        const busy = building(gameId);
         const enabled = isOn(data, MAIN_KEY);
         host.querySelectorAll('.ul-presence-toggle').forEach(group => {
             const on = isOn(data, group.dataset.key);
@@ -168,14 +183,18 @@
                 const active = (button.dataset.value === '1') === on;
                 button.classList.toggle('active', active);
                 button.setAttribute('aria-pressed', active ? 'true' : 'false');
+                button.disabled = busy;
             });
         });
+        host.querySelectorAll('.ul-presence-row').forEach(row => row.classList.toggle('is-disabled', busy));
         detailKeys(data).forEach(key => {
             const row = host.querySelector(`.ul-presence-row[data-row="${key}"]`);
             if (!row) return;
-            row.classList.toggle('is-disabled', !enabled);
-            row.querySelectorAll('.toggle-btn').forEach(button => { button.disabled = !enabled; });
+            row.classList.toggle('is-disabled', busy || !enabled);
+            row.querySelectorAll('.toggle-btn').forEach(button => { button.disabled = busy || !enabled; });
         });
+        if (busy) showStatus(gameId, t('presence.buildRunning'), 'info');
+        else showStatus(gameId, data.running ? t('presence.appliesNextLaunch') : '', 'info');
     }
 
     // ---- saving ----
@@ -226,6 +245,18 @@
             setTimeout(() => load(item.dataset.game), 0);
         }
     }, true);
+    // A build starting disables the toggles; one ending enables them with what the file holds now
+    // (the builder merged it).
+    window.addEventListener('ul-xml1-changed', () => {
+        Object.keys(state).forEach(gameId => {
+            const s = getState(gameId);
+            if (!s.data || backendId(gameId) !== BUILT) return;
+            const was = s.busy;
+            s.busy = building(gameId);
+            if (was && !s.busy) load(gameId);
+            else syncRows(gameId);
+        });
+    });
 
     window.PresenceView = {
         supports: gameId => SUPPORTED.has(backendId(gameId)),

@@ -287,6 +287,7 @@
                 setUpFirst: 'Set up the game first, then change how it is displayed here.',
                 installFix: 'Install the XML2 Fix (Verify Files on this page) to change how the game is displayed.',
                 appliesNextLaunch: 'The game is running: changes apply the next time you start it.',
+                buildRunning: 'A build is running: change the display settings when it has finished.',
                 restart: 'Applies the next time the game starts.',
                 storedIn: 'Stored in {{file}}',
                 customValue: '{{value}} (from xml2-fix.ini)',
@@ -330,6 +331,7 @@
                 installFix: 'Install the {{fix}} (Verify Files on this page) to show what you’re playing on Discord.',
                 theFix: 'game’s fix',
                 appliesNextLaunch: 'The game is running: changes apply the next time you start it.',
+                buildRunning: 'A build is running: change the Discord settings when it has finished.',
                 storedIn: 'Stored in {{file}}',
                 off: 'OFF',
                 on: 'ON',
@@ -1038,6 +1040,12 @@
                     stale: 'Reconstruisez pour le mettre a jour. Vos sauvegardes sont conservees : le premier chargement met une fois vos heros a niveau avec les nouvelles regles de competences et de statistiques.'
                 }
             },
+            display: {
+                buildRunning: "Une construction est en cours : changez l'affichage quand elle sera terminee."
+            },
+            presence: {
+                buildRunning: 'Une construction est en cours : changez les options Discord quand elle sera terminee.'
+            },
             testMode: {
                 title: 'Mode test',
                 intro: "Pour les testeurs : des options du XML2 Fix (1.6.0 ou plus recent) dans le fichier xml2-fix.ini de ce jeu, sans avoir a le modifier. Les changements sont enregistres aussitot ; le jeu les lit au demarrage.",
@@ -1368,6 +1376,12 @@
                 state: {
                     stale: 'Reconstruye para actualizarlo. Tus partidas guardadas se conservan: la primera carga pone a tus heroes al dia con las nuevas reglas de habilidades y estadisticas, una sola vez.'
                 }
+            },
+            display: {
+                buildRunning: 'Hay una construccion en curso: cambia las opciones de pantalla cuando termine.'
+            },
+            presence: {
+                buildRunning: 'Hay una construccion en curso: cambia las opciones de Discord cuando termine.'
             },
             testMode: {
                 title: 'Modo de prueba',

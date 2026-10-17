@@ -6,11 +6,17 @@
 // "Game default" removes the key. Saving Fullscreen also writes Width=0 / Height=0 (the game's
 // resolution): the backend derives that from the Mode it writes (xml2_display::implied_changes), so
 // a Fullscreen picked and left again before the save never touches the size.
+//
+// On the X-Men Legends port's page the controls are disabled while a build runs or starts: the
+// builder merges its own keys into the same file (read, change, replace), so a write meanwhile could
+// be lost; the backend refuses one anyway (set-display-settings takes the folder's patch hold).
 (function () {
     'use strict';
 
     // Games whose fix has a [Display] section.
     const SUPPORTED = new Set(['xml2', 'xml1']);
+    // The game whose folder the X-Men Legends builder writes (xml1-port.js).
+    const BUILT = 'xml1';
     const FRAME_RATES = [30, 60, 120, 144, 165, 240];
     // Rows whose change the fix only picks up when the game starts.
     const RESTART_ROWS = new Set(['Mode', 'Resolution', 'VSync']);
@@ -37,7 +43,7 @@
 
     function getState(gameId) {
         if (!state[gameId]) {
-            state[gameId] = { data: null, pending: {}, timer: null };
+            state[gameId] = { data: null, pending: {}, timer: null, busy: false };
         }
         return state[gameId];
     }
@@ -45,6 +51,13 @@
     function reportError(error) {
         console.error(error);
         window.showToast(String((error && error.message) || error), 'error');
+    }
+
+    // A build running or starting in the X-Men Legends port's folder: the builder merges the ini, so
+    // nothing else writes it. Other games' folders are not the builder's.
+    function building(gameId) {
+        const port = window.Xml1Port;
+        return backendId(gameId) === BUILT && !!(port && (port.starting || port.isBuilding()));
     }
 
     // ---- values <-> controls ----
@@ -189,6 +202,7 @@
             reportError(error);
             return;
         }
+        s.busy = building(gameId);
         renderBody(gameId);
     }
 
@@ -219,26 +233,31 @@
             ${rowHTML('Topmost', 'display.topmost', toggleHTML('Topmost', flagOn(values.Topmost, false)), t('display.topmostBody'))}
             <p class="ul-display-footer">${escapeHtml(t('display.storedIn', { file: data.ini || 'xml2-fix.ini' }))}</p>`;
         syncRows(gameId);
-        showStatus(gameId, data.running ? t('display.appliesNextLaunch') : '', 'info');
     }
 
     // Rows that depend on other rows: the resolution only counts for borderless and windowed. In
     // fullscreen the game's Video options decide (saving Mode=fullscreen writes Width=0 / Height=0), so
     // the row shows Game setting; otherwise the size the values hold - a pending Fullscreen left
-    // again before the save shows it back.
+    // again before the save shows it back. Every control is disabled while a build runs or starts.
     function syncRows(gameId) {
         const host = panel(gameId);
         const s = getState(gameId);
-        if (!host || !s.data || !s.data.values) return;
+        if (!host || !s.data || !s.data.fixInstalled || !s.data.values) return;
+
+        const busy = building(gameId);
+        host.querySelectorAll('.ul-display-row').forEach(row => row.classList.toggle('is-disabled', busy));
+        host.querySelectorAll('.ul-display-select, .ul-display-toggle .toggle-btn').forEach(control => { control.disabled = busy; });
+        if (busy) showStatus(gameId, t('display.buildRunning'), 'info');
+        else showStatus(gameId, s.data.running ? t('display.appliesNextLaunch') : '', 'info');
 
         const mode = s.data.values.Mode || '';
         const windowed = mode === 'borderless' || mode === 'windowed';
         const row = host.querySelector('.ul-display-row[data-row="Resolution"]');
         if (!row) return;
-        row.classList.toggle('is-disabled', !windowed);
+        row.classList.toggle('is-disabled', busy || !windowed);
         const select = row.querySelector('select');
         if (select) {
-            select.disabled = !windowed;
+            select.disabled = busy || !windowed;
             const shown = mode === 'fullscreen' ? '' : resolutionValue(s.data.values);
             if (Array.from(select.options).some(option => option.value === shown)) select.value = shown;
         }
@@ -250,7 +269,7 @@
 
     function onChange(gameId, event) {
         const select = event.target.closest('.ul-display-select');
-        if (!select) return;
+        if (!select || select.disabled) return;
         const key = select.dataset.key;
         const value = select.value;
         if (key === 'Resolution') {
@@ -263,7 +282,7 @@
 
     function onClick(gameId, event) {
         const button = event.target.closest('.ul-display-toggle .toggle-btn');
-        if (!button) return;
+        if (!button || button.disabled) return;
         const group = button.closest('.ul-display-toggle');
         group.querySelectorAll('.toggle-btn').forEach(b => b.classList.toggle('active', b === button));
         queue(gameId, { [group.dataset.key]: button.dataset.value === '1' });
@@ -308,6 +327,18 @@
             setTimeout(() => load(item.dataset.game), 0);
         }
     }, true);
+    // A build starting disables the controls; one ending enables them with what the file holds now
+    // (the builder merged it, and a first build writes the [Display] defaults).
+    window.addEventListener('ul-xml1-changed', () => {
+        Object.keys(state).forEach(gameId => {
+            const s = getState(gameId);
+            if (!s.data || backendId(gameId) !== BUILT) return;
+            const was = s.busy;
+            s.busy = building(gameId);
+            if (was && !s.busy) load(gameId);
+            else syncRows(gameId);
+        });
+    });
 
     window.DisplayView = {
         supports: gameId => SUPPORTED.has(backendId(gameId)),

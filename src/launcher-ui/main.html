@@ -12,6 +12,8 @@
     <script src="./assets/js/core/utils.js"></script>
     <script src="./assets/js/core/i18n.js"></script>
     <script src="./assets/js/core/command.js"></script>
+    <script src="./assets/js/core/focus-nav.js"></script>
+    <script src="./assets/js/core/gamepad-nav.js"></script>
     <script src="./assets/js/ui/message-box.js"></script>
     <script src="./assets/js/ui/toast.js"></script>
     <script src="./assets/js/ui/launch-redist-modal.js"></script>
@@ -56,35 +58,35 @@
                 </div>
 
                 <nav class="nav-list">
-                    <div class="nav-item active" id="home">
+                    <div class="nav-item active" id="home" tabindex="0" role="button">
                         <div class="nav-icon home-icon"></div>
                         <span class="nav-label" data-i18n="nav.home">Home</span>
                     </div>
-                    <div class="nav-item" id="library">
+                    <div class="nav-item" id="library" tabindex="0" role="button">
                         <div class="nav-icon library-icon"></div>
                         <span class="nav-label" data-i18n="nav.library">Library</span>
                     </div>
-                    <div class="nav-item" id="downloads">
+                    <div class="nav-item" id="downloads" tabindex="0" role="button">
                         <div class="nav-icon downloads-icon"></div>
                         <span class="nav-label" data-i18n="nav.downloads">Downloads</span>
                         <span class="nav-badge" id="downloads-badge" style="display:none;">0</span>
                     </div>
-                    <div class="nav-item" id="support">
+                    <div class="nav-item" id="support" tabindex="0" role="button">
                         <div class="nav-icon support-icon"></div>
                         <span class="nav-label" data-i18n="nav.support">Support</span>
                     </div>
                 </nav>
 
                 <div class="game-list">
-                    <div class="game-item" id="mua" data-game="mua" style="display:none"></div>
-                    <div class="game-item" id="mua2" data-game="mua2" style="display:none"></div>
-                    <div class="game-item" id="xml2" data-game="xml2" style="display:none"></div>
-                    <div class="game-item" id="muac" data-game="muac" style="display:none"></div>
-                    <div class="game-item" id="xml1" data-game="xml1" style="display:none"></div>
+                    <div class="game-item" id="mua" data-game="mua" tabindex="0" role="button" style="display:none"></div>
+                    <div class="game-item" id="mua2" data-game="mua2" tabindex="0" role="button" style="display:none"></div>
+                    <div class="game-item" id="xml2" data-game="xml2" tabindex="0" role="button" style="display:none"></div>
+                    <div class="game-item" id="muac" data-game="muac" tabindex="0" role="button" style="display:none"></div>
+                    <div class="game-item" id="xml1" data-game="xml1" tabindex="0" role="button" style="display:none"></div>
                 </div>
 
                 <div class="sidebar-bottom">
-                    <div class="nav-item" id="settings">
+                    <div class="nav-item" id="settings" tabindex="0" role="button">
                         <div class="nav-icon settings-icon"></div>
                         <span class="nav-label" data-i18n="nav.settings">Settings</span>
                     </div>
@@ -110,7 +112,7 @@
                                 <p class="hub-hero-sub" id="hub-hero-sub">One launcher for Marvel: Ultimate Alliance and X-Men Legends on PC.</p>
                             </div>
                             <div class="hub-hero-action">
-                                <button class="play-button" id="hub-hero-play">
+                                <button class="play-button" id="hub-hero-play" data-autofocus>
                                     <span class="play-icon"></span>
                                     Play
                                 </button>
@@ -154,10 +156,10 @@
 
                     <div class="library-toolbar">
                         <div class="filter-chips" id="library-filters">
-                            <span class="chip active" data-filter="all" data-i18n="library.filterAll">All</span>
-                            <span class="chip" data-filter="installed" data-i18n="library.filterInstalled">Installed</span>
-                            <span class="chip" data-filter="not-installed" data-i18n="library.filterNotInstalled">Not installed</span>
-                            <span class="chip" data-filter="hidden" data-i18n="library.filterHidden" hidden>Hidden</span>
+                            <span class="chip active" tabindex="0" role="button" data-filter="all" data-i18n="library.filterAll">All</span>
+                            <span class="chip" tabindex="0" role="button" data-filter="installed" data-i18n="library.filterInstalled">Installed</span>
+                            <span class="chip" tabindex="0" role="button" data-filter="not-installed" data-i18n="library.filterNotInstalled">Not installed</span>
+                            <span class="chip" tabindex="0" role="button" data-filter="hidden" data-i18n="library.filterHidden" hidden>Hidden</span>
                         </div>
                         <div class="search-field">
                             <input type="text" id="library-search" data-i18n-placeholder="library.searchPlaceholder" placeholder="Search games..." />
@@ -405,7 +407,7 @@
         </div>
     </div>
 
-    <span id="message-box">
+    <span id="message-box" inert>
         <span id="data" class="container card">
             <span class="title mb-title"></span>
             <span class="content">

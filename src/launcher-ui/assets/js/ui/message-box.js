@@ -9,6 +9,8 @@ function constructMessageBox(title, message, buttons) {
 
             const resolveInternal = function() {
                 messageBox.classList.remove("visible");
+                // Its buttons stay in the page while hidden: out of reach of Tab and the arrows.
+                messageBox.setAttribute("inert", "");
                 return resolve.apply(this, arguments);
             };
 
@@ -22,13 +24,19 @@ function constructMessageBox(title, message, buttons) {
             buttonElement.textContent = "";
 
             messageBox.classList.add("visible");
+            messageBox.removeAttribute("inert");
 
-            buttons.forEach((value, index) => {
-                const spec = typeof value === 'string' ? { label: value } : value;
+            // The button Escape (a pad's B) presses: the one marked cancel, else the first.
+            const specs = buttons.map(value => typeof value === 'string' ? { label: value } : value);
+            const marked = specs.findIndex(spec => spec.cancel);
+            const escapeIndex = marked >= 0 ? marked : 0;
+
+            specs.forEach((spec, index) => {
                 var button = document.createElement("button");
                 button.innerHTML = spec.label;
                 if (spec.danger) button.classList.add('is-danger');
-                button.onclick = resolveInternal.bind(this, index);
+                if (index === escapeIndex) button.setAttribute('data-escape', '');
+                button.addEventListener('click', resolveInternal.bind(this, index));
                 buttonElement.appendChild(button);
             });
         }

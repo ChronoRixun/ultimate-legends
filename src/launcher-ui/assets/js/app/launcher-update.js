@@ -107,7 +107,7 @@
             if (!s.canInstall) {
                 const manual = await window.showMessageBox(t('launcherUpdate.confirmTitle'),
                     t('launcherUpdate.confirmManual', { version: s.latest, current: s.current }),
-                    [t('launcherUpdate.download'), t('launcherUpdate.notNow')]);
+                    [t('launcherUpdate.download'), { label: t('launcherUpdate.notNow'), cancel: true }]);
                 if (manual === 0) this.openPage();
                 return;
             }
@@ -115,7 +115,7 @@
             const size = s.size ? formatBytes(s.size) : '';
             const choice = await window.showMessageBox(t('launcherUpdate.confirmTitle'),
                 t('launcherUpdate.confirmBody', { version: s.latest, current: s.current, size }),
-                [t('launcherUpdate.update'), t('launcherUpdate.notNow')]);
+                [t('launcherUpdate.update'), { label: t('launcherUpdate.notNow'), cancel: true }]);
             if (choice !== 0) return;
             await run('start-launcher-update');
             await this.follow();

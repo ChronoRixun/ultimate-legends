@@ -3,6 +3,27 @@
 The launcher's version comes from its release tag (`v0.3.2`): premake reads it with `git describe` when it
 generates the project, so a release only needs this entry and the tag.
 
+## 0.3.3 (unreleased)
+
+### Added
+- **Controller and keyboard navigation across the whole launcher**, so a Steam Deck's D-pad and buttons (or any
+  Xbox-style pad) drive every page, not only the touchscreen and trackpad:
+  - The arrow keys move the focus to the nearest control that way (sidebar, Home, Library, game pages, Downloads,
+    Support, Settings); Enter or Space presses it; Escape or Backspace closes the popup on top, or goes back to the
+    previous page and the control you left there. Up and Down stay in the sidebar or the page; Left and Right cross.
+  - Library and Home cards, the sidebar's pages and games, the Library's filters and Downloads rows are reachable
+    (they were mouse-only). The context menu key (or Shift+F10) opens a card's menu.
+  - In an OFF / ON toggle, Left and Right switch it. A drop-down is picked in place: Enter, then Up / Down, Enter
+    keeps the choice and Escape puts the old one back.
+  - Popups (the message box, setup, Manage install, Client settings, the redistributables, the X-Men Legends
+    wizard and uninstall dialog, the card menu) take the focus when they open, keep the arrows and Tab inside, and
+    give the focus back to the control that opened them.
+  - A pad read through the Gamepad API works without Steam Input: D-pad or left stick to move, A to press, B to go
+    back, Y for a card's menu, LB / RB for the previous / next sidebar page. It is ignored while another window
+    (a game) is in front, and when Steam Input already sends the same presses as keys.
+  - One focus ring for every control, drawn inside it so a clipped group can't hide it, shown while the keyboard
+    or a pad is in use and hidden again by the mouse or a touch.
+
 ## 0.3.2 (unreleased)
 
 ### Added

@@ -72,6 +72,14 @@ release page. Development builds (Debug, or built from anything but a release ta
 Help, bug reports and co-op partners: the community Discord, [discord.gg/tFxwHtZv8k](https://discord.gg/tFxwHtZv8k).
 No game files, disc images or links to them there either.
 
+## Controller and keyboard
+
+Every page works with a controller or the keyboard as well as the mouse and a touchscreen. The arrow keys (a Steam
+Deck's D-pad under Steam Input's desktop layout) move between controls, Enter or Space presses one, and Escape or
+Backspace closes a popup or goes back a page. An Xbox-style pad works without Steam Input too, through the Gamepad
+API: D-pad or left stick, A to press, B to go back, Y for a game card's menu, LB / RB for the previous / next page in
+the sidebar.
+
 ## Command line arguments
 
 The launcher accepts the following optional command line arguments.

@@ -34,7 +34,8 @@ plain messages, disc check, options, progress, cancel, hide), the builder instal
 staging, update, pruning), a builder zip the player already has (checked like a download: refused when
 damaged, incomplete or older; installed from it with no download; found in tools\\xml1-builder; a damaged one
 there skipped for the download), the build (stamp, ini keys merged with the launcher's Display defaults, fix
-installed), Play and Stop by path, Display / Discord / Mods on the port's page, Verify (the groups and
+installed), Play and Stop by path, Display / Discord / Mods / Test mode on the port's page (the [TestMode] key kept by
+every later build, repair and Verify Files, refused while the builder holds the folder, gone with Uninstall), Verify (the groups and
 counts) / Repair, warnings after a build (their counts from detail.count), a Rebuild over an older XML2
 Fix (updated before the builder runs; when it can't be, the build's W_XML2FIX_OLD on the page), Verify
 Files on an unfinished build with the game in its folder, E_IO per cause in plain
@@ -676,6 +677,25 @@ def main():
               "Display and Discord sections on the page")
         test.shot("display-section", "#xml1-page .detail-display:not(.detail-build)")
 
+        # Test mode (0.3.2): one key of the fix's [TestMode], which every later build, repair and Verify
+        # Files must keep (the builder merges its own keys into the ini; the launcher writes only its own).
+        before = (out / "xml2-fix.ini").read_bytes()
+        check(cmd("set-test-mode-settings", {"game": "xml1", "values": {"ForgeEverywhere": True}})["success"], "Test mode switch written")
+        after = (out / "xml2-fix.ini").read_bytes()
+        check(after.startswith(before) and after[len(before):].lstrip(b"\r\n") == b"[TestMode]\r\nForgeEverywhere=1\r\n",
+              "[TestMode] ForgeEverywhere=1 added; the builder's keys and the player's sections byte for byte as they were")
+        test.page()
+        js("window.TestModeView.reload('xml1')")
+        check(wait_for(lambda: test.exists("#xml1-testmode-panel .ul-testmode-row") and test.exists("#xml1-testmode-badge .ul-testmode-badge"), 5),
+              "Test mode section on the page, and the badge next to Play")
+
+        def test_mode_kept(after):
+            ini = (out / "xml2-fix.ini").read_text(encoding="utf-8", errors="replace") if (out / "xml2-fix.ini").exists() else ""
+            section = ini.split("[TestMode]", 1)[1].split("\n[", 1)[0] if "[TestMode]" in ini else ""
+            check("ForgeEverywhere=1" in section and "Hotkeys" not in section
+                  and cmd("get-test-mode-settings", {"game": "xml1"})["values"] == {"ForgeEverywhere": True, "Hotkeys": None},
+                  f"{after}: [TestMode] kept as the launcher wrote it")
+
         if real:
             test.skip("Play / Stop: the real build's XMen2.exe is the game (never launched by the tests)")
         else:
@@ -710,6 +730,7 @@ def main():
             check(job["exitCode"] == 0, f"rebuilt (exit {job['exitCode']}, {job['seconds']:.0f} s)")
             check(wait_for(lambda: test.status()["state"] == "ready", 30), "up to date again")
             check(json.loads((out / "_build" / "stamp.json").read_text())["builder"]["content_version"] == content_version, "the stamp's content version")
+            test_mode_kept("a Rebuild")
         else:
             print("update available: a newer builder with new content")
             publish_builder(www, "1.1.0", 4)
@@ -729,6 +750,7 @@ def main():
             check(job["exitCode"] == 0 and job["version"] == "1.1.0", "rebuilt with 1.1.0")
             check(wait_for(lambda: test.status()["state"] == "ready", 30), "up to date again")
             check(sorted(p.name for p in DEBUG_TOOLS.iterdir()) == ["1.1.0"], "old builder pruned after the good build")
+            test_mode_kept("a Rebuild with a new builder")
 
         if real:
             test.skip("a Rebuild over an older XML2 Fix: the fake's stand-in fixes (the real builder asks for the real fix's keys)")
@@ -744,6 +766,7 @@ def main():
             codes = [n.get("code") for n in job.get("notices", [])]
             check(job["exitCode"] == 0 and "W_XML2FIX_OLD" not in codes, f"the builder met the current fix: no W_XML2FIX_OLD ({codes})")
             check(wait_for(lambda: test.state() == "ready", 30) and test.status()["fix"]["version"].startswith("1.2.0"), "XML2 Fix 1.2.0; ready")
+            test_mode_kept("the XML2 Fix updated before a Rebuild")
 
             print("... and when it can't be updated (no release reachable), the build still runs and the page says so")
             test.prop("patch-manifest", f"{base}/missing/ultimate-legends.json")
@@ -765,6 +788,7 @@ def main():
             test.prop("patch-manifest", f"{base}/fix/ultimate-legends.json")
             check(wait_for(lambda: test.click("#xml1-build-panel [data-act='install-fix']"), 30), "Install the XML2 Fix offered")
             check(wait_for(lambda: test.status()["fix"]["version"].startswith("1.2.0") and test.state() == "ready", 30), "installed: ready again")
+            test_mode_kept("Install the XML2 Fix")
 
         print("verify: groups and counts; report a problem; repair")
         manifest = json.loads((out / "_build" / "manifest.json").read_text())
@@ -814,6 +838,7 @@ def main():
         check(job["exitCode"] == 0 and (out / gone).exists(), f"Repair rebuilds it (exit {job['exitCode']})")
         check(wait_for(lambda: test.state() == "ready", 30), "ready")
         check(not stray.exists(), "the rebuild removed the file it did not make")
+        test_mode_kept("a Repair")
         notice = next((n for n in job.get("notices", []) if n.get("code") == "W_EXTRA_FILES"), None)
         detail = (notice or {}).get("detail") or {}
         check(notice is not None and "data/stray-held-open.txt" in [str(p).lower() for p in detail.get("not_removed") or []]
@@ -882,6 +907,7 @@ def main():
               "Verify Files has ended: no updater in the folder, Resume offered again")
         status = test.status()
         check(status["state"] == "incomplete" and not status["isInstalled"], "still unfinished, not marked installed: Resume finishes it")
+        test_mode_kept("Verify Files")
 
         if real:
             test.skip("a failing step (E_PIPELINE): the fake's knob (the real pipeline has no bug to show on demand)")
@@ -927,6 +953,12 @@ def main():
                 check((out / "dinput.dll").read_bytes() == old_fix and not (cmd("get-update-progress") or {}).get("active"),
                       "Verify for X-Men Legends II in the port's folder: refused while the build runs")
                 check(cmd("xml1-folder", {"path": str(out)}).get("updating") is False, "no updater alive in the folder")
+                before = (out / "xml2-fix.ini").read_bytes()
+                refused = cmd("set-test-mode-settings", {"game": "xml1", "values": {"Hotkeys": True}})
+                check(refused.get("success") is False and "being built" in (refused.get("error") or "")
+                      and (out / "xml2-fix.ini").read_bytes() == before, "Test mode: no write while the builder holds the folder")
+                check(js("window.Xml1Port.refresh().then(() => { const all = [...document.querySelectorAll('#xml1-testmode-panel .toggle-btn')]; "
+                         "return all.length === 4 && all.every(b => b.disabled); })"), "and its toggles are disabled meanwhile")
             finally:
                 test.prop("patch-manifest", saved_xml2_manifest or "", game="xml2")
                 cmd("set-game-property", {"game": "xml2", "suffix": "install", "value": str(xml2)})
@@ -953,6 +985,7 @@ def main():
         log = (out / "_build" / "builder.log").read_text(encoding="utf-8", errors="replace") if (out / "_build" / "builder.log").exists() else ""
         check(job["exitCode"] == 0 and "(no --iso)" in log, f"built from the cache's disc (exit {job['exitCode']}; the log says no --iso)")
         check(wait_for(lambda: test.status()["state"] == "ready", 30), "ready")
+        test_mode_kept("a build resumed from the cache")
         test.prop("iso", str(good))
 
         print("free up the build cache")
@@ -978,6 +1011,7 @@ def main():
         check(wait_for(lambda: not test.status()["install"], 120 if real else 30), "the folder is forgotten")
         check(wait_for(lambda: sorted(p.relative_to(out).as_posix() for p in out.rglob("*")) == ["mods", "mods/My Mod", "mods/My Mod/readme.txt"], 30),
               f"only the mods are left: {sorted(p.name for p in out.iterdir()) if out.exists() else None}")
+        check(not (out / "xml2-fix.ini").exists(), "Uninstall deletes xml2-fix.ini, [TestMode] with it (on purpose)")
         status = test.status()
         check(status["state"] == "not-setup" and not status["isInstalled"], "not set up again")
         check(xml2.exists() and (xml2 / "XMen2.exe").exists(), "X-Men Legends II untouched")

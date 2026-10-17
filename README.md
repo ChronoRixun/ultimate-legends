@@ -44,6 +44,11 @@ over. A build first brings the XML2 Fix already in its folder up to date, and a 
 **Verify Files** (the fix) next to **Resume**. Display, Discord and Mods work as for X-Men Legends II. Uninstalling
 removes the built game and, if you want, the build cache; your saves in `Documents\Activision\X-Men Legends` are kept.
 
+For testers, a **Test mode** section switches the XML2 Fix's (1.6.0 or later) `[TestMode]` keys in the port's
+`xml2-fix.ini`: the Forge at every Xtraction point, and the F8/F9/F10 test hotkeys. While either is on, the fix turns
+online play off, and a **Test mode on** badge under Play offers **Turn test mode off**. Rebuilds and Verify Files keep
+the switches.
+
 Nothing from the games is downloaded: the builder uses only your disc image and your XML2 install, and it never
 connects to the internet. The first build takes about 6-8 minutes on a current PC and needs about 8 GB free.
 

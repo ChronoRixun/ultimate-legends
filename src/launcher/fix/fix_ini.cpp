@@ -25,6 +25,15 @@ namespace fix_ini
             .comment_chars = L";",
         };
 
+        // The same fix in the X-Men Legends port's folder, where the launcher also offers the fix's
+        // [TestMode] switches to testers (the port's page only; X-Men Legends II's has none).
+        const fix xml1_fix = []
+        {
+            auto port = xml2_fix;
+            port.test_mode = true;
+            return port;
+        }();
+
         // MUA Controller Fix (github.com/ChronoRixun/mua-controller-fix), for both MUA games. Its
         // [Discord] section (1.1.0 on) shows the game's own status line, the area and player 1's hero.
         // It reads a value up to the first ';' or '#' (its discord_rules.hpp value_text).
@@ -42,7 +51,7 @@ namespace fix_ini
         {
             static const std::map<std::string, const fix*> table{
                 {"xml2", &xml2_fix},
-                {"xml1", &xml2_fix},
+                {"xml1", &xml1_fix},
                 {"mua", &mua_fix},
                 {"mua2", &mua_fix},
             };

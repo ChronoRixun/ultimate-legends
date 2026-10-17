@@ -411,8 +411,15 @@ class Element extends Node {
         this.dispatchEvent(new Event('click', { bubbles: true }));
     }
 
-    focus() {}
-    blur() {}
+    // The focused element is document.activeElement (no focus events: no view listens for them).
+    focus() {
+        if (!this.disabled) this.ownerDocument.activeElement = this;
+    }
+
+    blur() {
+        if (this.ownerDocument.activeElement === this) this.ownerDocument.activeElement = this.ownerDocument.body;
+    }
+
     scrollIntoView() {}
 
     getBoundingClientRect() {
@@ -466,6 +473,7 @@ class Document extends Node {
         this.documentElement = this.appendChild(new Element(this, 'html'));
         this.body = this.documentElement.appendChild(new Element(this, 'body'));
         this.head = new Element(this, 'head');
+        this.activeElement = this.body;
     }
 
     createElement(tagName) {

@@ -344,6 +344,29 @@
                 showHeroBody: 'The hero you play as (player 1’s in co-op).',
                 saveFailed: 'The Discord setting could not be saved.'
             },
+            // The X-Men Legends page's Test mode section and its badge next to Play (test-mode-view.js).
+            testMode: {
+                title: 'Test mode',
+                loading: 'Loading test mode…',
+                intro: 'For testers: switches of the XML2 Fix (1.6.0 or later) in this game’s xml2-fix.ini, so you don’t have to edit the file. Changes are saved as you make them; the game reads them when it starts.',
+                onlineOff: 'While test mode is on, the XML2 Fix turns online play off. Turn both switches off to play online again.',
+                setUpFirst: 'Build the game first, then turn test mode on here.',
+                installFix: 'Install the {{fix}} (Verify Files on this page) to use test mode.',
+                appliesNextLaunch: 'The game is running: changes apply the next time you start it.',
+                buildRunning: 'A build is running: change test mode when it has finished.',
+                needsNewerFix: 'Test mode needs XML2 Fix {{required}} or later; this folder has {{version}}, which ignores these switches.',
+                storedIn: 'Stored in {{file}}',
+                off: 'OFF',
+                on: 'ON',
+                forgeEverywhere: 'Forge at every Xtraction point',
+                forgeEverywhereBody: 'The Forge appears at every Xtraction point, not only where the game puts it.',
+                hotkeys: 'Test hotkeys F8/F9/F10',
+                hotkeysBody: 'Turns on the XML2 Fix’s F8, F9 and F10 test hotkeys in the game.',
+                badge: 'Test mode on',
+                badgeOnline: 'Online play is off',
+                turnOff: 'Turn test mode off',
+                saveFailed: 'The test mode setting could not be saved.'
+            },
             // X-Men Legends (community port): setup wizard, Build section, builder errors.
             xml1: {
                 name: 'X-Men Legends',
@@ -1014,6 +1037,21 @@
                 state: {
                     stale: 'Reconstruisez pour le mettre a jour. Vos sauvegardes sont conservees : le premier chargement met une fois vos heros a niveau avec les nouvelles regles de competences et de statistiques.'
                 }
+            },
+            testMode: {
+                title: 'Mode test',
+                intro: "Pour les testeurs : des options du XML2 Fix (1.6.0 ou plus recent) dans le fichier xml2-fix.ini de ce jeu, sans avoir a le modifier. Les changements sont enregistres aussitot ; le jeu les lit au demarrage.",
+                onlineOff: 'Tant que le mode test est actif, le XML2 Fix desactive le jeu en ligne. Desactivez les deux options pour rejouer en ligne.',
+                buildRunning: 'Une construction est en cours : changez le mode test quand elle sera terminee.',
+                needsNewerFix: 'Le mode test demande le XML2 Fix {{required}} ou plus recent ; ce dossier a la version {{version}}, qui ignore ces options.',
+                forgeEverywhere: "La Forge a chaque point d'Xtraction",
+                forgeEverywhereBody: "La Forge apparait a chaque point d'Xtraction, pas seulement la ou le jeu la place.",
+                hotkeys: 'Raccourcis de test F8/F9/F10',
+                hotkeysBody: 'Active les raccourcis de test F8, F9 et F10 du XML2 Fix dans le jeu.',
+                badge: 'Mode test actif',
+                badgeOnline: 'Jeu en ligne desactive',
+                turnOff: 'Desactiver le mode test',
+                saveFailed: "L'option du mode test n'a pas pu etre enregistree."
             }
         },
         es: {
@@ -1330,6 +1368,21 @@
                 state: {
                     stale: 'Reconstruye para actualizarlo. Tus partidas guardadas se conservan: la primera carga pone a tus heroes al dia con las nuevas reglas de habilidades y estadisticas, una sola vez.'
                 }
+            },
+            testMode: {
+                title: 'Modo de prueba',
+                intro: 'Para probadores: opciones del XML2 Fix (1.6.0 o posterior) en el xml2-fix.ini de este juego, sin tener que editarlo. Los cambios se guardan al momento; el juego los lee al iniciarse.',
+                onlineOff: 'Mientras el modo de prueba este activo, el XML2 Fix desactiva el juego en linea. Desactiva las dos opciones para volver a jugar en linea.',
+                buildRunning: 'Hay una construccion en curso: cambia el modo de prueba cuando termine.',
+                needsNewerFix: 'El modo de prueba necesita el XML2 Fix {{required}} o posterior; esta carpeta tiene la version {{version}}, que ignora estas opciones.',
+                forgeEverywhere: 'La Forja en cada punto de Xtraccion',
+                forgeEverywhereBody: 'La Forja aparece en cada punto de Xtraccion, no solo donde la pone el juego.',
+                hotkeys: 'Atajos de prueba F8/F9/F10',
+                hotkeysBody: 'Activa los atajos de prueba F8, F9 y F10 del XML2 Fix en el juego.',
+                badge: 'Modo de prueba activo',
+                badgeOnline: 'Juego en linea desactivado',
+                turnOff: 'Desactivar el modo de prueba',
+                saveFailed: 'No se pudo guardar la opcion del modo de prueba.'
             }
         },
         ru: {

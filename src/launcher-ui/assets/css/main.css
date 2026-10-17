@@ -4374,6 +4374,21 @@ html:not([data-color-uninstalled]) .library-card:not(.is-installed):not(.is-comi
 .ul-presence-row.is-disabled .ul-display-control { opacity: 0.55; }
 .ul-display .toggle-btn:disabled { cursor: default; pointer-events: none; }
 
+/* ---- Test mode section of the X-Men Legends page and its badge next to Play (test-mode-view.js) ---- */
+.detail-testmode { margin-top: 24px; }
+.ul-testmode .ul-testmode-online { margin-bottom: 2px; }
+.ul-testmode-row.is-disabled .ul-display-control { opacity: 0.55; }
+/* Keyboard and controller focus (Tab, Steam Input's desktop layout): drawn inside the button, where the
+   toggle group's rounded clip can't cut it off. */
+.ul-testmode .toggle-btn:focus-visible { outline: 2px solid var(--warn); outline-offset: -2px; }
+.ul-testmode-badge-host { margin: -8px 0 18px; }
+.ul-testmode-badge { display: inline-flex; align-items: center; gap: 12px; padding: 8px 10px 8px 14px; border-radius: 12px; background: rgba(255, 178, 63, 0.12); border: 1px solid rgba(255, 178, 63, 0.45); }
+.ul-testmode-badge-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 8px var(--warn); flex-shrink: 0; }
+.ul-testmode-badge-text { display: flex; flex-direction: column; min-width: 0; }
+.ul-testmode-badge-title { color: var(--warn); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.ul-testmode-badge-note { color: var(--text-muted); font-size: 12px; }
+.ul-testmode-off:focus-visible { outline: 2px solid var(--warn); outline-offset: 2px; }
+
 /* ---- X-Men Legends (community port): Build section (xml1-view.js) and setup wizard (xml1-setup.js) ---- */
 .detail-build { margin-top: 24px; }
 .secondary-action.xml1-small { width: auto; min-height: 32px; padding: 6px 12px; font-size: 12px; flex-shrink: 0; }

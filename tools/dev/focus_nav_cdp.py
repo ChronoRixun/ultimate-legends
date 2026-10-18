@@ -92,9 +92,16 @@ def main():
         return js("(() => { const p = [...document.querySelectorAll('.page-section')].find(p => p.offsetParent !== null); return p ? p.id : null; })()")
 
     def ring():
+        """The focused control has the ring, at least 2 screen pixels wide.
+
+        Counted in device pixels, not CSS pixels: CEF's Chromium snaps an outline's width down to whole
+        device pixels and reports the snapped width, so at a 110% Windows scale the 2px ring is drawn
+        2 device pixels wide (2.2 floored) and reads back as 2 / 1.1 = 1.818 CSS px.
+        """
         time.sleep(0.5)  # buttons and cards ease in (transition: all 0.35s), the outline with them
         return js("(() => { const e = document.activeElement; if (!e || e === document.body) return false; "
-                  "const s = getComputedStyle(e); return s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) >= 2; })()")
+                  "const s = getComputedStyle(e); "
+                  "return s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) * devicePixelRatio >= 1.99; })()")
 
     def shot(name):
         path = shots / f"focus-nav-{name}.png"
@@ -110,7 +117,7 @@ def main():
     check(page() == "home-page", "on Home")
     press("ArrowDown")
     check(focused().startswith("home-page|"), f"the first arrow focuses the page ({focused()})")
-    check(js("document.documentElement.dataset.nav === 'keys'") and ring(), "with a focus ring")
+    check(js("document.documentElement.dataset.nav === 'keys'") and ring(), "with a focus ring (2+ screen pixels)")
     shot("home")
 
     print("Home -> Library, from the sidebar")

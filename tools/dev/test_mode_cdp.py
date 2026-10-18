@@ -61,6 +61,17 @@ TESTMODE_TEMPLATE = INI_TEMPLATE.replace("[Discord]\r\n", (
 SAVE_WAIT = 0.8  # the page writes 250 ms after the last click
 
 
+def rewritten(line, value):
+    """`line` as WritePrivateProfileStringW leaves it when the launcher writes `value` to its key: the key's
+    own text up to '=' kept as it was, spaces and all ("Hotkeys = 0 ; c" -> "Hotkeys =1 ; c"), then the new
+    value, then the old inline comment with the spaces before it (fix_ini::write keeps those)."""
+    key, rest = line.split("=", 1)
+    comment = rest.find(";")
+    if comment < 0:
+        return f"{key}={value}"
+    return f"{key}={value}{rest[len(rest[:comment].rstrip()):]}"
+
+
 def main():
     launcher = Launcher()
     failures = 0
@@ -168,20 +179,20 @@ def main():
             ini.write_bytes(TESTMODE_TEMPLATE.encode("utf-8"))
             check(get()["values"] == {"ForgeEverywhere": False, "Hotkeys": False}, "'0   ; comment' reads as off")
             result = put({"ForgeEverywhere": True})
-            # (WritePrivateProfileString writes the line as "Key=value": the spaces round that one '=' go.)
-            expected = TESTMODE_TEMPLATE.replace(FORGE_LINE, "ForgeEverywhere=1   ; the Forge appears at every Xtraction point (default 0)")
+            expected = TESTMODE_TEMPLATE.replace(FORGE_LINE, rewritten(FORGE_LINE, "1"))
             check(result.get("success") is True and result["values"] == {"ForgeEverywhere": True, "Hotkeys": False}, f"answer {result.get('values')}")
             check(raw() == expected.encode("utf-8"), "the file is the template with that one value changed, comment and all")
             if raw() != expected.encode("utf-8"):
                 print(text())
             put({"ForgeEverywhere": False})
-            check("ForgeEverywhere=0   ; the Forge appears at every Xtraction point (default 0)\r\n" in text()
-                  and f"{HOTKEYS_LINE}\r\n" in text() and "Verbose=1\r\n" in text(), "and back; Hotkeys' line and Verbose untouched")
+            check(text() == TESTMODE_TEMPLATE.replace(FORGE_LINE, rewritten(FORGE_LINE, "0")),
+                  "and back; Hotkeys' line and Verbose untouched")
 
             print("values the command takes; anything else is refused before a write")
             check(put({"Hotkeys": "1"}).get("values", {}).get("Hotkeys") is True, "\"1\"")
             check(put({"Hotkeys": 0}).get("values", {}).get("Hotkeys") is False, "0")
-            check(put({"Hotkeys": "on"}).get("values", {}).get("Hotkeys") is True and "Hotkeys=1" in text(), "\"on\" written as 1")
+            check(put({"Hotkeys": "on"}).get("values", {}).get("Hotkeys") is True and f"{rewritten(HOTKEYS_LINE, '1')}\r\n" in text(),
+                  "\"on\" written as 1")
             before = raw()
             check(put({"Hotkeys": "maybe"}).get("success") is False, "Hotkeys=maybe")
             check(put({"Hotkeys": 2}).get("success") is False, "Hotkeys=2")
@@ -222,7 +233,7 @@ def main():
             before = text()
             check(click("ForgeEverywhere", "1") == "clicked", "click Forge ON")
             time.sleep(SAVE_WAIT)
-            check(text() == before.replace(FORGE_LINE, "ForgeEverywhere=1   ; the Forge appears at every Xtraction point (default 0)"),
+            check(text() == before.replace(FORGE_LINE, rewritten(FORGE_LINE, "1")),
                   "only the ForgeEverywhere line changed")
 
             print("page: the badge goes with the last switch off, comes back with the first on")
@@ -240,7 +251,8 @@ def main():
             check(ui("const b = badge.querySelector('.ul-testmode-off'); if (!b || b.disabled) return false; b.focus(); b.click(); return true;"),
                   "click Turn test mode off")
             check(wait_for(lambda: get()["values"] == {"ForgeEverywhere": False, "Hotkeys": False}, 5), "both written off")
-            check(text() == before.replace("ForgeEverywhere=1", "ForgeEverywhere=0").replace("Hotkeys=1", "Hotkeys=0"),
+            check(text() == before.replace(rewritten(FORGE_LINE, "1"), rewritten(FORGE_LINE, "0"))
+                  .replace(rewritten(HOTKEYS_LINE, "1"), rewritten(HOTKEYS_LINE, "0")),
                   "those two values and nothing else")
             check(not badge_shown(), "badge gone")
             check(launcher.evaluate("document.activeElement && document.activeElement.closest('#xml1-button-group') !== null"),

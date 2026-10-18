@@ -52,6 +52,7 @@ import http.server
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -703,8 +704,8 @@ def main():
             assert pathlib.Path(test.prop("install")).resolve() == out.resolve()  # never anything but the test folder
             other = subprocess.Popen([str(xml2 / "XMen2.exe")])
             dummies.append(other)
-            time.sleep(0.5)
-            check(cmd("is-game-running", {"game": "xml2"}) is True and cmd("is-game-running", {"game": "xml1"}) is False,
+            # is-game-running reads a process snapshot cached for up to a second (game_commands.cpp): poll past it.
+            check(wait_for(lambda: cmd("is-game-running", {"game": "xml2"}) is True, 5) and cmd("is-game-running", {"game": "xml1"}) is False,
                   "XML2's XMen2.exe running: X-Men Legends is not")
             js("launchGame('xml1')")
             check(wait_for(lambda: cmd("is-game-running", {"game": "xml1"}) is True, 20), "Play: the port's XMen2.exe runs")
@@ -825,7 +826,17 @@ def main():
         profile = os.environ.get("USERPROFILE", "C:\\Users\\")
         check("verify-report.json" in text and '"missing"' in text and gone in text, "it holds verify-report.json (the groups, relative paths)")
         check("build log, last" in text, "and the end of the build log")
-        check(profile not in text and profile.replace("\\", "\\\\") not in text and "%USERPROFILE%" in text, "profile paths masked")
+        # No profile path in the report, whatever %TEMP% is: maskPaths turns every X:\Users\<name> into
+        # %USERPROFILE%, so any left is unmasked. The marker itself can only show when the test's folders are
+        # under a profile (the default %TEMP%); with %TEMP% elsewhere the report has nothing to mask.
+        users = r"[A-Za-z]:(?:\\\\|[\\/])+Users(?:\\\\|[\\/])+[^\\/\r\n\"]+"
+        unmasked = re.search(users, text)
+        check(profile not in text and profile.replace("\\", "\\\\") not in text and not unmasked,
+              f"no profile path in the report{f' ({unmasked.group(0)})' if unmasked else ''}")
+        if re.match(users, str(root)):
+            check("%USERPROFILE%" in text, "profile paths masked as %USERPROFILE%")
+        else:
+            test.skip(f"the %USERPROFILE% marker: the test's folders ({root}) are not under a profile")
         report.unlink(missing_ok=True)  # (a report of the test's own made-up damage)
         # A second stray file that another program holds open: the repair can't delete it, so it stays and
         # the build succeeds, naming it (W_EXTRA_FILES: detail.not_removed, cause held).

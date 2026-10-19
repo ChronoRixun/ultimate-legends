@@ -1049,6 +1049,9 @@
 
                 <div class="game-details">
                     <div class="button-group" id="${escapeHtml(config.uiId)}-button-group"></div>
+                    ${!comingSoon && window.TestModeView && window.TestModeView.supports(config.uiId)
+                        ? `<div class="ul-testmode-badge-host" id="${escapeHtml(config.uiId)}-testmode-badge" hidden></div>`
+                        : ''}
 
                     <div class="detail-panel-grid">
                         ${descriptionSection}
@@ -1078,6 +1081,12 @@
                         <div id="${escapeHtml(config.uiId)}-mods-panel"></div>
                     </section>`
                         : ''}
+                    ${!comingSoon && window.TestModeView && window.TestModeView.supports(config.uiId)
+                        ? `<section class="detail-testmode">
+                        <h3 class="detail-display-title">${escapeHtml(t('testMode.title'))}</h3>
+                        <div id="${escapeHtml(config.uiId)}-testmode-panel"></div>
+                    </section>`
+                        : ''}
                 </div>
             </div>
         `;
@@ -1105,6 +1114,12 @@
             GameUtils.getAllGameConfigs()
                 .filter(config => !config.comingSoon && window.ModsView.supports(config.uiId))
                 .forEach(config => window.ModsView.render(config.uiId));
+        }
+
+        if (window.TestModeView) {
+            GameUtils.getAllGameConfigs()
+                .filter(config => !config.comingSoon && window.TestModeView.supports(config.uiId))
+                .forEach(config => window.TestModeView.render(config.uiId));
         }
 
         if (window.PatchView) {

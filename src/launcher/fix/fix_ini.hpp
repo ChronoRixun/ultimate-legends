@@ -13,7 +13,7 @@
 // game's exe, MUA Controller Fix (dinput8.dll) mua-controller-fix.ini. The launcher's sections for
 // them (Display, Discord) all go through here, so a game whose fix reads the same kind of file only
 // needs an entry in the table in fix_ini.cpp: the X-Men Legends port runs on the XML2 engine with
-// the same fix, and both MUA games share MUA Controller Fix.
+// the same fix (plus its [TestMode] section), and both MUA games share MUA Controller Fix.
 //
 // Files are read and written with the Windows profile API (Get/WritePrivateProfileStringW), the
 // same one the fixes use, one key at a time: every other key, section, comment and blank line
@@ -37,6 +37,7 @@ namespace fix_ini
         // The sections the launcher edits for this fix.
         bool display{};  // [Display], display/xml2_display.hpp (the XML2 engine's Direct3D 8 options)
         bool presence{}; // [Discord], fix/presence_settings.hpp
+        bool test_mode{}; // [TestMode], fix/test_mode_settings.hpp (testers' switches, XML2 Fix 1.6.0 on)
 
         // The [Discord] switches the launcher shows for this fix, in order: Enabled, then what it
         // shares (the XML2 Fix's ShowZone and ShowParty, MUA Controller Fix's ShowZone and ShowHero).

@@ -3,6 +3,7 @@
 #include "cef/cef_ui.hpp"
 #include "fix/fix_ini.hpp"
 #include "fix/presence_settings.hpp"
+#include "updater/folder_work.hpp"
 
 #include <utils/string.hpp>
 
@@ -138,6 +139,8 @@ namespace commands::presence_commands
 
         // { game, values: { Key: true | false | 1 | 0 | "1" | "0" | null, ... } }: writes the given
         // keys (null removes one) and answers { success, error, values } with the ini's values after.
+        // Nothing is written while the builder holds the folder (its ini merge would put the file back
+        // as it read it).
         cef_ui.add_command("set-presence-settings", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
         {
             const auto where = ini_or_fail(ctx, value, response);
@@ -180,6 +183,14 @@ namespace commands::presence_commands
             if (changes.empty())
             {
                 set_result(response, false, "Nothing to change.");
+                return;
+            }
+
+            // Writing the fix's settings is patch work in the folder, for as long as the write takes.
+            const auto hold = updater::reserve(*where->game_dir, updater::folder_use::patch);
+            if (!hold)
+            {
+                set_result(response, false, "X-Men Legends is being built in this folder. Change the Discord settings when the build has finished.");
                 return;
             }
 

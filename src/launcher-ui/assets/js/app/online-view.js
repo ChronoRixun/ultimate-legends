@@ -7,7 +7,8 @@
 //   both (launch-game, for every start that isn't this section's own), so a normal start never opens
 //   a room. Broker / BrokerPin are the builder's: never written.
 // - Before every start the backend deletes a leftover online-status.json; while the game runs the
-//   section reads it (get-online-status, every 500 ms) and shows its state: Connecting..., the room's
+//   section reads it (get-online-status, every 500 ms) and shows its state: Connecting..., then (the game
+//   up, the room not open until Play Online in the game) where to go, the room's
 //   code (XXXX-XXXX, Copy) and its players ("N of 4" with max_players) for a host; Looking for the game..., Found it for a joiner;
 //   and every error id of the contract in plain words.
 // - Host and Join are off, with the reason, while the port is not built, a build or an XML2 Fix update
@@ -439,7 +440,7 @@
         const session = s.session;
         const current = phase(session);
         const code = (session.status && session.status.code) || (session.role === 'host' ? session.code : null) || null;
-        const signature = JSON.stringify([current, code, session.players, session.maxPlayers, session.outcome && session.outcome.error, session.outcome && session.outcome.reason]);
+        const signature = JSON.stringify([current, code, session.seenRunning, session.players, session.maxPlayers, session.outcome && session.outcome.error, session.outcome && session.outcome.reason]);
         if (signature === s.shown) return;
         const focusedInside = !!document.activeElement && !!document.activeElement.closest && document.activeElement.closest('.ul-online-session') === box;
         const keepCopy = focusedInside && document.activeElement.classList.contains('ul-online-copy');
@@ -469,12 +470,15 @@
         } else if (outcome) {
             kind = outcome.kind === 'not_started' ? 'error' : 'info';
             line = t(`online.phase.${outcome.kind === 'not_started' ? 'notStarted' : outcome.kind}`);
-        } else if (session.role === 'host') {
-            const name = session.status ? session.status.state : 'connecting';
-            line = t(name === 'in_game' ? 'online.phase.hostInGame' : name === 'connecting' || !code ? 'online.phase.hostConnecting' : 'online.phase.hostRoom');
         } else {
+            // The room opens when the player enters Play Online in the game, not at game start (contract
+            // v1.2): until then the status stays `connecting`, so once the game runs the page says where
+            // to go. `in_game`: the session runs over the room, the lobby included.
             const name = session.status ? session.status.state : 'connecting';
-            line = t(name === 'in_game' ? 'online.phase.joinInGame' : name === 'joined' ? 'online.phase.joinJoined' : 'online.phase.joinConnecting');
+            const waiting = name === 'connecting' || (session.role === 'host' && name !== 'in_game' && !code);
+            const menu = session.seenRunning ? 'OpenMenu' : 'Connecting';
+            if (session.role === 'host') line = t(name === 'in_game' ? 'online.phase.hostInGame' : waiting ? `online.phase.host${menu}` : 'online.phase.hostRoom');
+            else line = t(name === 'in_game' ? 'online.phase.joinInGame' : name === 'joined' ? 'online.phase.joinJoined' : `online.phase.join${menu}`);
         }
 
         // The host's code, large, while its room is open (in the game too: friends can still join).

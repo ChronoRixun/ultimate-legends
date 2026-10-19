@@ -377,7 +377,7 @@
                 loading: 'Loading online play…',
                 host: {
                     title: 'Host a game',
-                    body: 'Starts the game with a room open. You get a code to send to your friends.',
+                    body: 'Starts the game; open Play Online in it and your room opens. You get a code to send to your friends.',
                     button: 'Host a game'
                 },
                 join: {
@@ -410,11 +410,13 @@
                 fixOld: 'Online play needs XML2 Fix {{required}} or later; this folder has {{version}}, which can’t host or join. Use Verify Files on this page to update it.',
                 phase: {
                     hostConnecting: 'Connecting…',
+                    hostOpenMenu: 'Open Play Online in the game – your code appears here.',
                     hostRoom: 'Your room is open.',
-                    hostInGame: 'The game has started. Friends can still join with the code.',
+                    hostInGame: 'Connected – playing together.',
                     joinConnecting: 'Looking for the game…',
+                    joinOpenMenu: 'Open Play Online → Join Game in the game.',
                     joinJoined: 'Found it. In the game: Play Online → Join Game, pick the game.',
-                    joinInGame: 'You are in the game.',
+                    joinInGame: 'Connected – playing together.',
                     ended: 'The online game has ended.',
                     closed: 'The game was closed.',
                     notStarted: 'The game did not start. Try again; if it keeps happening, start it with Play to see why.'
@@ -488,10 +490,10 @@
                 help: {
                     title: 'How online works',
                     steps: {
-                        host: 'One player presses Host a game. The game starts with a room open, and this page shows a code like ABCD-EFGH.',
+                        host: 'One player presses Host a game. Once the game is up, open Play Online in it: the room opens then, and this page shows a code like ABCD-EFGH.',
                         share: 'The host sends the code to the friends who play (a chat message is fine). Copy puts it on the clipboard.',
                         join: 'Each friend types or pastes the code under Join a game and presses Join. Lower case, spaces and dashes are fine.',
-                        inGame: 'In the game, the host picks Play Online → Host, then a new or saved campaign as usual. Friends pick Play Online → Join Game and select the host’s game.'
+                        inGame: 'In the game, the host picks Play Online → Host, then a new or saved campaign as usual. Friends open Play Online → Join Game and select the host’s game. Once you are together, this page says Connected – playing together.'
                     },
                     noPorts: 'Nothing needs port forwarding or router settings: the online service connects you.',
                     sameVersion: 'Everyone needs the same version of the game: keep it up to date on this page (Rebuild in the Build section when it says an update is available).',
@@ -1198,7 +1200,7 @@
                 loading: 'Chargement du jeu en ligne…',
                 host: {
                     title: 'Heberger une partie',
-                    body: 'Lance le jeu avec une salle ouverte. Vous recevez un code a envoyer a vos amis.',
+                    body: 'Lance le jeu ; ouvrez Play Online et votre salle s’ouvre. Vous recevez un code a envoyer a vos amis.',
                     button: 'Heberger une partie'
                 },
                 join: {
@@ -1230,11 +1232,13 @@
                 fixOld: "Le jeu en ligne demande le XML2 Fix {{required}} ou plus recent ; ce dossier a la version {{version}}, qui ne peut ni heberger ni rejoindre. Utilisez Verifier les fichiers sur cette page pour le mettre a jour.",
                 phase: {
                     hostConnecting: 'Connexion…',
+                    hostOpenMenu: 'Ouvrez Play Online dans le jeu – votre code apparaitra ici.',
                     hostRoom: 'Votre salle est ouverte.',
-                    hostInGame: 'La partie a commence. Vos amis peuvent encore rejoindre avec le code.',
+                    hostInGame: 'Connecte – vous jouez ensemble.',
                     joinConnecting: 'Recherche de la partie…',
+                    joinOpenMenu: 'Ouvrez Play Online → Join Game dans le jeu.',
                     joinJoined: 'Trouvee. Dans le jeu : Play Online → Join Game, choisissez la partie.',
-                    joinInGame: 'Vous etes dans la partie.',
+                    joinInGame: 'Connecte – vous jouez ensemble.',
                     ended: 'La partie en ligne est terminee.',
                     closed: 'Le jeu a ete ferme.',
                     notStarted: "Le jeu n'a pas demarre. Reessayez ; si cela se repete, lancez-le avec Jouer pour voir pourquoi."
@@ -1308,10 +1312,10 @@
                 help: {
                     title: 'Comment fonctionne le jeu en ligne',
                     steps: {
-                        host: 'Un joueur appuie sur Heberger une partie. Le jeu demarre avec une salle ouverte, et cette page affiche un code comme ABCD-EFGH.',
+                        host: "Un joueur appuie sur Heberger une partie. Une fois le jeu lance, ouvrez Play Online : la salle s'ouvre alors, et cette page affiche un code comme ABCD-EFGH.",
                         share: "L'hote envoie le code aux amis qui jouent (un message suffit). Copier le met dans le presse-papiers.",
                         join: 'Chaque ami tape ou colle le code sous Rejoindre une partie et appuie sur Rejoindre. Minuscules, espaces et tirets sont acceptes.',
-                        inGame: "Dans le jeu, l'hote choisit Play Online → Host, puis une nouvelle campagne ou une sauvegarde comme d'habitude. Les amis choisissent Play Online → Join Game et selectionnent la partie de l'hote."
+                        inGame: "Dans le jeu, l'hote choisit Play Online → Host, puis une nouvelle campagne ou une sauvegarde comme d'habitude. Les amis ouvrent Play Online → Join Game et selectionnent la partie de l'hote. Une fois ensemble, cette page affiche Connecte – vous jouez ensemble."
                     },
                     noPorts: 'Aucune redirection de ports ni reglage du routeur : le service en ligne vous connecte.',
                     sameVersion: "Tout le monde doit avoir la meme version du jeu : tenez-le a jour sur cette page (Rebuild dans la section Build quand une mise a jour est disponible).",
@@ -1663,7 +1667,7 @@
                 loading: 'Cargando el juego en linea…',
                 host: {
                     title: 'Alojar una partida',
-                    body: 'Inicia el juego con una sala abierta. Recibes un codigo para enviar a tus amigos.',
+                    body: 'Inicia el juego; abre Play Online y tu sala se abre. Recibes un codigo para enviar a tus amigos.',
                     button: 'Alojar una partida'
                 },
                 join: {
@@ -1695,11 +1699,13 @@
                 fixOld: 'El juego en linea necesita el XML2 Fix {{required}} o posterior; esta carpeta tiene la version {{version}}, que no puede alojar ni unirse. Usa Verificar archivos en esta pagina para actualizarlo.',
                 phase: {
                     hostConnecting: 'Conectando…',
+                    hostOpenMenu: 'Abre Play Online en el juego – tu codigo aparecera aqui.',
                     hostRoom: 'Tu sala esta abierta.',
-                    hostInGame: 'La partida ha empezado. Tus amigos aun pueden unirse con el codigo.',
+                    hostInGame: 'Conectado – jugando juntos.',
                     joinConnecting: 'Buscando la partida…',
+                    joinOpenMenu: 'Abre Play Online → Join Game en el juego.',
                     joinJoined: 'Encontrada. En el juego: Play Online → Join Game, elige la partida.',
-                    joinInGame: 'Estas en la partida.',
+                    joinInGame: 'Conectado – jugando juntos.',
                     ended: 'La partida en linea ha terminado.',
                     closed: 'El juego se cerro.',
                     notStarted: 'El juego no se inicio. Vuelve a intentarlo; si se repite, inicialo con Jugar para ver por que.'
@@ -1773,10 +1779,10 @@
                 help: {
                     title: 'Como funciona el juego en linea',
                     steps: {
-                        host: 'Un jugador pulsa Alojar una partida. El juego se inicia con una sala abierta, y esta pagina muestra un codigo como ABCD-EFGH.',
+                        host: 'Un jugador pulsa Alojar una partida. Cuando el juego este en marcha, abre Play Online: la sala se abre entonces, y esta pagina muestra un codigo como ABCD-EFGH.',
                         share: 'El anfitrion envia el codigo a los amigos que juegan (un mensaje basta). Copiar lo pone en el portapapeles.',
                         join: 'Cada amigo escribe o pega el codigo en Unirse a una partida y pulsa Unirse. Valen minusculas, espacios y guiones.',
-                        inGame: 'En el juego, el anfitrion elige Play Online → Host y luego una campana nueva o guardada, como siempre. Los amigos eligen Play Online → Join Game y seleccionan la partida del anfitrion.'
+                        inGame: 'En el juego, el anfitrion elige Play Online → Host y luego una campana nueva o guardada, como siempre. Los amigos abren Play Online → Join Game y seleccionan la partida del anfitrion. Cuando esteis juntos, esta pagina dice Conectado – jugando juntos.'
                     },
                     noPorts: 'No hace falta abrir puertos ni tocar el router: el servicio en linea os conecta.',
                     sameVersion: 'Todos necesitan la misma version del juego: mantenlo actualizado en esta pagina (Rebuild en la seccion Build cuando haya una actualizacion).',

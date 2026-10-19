@@ -7,7 +7,7 @@
 
 // Online play of the X-Men Legends port (Legends Classic 0.3.0, the XML2 Fix's broker rooms): what the
 // launcher writes into the [Online] section of the port's xml2-fix.ini for the next game start. The
-// launcher <-> XML2 Fix contract (v1.1) is binding:
+// launcher <-> XML2 Fix contract (v1.2) is binding:
 //
 //   [Online]
 //   Host = broker          ; this PC hosts a room through the broker at the next game start

@@ -45,8 +45,8 @@ over. A build first brings the XML2 Fix already in its folder up to date, and a 
 removes the built game and, if you want, the build cache; your saves in `Documents\Activision\X-Men Legends` are kept.
 
 **Online play** (with Legends Classic 0.3.0): the page's **Online** section has **Host a game** and **Join a game**.
-The host gets a code like `ABCD-EFGH` to send to friends, who type or paste it and press Join; in the game, the host
-picks Play Online → Host and the friends Play Online → Join Game. There is no port forwarding and nothing to edit: the
+The host opens Play Online in the game and gets a code like `ABCD-EFGH` to send to friends, who type or paste it and
+press Join; in the game, the host picks Play Online → Host and the friends Play Online → Join Game. There is no port forwarding and nothing to edit: the
 launcher writes the XML2 Fix's `[Online]` `Host` or `JoinCode` key for that start, and **Play** removes both, so a
 normal start never opens a room (LAN and Connect by IP work as before). **How online works** on the page explains each
 message.

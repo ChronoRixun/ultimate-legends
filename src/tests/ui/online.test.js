@@ -218,11 +218,15 @@ test('online: a stale room is never shown, even when a poll lands between Host a
 
 test('online: every host state renders: connecting, room (the code, Copy, players), in_game, ended', async () => {
     const t = await open();
-    await host(t);
-    assert.equal(t.phase(), 'Connecting…', 'no status yet');
+    await host(t, { running: false });
+    assert.equal(t.phase(), 'Connecting…', 'the game not up yet: Connecting…');
+    t.backend.running = true;
+    await t.clock.advance(600);
+    assert.equal(t.phase(), 'Open Play Online in the game – your code appears here.', 'the game up, no status yet: where to go (contract v1.2)');
     t.backend.write({ role: 'host', state: 'connecting' });
     await t.clock.advance(600);
-    assert.equal(t.phase(), 'Connecting…');
+    assert.equal(t.phase(), 'Open Play Online in the game – your code appears here.', 'connecting until Play Online opens the room');
+    assert.ok(t.$('.ul-online-spinner'), 'still busy');
     assert.ok(!t.$('.ul-online-code'), 'no code while connecting');
 
     t.backend.write({ role: 'host', state: 'room', code: 'ABCD2345', players: 1 });
@@ -241,7 +245,7 @@ test('online: every host state renders: connecting, room (the code, Copy, player
 
     t.backend.write({ role: 'host', state: 'in_game', code: 'ABCD2345', players: 3 });
     await t.clock.advance(600);
-    assert.match(t.phase(), /The game has started/);
+    assert.equal(t.phase(), 'Connected – playing together.', 'in_game: the session runs over the room');
     assert.equal(t.text('.ul-online-code'), 'ABCD-2345', 'the code stays up');
 
     t.backend.write({ role: 'host', state: 'ended', code: 'ABCD2345', players: 0 });
@@ -316,20 +320,35 @@ test('online: Copy puts XXXX-XXXX on the clipboard', async () => {
     assert.match(String(t.toasts[0][0]), /WXYZ-6789 copied/);
 });
 
+test('online: a room that opens late (Play Online entered after a while) is waited for, not timed out', async () => {
+    const t = await open();
+    await host(t);
+    t.backend.write({ role: 'host', state: 'connecting' });
+    await t.clock.advance(90000);
+    assert.equal(t.phase(), 'Open Play Online in the game – your code appears here.', 'still waiting after 90 s with the game up');
+    t.backend.write({ role: 'host', state: 'room', code: 'ABCD2345', players: 1, max_players: 4 });
+    await t.clock.advance(600);
+    assert.equal(t.text('.ul-online-code'), 'ABCD-2345');
+    assert.equal(t.phase(), 'Your room is open.');
+});
+
 test('online: every join state renders: looking, found it, in the game', async () => {
     const t = await open();
-    await joinWith(t, 'abcd-2345');
-    assert.equal(t.phase(), 'Looking for the game…');
+    await joinWith(t, 'abcd-2345', { running: false });
+    assert.equal(t.phase(), 'Looking for the game…', 'the game not up yet');
     assert.match(t.text('.ul-online-join-code'), /ABCD-2345/);
+    t.backend.running = true;
+    await t.clock.advance(600);
+    assert.equal(t.phase(), 'Open Play Online → Join Game in the game.', 'the game up: where to go (contract v1.2)');
     t.backend.write({ role: 'join', state: 'connecting', code: 'ABCD2345' });
     await t.clock.advance(600);
-    assert.equal(t.phase(), 'Looking for the game…');
+    assert.equal(t.phase(), 'Open Play Online → Join Game in the game.');
     t.backend.write({ role: 'join', state: 'joined', code: 'ABCD2345', players: 2 });
     await t.clock.advance(600);
     assert.equal(t.phase(), 'Found it. In the game: Play Online → Join Game, pick the game.');
     t.backend.write({ role: 'join', state: 'in_game', code: 'ABCD2345', players: 2 });
     await t.clock.advance(600);
-    assert.equal(t.phase(), 'You are in the game.');
+    assert.equal(t.phase(), 'Connected – playing together.');
     assert.ok(!t.$('.ul-online-code'), 'a joiner is not shown a code to send');
     t.backend.write({ role: 'join', state: 'ended' });
     await t.clock.advance(600);

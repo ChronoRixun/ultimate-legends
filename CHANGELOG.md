@@ -6,20 +6,21 @@ generates the project, so a release only needs this entry and the tag.
 ## 0.4.0 (unreleased)
 
 Ships on the same day as Legends Classic 0.3.0, whose XML2 Fix reads the keys below (the launcher <-> XML2 Fix
-contract, v1.1).
+contract, v1.2).
 
 ### Added
 - **Online play for X-Men Legends (Legends Classic port), without ini edits or the Connect by IP box.** An Online
   section on the port's page:
   - **Host a game**: one button. It writes `[Online] Host=broker` in the port's `xml2-fix.ini` (and removes
     `JoinCode`), deletes a stale `online-status.json` and starts the game, then shows what the XML2 Fix reports:
-    *Connecting...*, then the room's code, large, as `XXXX-XXXX`, with **Copy** and "Send this code to your friends.
-    In the game: Play Online → Host.", and the number of players as it changes (the host included; "3 of 4" when the
-    fix gives the room's size).
+    *Connecting...*; once the game is up, "Open Play Online in the game – your code appears here" (the room opens when
+    the player enters Play Online); then the room's code, large, as `XXXX-XXXX`, with **Copy** and "Send this code to
+    your friends. In the game: Play Online → Host.", and the number of players as it changes (the host included; "3 of
+    4" when the fix gives the room's size); "Connected – playing together" once the session runs.
   - **Join a game**: a code field that takes lower case, spaces and dashes (pasted from a chat), checks the 8
     characters (no 0 O 1 I L) with an inline error, and **Join** (or Enter). It writes `JoinCode` (and removes `Host`),
-    starts the game and shows *Looking for the game...*, then "Found it. In the game: Play Online → Join Game, pick the
-    game."
+    starts the game and shows *Looking for the game...*, "Open Play Online → Join Game in the game" once it is up, then
+    "Found it. In the game: Play Online → Join Game, pick the game." and "Connected – playing together".
   - Every error the fix reports in plain words: code not found, code expired, room full, a different game version,
     the online service unreachable or turning the version away, test mode on, the service not verified, an internal
     error; also the game closing or not starting.

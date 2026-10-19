@@ -93,7 +93,7 @@ namespace xml2_display
 
     bool write(const std::filesystem::path& ini, const std::vector<change>& changes, std::string& error)
     {
-        fix_ini::changes prepared;
+        std::vector<change> normalised;
         for (const auto& change : changes)
         {
             if (std::find(keys().begin(), keys().end(), change.key) == keys().end())
@@ -110,7 +110,14 @@ namespace xml2_display
                     return false;
                 }
             }
-            prepared.emplace_back(change.key, std::move(value));
+            normalised.push_back({change.key, std::move(value)});
+        }
+
+        // Still key by key: Fullscreen adds Width=0 / Height=0, every other key and section stays.
+        fix_ini::changes prepared;
+        for (auto& change : implied_changes(normalised))
+        {
+            prepared.emplace_back(std::move(change.key), std::move(change.value));
         }
         return fix_ini::write(ini, section, prepared, error);
     }

@@ -39,8 +39,10 @@
     }
 
     // Warnings (W_*) a player should hear about after a build or a disc check. W_PIPELINE (the
-    // pipeline's own notes, counted per stage) stays in the log and report.json.
-    const NOTICES = ['W_XML2_UNKNOWN_EXE', 'W_XML2_MODIFIED', 'W_EXTRA_FILES', 'W_LINK_BASE', 'W_ISO_UNKNOWN_DUMP'];
+    // pipeline's own notes, counted per stage) stays in the log and report.json. W_XML2FIX_OLD
+    // (builder 0.2.2 on): the folder's dinput.dll doesn't know detail.count of the keys the build
+    // wrote; the fix is installed right after the build.
+    const NOTICES = ['W_XML2_UNKNOWN_EXE', 'W_XML2_MODIFIED', 'W_EXTRA_FILES', 'W_LINK_BASE', 'W_ISO_UNKNOWN_DUMP', 'W_XML2FIX_OLD'];
     // The verification groups that make a build "damaged" (the builder's REPAIRS).
     const REPAIRS = ['missing', 'changed', 'unreadable'];
 
@@ -51,6 +53,7 @@
         verify: null,    // the last `verify` (result.verify)
         build: null,     // the last build/clean run (get-xml1-build)
         finishing: false, // installing the XML2 Fix after a build
+        starting: null,   // a build being started (its folder's XML2 Fix updated first): that start's promise
         buildTimer: null,
         watched: new Set(), // build ids seen running in this session
         handled: new Set(),
@@ -191,7 +194,7 @@
         },
 
         isWorking() {
-            return !!(this.build && this.build.active) || !!(this.status && this.status.work && this.status.work.active);
+            return !!this.starting || !!(this.build && this.build.active) || !!(this.status && this.status.work && this.status.work.active);
         },
 
         isBuilding() {
@@ -235,6 +238,14 @@
             if (window.Xml1Setup) window.Xml1Setup.show();
         },
 
+        // Verify Files (the XML2 Fix install, verify-game) for a build that did not finish but has the game
+        // in its folder: a finish that failed on an older fix is then no dead end (Resume alone met the
+        // same fix again).
+        canVerifyUnfinished() {
+            const s = this.status;
+            return !!(s && s.build && s.build.game && this.state() === 'incomplete');
+        },
+
         // A build into the folder can run now: with the disc image, or - once a build prepared it -
         // with the disc from the build cache (the image may be deleted or unmounted after that).
         canRebuild() {
@@ -270,7 +281,99 @@
                 });
         },
 
-        async startBuild(options) {
+        // Patch work of the port in the launcher's queue (installing or verifying its XML2 Fix, a launch's
+        // update), running or waiting: no build starts until it has finished, and the Build section's
+        // buttons wait for it too.
+        patchQueued() {
+            const queue = window.DownloadQueueManager;
+            if (!queue) return false;
+            return !!(queue.active && queue.active.gameId === GAME) || (queue.queue || []).some(item => item && item.gameId === GAME);
+        },
+
+        // A build can't start now: one is running or starting, or patch work of the port is queued or running.
+        buildBlocked() {
+            return this.isWorking() || this.patchQueued();
+        },
+
+        // Starts a build, one writer at a time in its folder: patch work already there runs to its end, then
+        // the XML2 Fix in the folder is updated (updateFixBefore), then the builder. `onFixWork` runs once
+        // when the start has to wait for or update the fix. One start at a time: a second call while one is
+        // under way gets that one's answer.
+        startBuild(options, onFixWork) {
+            if (!this.starting) {
+                this.starting = this.startBuildNow(options, onFixWork).finally(() => {
+                    this.starting = null;
+                    this.emit();
+                });
+                this.emit();
+            }
+            return this.starting;
+        },
+
+        // Waits until no patch work of the port is queued or running in the launcher and no updater worker
+        // is alive in `out` (xml1-folder's `updating`, the backend's word). Neither the end of a progress
+        // bar nor the queue's answer to a request it drops as a duplicate says that: a cancelled update's
+        // worker can outlive its bar (cancel gives up waiting after 5 s), and a duplicate resolves at once
+        // while the one under way goes on. `onWait` runs once if it has to wait. -> xml1-folder about `out`.
+        async waitForPatchWork(out, onWait) {
+            let waited = false;
+            for (;;) {
+                if (!this.patchQueued()) {
+                    if (!out) return null;
+                    let folder;
+                    try {
+                        folder = await run('xml1-folder', { path: out });
+                    } catch (error) {
+                        // The backend still refuses a build while an updater works in the folder.
+                        console.error('xml1: the folder check before the build failed', error);
+                        return null;
+                    }
+                    if (!folder || !folder.updating) return folder;
+                }
+                if (!waited && onWait) onWait();
+                waited = true;
+                await sleep(250);
+            }
+        },
+
+        // The XML2 Fix in the build's folder is brought up to date before the builder runs, so a build
+        // never meets an older one: a Rebuild over an older folder used to, and builders before 0.2.2
+        // failed their last step on it (0.2.2 warns: W_XML2FIX_OLD). When it can't be (offline, a failed
+        // download, a cancel), the build starts anyway once the updater has ended: the backend logs it,
+        // the builder's warning says it, and the fix is installed after the build as always.
+        async updateFixBefore(out, folder, onFixWork) {
+            if (!out || !folder || !folder.fix) return;
+            if (window.IS_OFFLINE) {
+                // Starts nothing offline; the backend logs that the build keeps the fix in the folder.
+                await run('xml1-update-fix', { out }).catch(() => null);
+                return;
+            }
+            if (onFixWork) onFixWork();
+            try {
+                await GameUtils.trackCommandProgress({
+                    gameId: GAME,
+                    command: 'xml1-update-fix',
+                    op: 'install',
+                    commandArgs: { out },
+                    initialMessage: t('xml1.updatingFix'),
+                    completeMessage: t('progress.verificationComplete')
+                });
+            } catch (error) {
+                console.error('xml1: the XML2 Fix update before the build failed; building anyway', error);
+            }
+        },
+
+        async startBuildNow(options, onFixWork) {
+            const out = options && options.out;
+            let told = false;
+            const tell = () => {
+                if (!told && onFixWork) onFixWork();
+                told = true;
+            };
+            const folder = await this.waitForPatchWork(out, tell);
+            await this.updateFixBefore(out, folder, tell);
+            // Its end, not its progress bar's: only then may the builder meet the folder's fix.
+            await this.waitForPatchWork(out, tell);
             const started = await run('xml1-build-start', options);
             if (!started || !started.success) return started;
             this.verify = null;
@@ -367,17 +470,18 @@
         },
 
         // The XML2 Fix into the built folder, through the launcher's patch install (verify-game);
-        // it marks the port installed once the fix is there.
-        async installFix() {
+        // it marks the port installed once the fix is there and the build finished. op 'verify':
+        // Verify Files (an unfinished build's).
+        async installFix(op = 'install') {
             if (!await window.guardOnline()) return false;
             const name = t('xml1.name');
             try {
                 await GameUtils.trackCommandProgress({
                     gameId: GAME,
                     command: 'verify-game',
-                    op: 'install',
+                    op,
                     commandArgs: { game: GAME },
-                    initialMessage: t('progress.installingPatch', { game: name }),
+                    initialMessage: t(op === 'verify' ? 'progress.verifying' : 'progress.installingPatch', { game: name }),
                     completeMessage: t('progress.verificationComplete')
                 });
             } catch (error) {
@@ -602,7 +706,12 @@
 
         // Uninstall (section 4.6): the builder deletes the build it made (and, if asked, its mods
         // and the build cache); then the launcher removes the XML2 Fix and forgets the folder.
+        // Patch work in the folder ends first (a Verify cancelled but still fetching, say): neither the clean
+        // nor the patch's removal runs beside an updater that could write the fix back afterwards, folder
+        // and all. Resolves once the patch's removal has ended, not its progress bar.
         async uninstall({ deleteGame, mods, cache }) {
+            const folder = (this.status && this.status.install) || '';
+            await this.waitForPatchWork(folder);
             if (deleteGame) {
                 const job = await this.runJob('xml1-clean', { mods: !!mods, cache: !!cache });
                 if (!job || job.exitCode !== 0) {
@@ -621,6 +730,7 @@
                 initialMessage: t('xml1.uninstalling'),
                 completeMessage: t('progress.uninstallComplete')
             }).catch(error => console.error('xml1: delete-game failed', error));
+            await this.waitForPatchWork(folder);
             this.info = null;
             this.verify = null;
             window.dispatchEvent(new CustomEvent('gameInstallationUpdated', { detail: { game: GAME } }));

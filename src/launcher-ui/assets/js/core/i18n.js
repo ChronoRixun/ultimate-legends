@@ -481,8 +481,11 @@
                     // ... that the rebuild could not delete (detail.not_removed), by detail.cause.
                     W_EXTRA_FILES_held: 'Files in the game folders that the build did not make: {{count}} (first: {{first}}). Another program has them open, so the rebuild left them as they are; the game does not need them. Close that program and rebuild to remove them.',
                     W_LINK_BASE: 'This builder can’t use hard links yet: X-Men Legends II’s files were copied.',
-                    W_ISO_UNKNOWN_DUMP: 'The disc image is not one we know: the build checked it as it went.'
+                    W_ISO_UNKNOWN_DUMP: 'The disc image is not one we know: the build checked it as it went.',
+                    // builder 0.2.2 on: the folder's dinput.dll doesn't know detail.count of the keys the build wrote.
+                    W_XML2FIX_OLD: 'The XML2 Fix in this folder is older than this build needs ({{count}} settings it doesn’t know); it is updated now.'
                 },
+                updatingFix: 'Updating the XML2 Fix in the game folder before the build…',
                 installFix: 'Install the XML2 Fix',
                 fixOld: 'The XML2 Fix in this folder is version {{version}}; this build needs {{required}} or newer. Verify Files updates it.',
                 fixVersion: 'XML2 Fix {{version}}',
@@ -540,7 +543,7 @@
                     incompleteNeedsDisc: 'The last build did not finish, and its disc image is not where it was. Choose it again to resume.',
                     needsFix: 'Built. The XML2 Fix still has to go into the game folder: the port needs it to run.',
                     damaged: 'Files of the build are missing or changed ({{count}}). Repair rebuilds them.',
-                    stale: 'A newer builder makes a newer version of the port. Rebuild to update it (a few minutes with the build cache).',
+                    stale: 'Rebuild to update it. Your saves carry over: the first load catches your heroes up to the new skill and stat rules once.',
                     ready: 'The game is built and up to date.'
                 },
                 // E_IO: a file the build could not read or write. detail.path is relative to its folder
@@ -598,6 +601,7 @@
                     L_USAGE: { msg: 'Choose a disc image and a folder first.', hint: '' },
                     L_GAME_RUNNING: { msg: 'X-Men Legends is running.', hint: 'Close the game before building it again.' },
                     L_BUILD_RUNNING: { msg: 'A build is already running.', hint: 'Wait for it to finish or cancel it.' },
+                    L_FIX_UPDATING: { msg: 'The XML2 Fix is being installed or updated in the game folder.', hint: 'Wait for it to finish, then try again.' },
                     L_BUILDER_MISSING: { msg: 'The X-Men Legends builder is not installed.', hint: 'It is downloaded when you check your disc.' },
                     L_BUILDER_UNPUBLISHED: { msg: 'The X-Men Legends builder has not been released yet.', hint: 'The port is coming soon: check back after its first release.' },
                     L_BUILDER_OFFLINE: { msg: 'The builder’s release page could not be reached.', hint: 'Check your internet connection, then try again.' },
@@ -997,6 +1001,19 @@
                 gameNotConfiguredBody: "Vous n'avez pas configure le chemin d'installation de {{game}}.",
                 cannotLaunchTitle: 'Lancement impossible pour le moment',
                 cannotLaunchBody: "Un autre jeu est en cours de mise a jour. Veuillez attendre la fin ou annuler avant de lancer un autre jeu."
+            },
+            // X-Men Legends (community port): the strings translated so far; the others are in English.
+            xml1: {
+                errors: {
+                    L_FIX_UPDATING: { msg: 'Le XML2 Fix est en cours d\'installation ou de mise a jour dans le dossier du jeu.', hint: 'Attendez la fin, puis reessayez.' }
+                },
+                warnings: {
+                    W_XML2FIX_OLD: "Le XML2 Fix de ce dossier est plus ancien que ce que demande cette version ({{count}} parametres qu'il ne connait pas) ; il est mis a jour maintenant."
+                },
+                updatingFix: 'Mise a jour du XML2 Fix dans le dossier du jeu avant la construction...',
+                state: {
+                    stale: 'Reconstruisez pour le mettre a jour. Vos sauvegardes sont conservees : le premier chargement met une fois vos heros a niveau avec les nouvelles regles de competences et de statistiques.'
+                }
             }
         },
         es: {
@@ -1300,6 +1317,19 @@
                 gameNotConfiguredBody: 'No has configurado la ruta de instalacion de {{game}}.',
                 cannotLaunchTitle: 'No se puede iniciar ahora',
                 cannotLaunchBody: 'Otro juego se esta actualizando. Espera a que termine o cancela la operacion antes de iniciar otro juego.'
+            },
+            // X-Men Legends (community port): the strings translated so far; the others are in English.
+            xml1: {
+                errors: {
+                    L_FIX_UPDATING: { msg: 'El XML2 Fix se esta instalando o actualizando en la carpeta del juego.', hint: 'Espera a que termine y vuelve a intentarlo.' }
+                },
+                warnings: {
+                    W_XML2FIX_OLD: 'El XML2 Fix de esta carpeta es mas antiguo de lo que necesita esta version ({{count}} ajustes que no conoce); se actualiza ahora.'
+                },
+                updatingFix: 'Actualizando el XML2 Fix en la carpeta del juego antes de la construccion...',
+                state: {
+                    stale: 'Reconstruye para actualizarlo. Tus partidas guardadas se conservan: la primera carga pone a tus heroes al dia con las nuevas reglas de habilidades y estadisticas, una sola vez.'
+                }
             }
         },
         ru: {

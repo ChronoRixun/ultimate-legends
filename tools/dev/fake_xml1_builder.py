@@ -35,8 +35,10 @@ What is real here - the real builder's rules, so a test passes against either:
   groups (missing, changed, unreadable, extra, xml2_not_retail), counts and cause hints, and
   _build/verify-report.json written by every build and verify; `finish` copies again a damaged copy;
 - warnings W_ISO_UNKNOWN_DUMP, W_XML2_MODIFIED (the stand-in XML2 against its reference list),
-  W_EXTRA_FILES, W_LINK_BASE, W_PIPELINE (a count per stage); every warning has detail.count (how many
-  files; W_PIPELINE's number of pipeline warnings, also its top-level count);
+  W_EXTRA_FILES, W_LINK_BASE, W_PIPELINE (a count per stage), W_XML2FIX_OLD (0.2.2: <out>/dinput.dll
+  doesn't hold the name of a key the build writes for its XML2 Fix - FIX_KEYS; detail missing, count,
+  required; the ini is still written); every warning has detail.count (how many files or keys;
+  W_PIPELINE's number of pipeline warnings, also its top-level count);
 - the sweep: a rebuild deletes every file of the game folders that it neither copied nor wrote; one
   another program holds open stays and the build still succeeds: W_EXTRA_FILES names it (detail
   not_removed, cause "held"); dinput.dll / xml2-fix.* / mods in <out> are kept (F3); the port's ini
@@ -91,6 +93,12 @@ PORT_INI = {"Game": {"NewGameTeam": "wolverine", "ResetUnlocks": "0", "SaveFolde
                      "PostgameScript": "x1/menus/postgame", "MainMenuItems": "button1,button2,button3,button4,button5,button6,button7",
                      "XPCurve": "xml1"},
             "Limits": {"ActorSlots": "127", "ResourceNames": "1024"}}
+# The XML2 Fix the build needs (the stamp's requires.xml2fix) and the port's ini keys only that fix reads (the real
+# builder's fix_ini.RELEASE_15_KEYS): a dinput.dll in <out> that doesn't hold a key's name - UTF-16LE, as the real
+# fix's GetPrivateProfileStringW calls have it - is an older fix (W_XML2FIX_OLD). native.fix_dll(version, keys)
+# makes a stand-in that knows them.
+REQUIRED_XML2FIX = "1.2.0"
+FIX_KEYS = {"Game": ("XPCurve",), "Limits": ("ResourceNames",)}
 PREPARED_NAMES = {"extract": "disc", "tables": "tables", "scripts": "scripts", "sound": "sound", "music": "music"}
 
 # (id, title, weight, cache stage, unit, count): the order of a build, weights as measured seconds (section 1.5).
@@ -1034,6 +1042,17 @@ def merge_ini(path, sections):
 # ---------------------------------------------------------------------------------------------
 # the cache (the real layout: <cache>/<disc_id>/disc/stage.json, prepared/<stage>-v1-<key>/stage.json)
 
+def old_fix_keys(out):
+    """'[Section] Key' of every FIX_KEYS key the build writes that <out>/dinput.dll does not know; [] without a
+    dinput.dll (the real builder's fix_ini.old_fix_keys)."""
+    dll = pathlib.Path(out) / "dinput.dll"
+    if not dll.is_file():
+        return []
+    data = dll.read_bytes()
+    return [f"[{section}] {key}" for section, keys in FIX_KEYS.items() for key in keys
+            if key in PORT_INI.get(section, {}) and key.encode("utf-16le") not in data]
+
+
 def version_info():
     data = read_json(HERE / "fake-builder.json", {}) or {}
     return {"version": data.get("version", "1.0.0"), "content_version": int(data.get("content_version", 3)),
@@ -1572,6 +1591,14 @@ def run_build(args, out, version, cancel, iso, xml2, target, cache, movies, spee
                 write_json(build / "manifest.json", {"format": 1, "builder": version["version"], "created": utc_now(),
                                                      "files": dict(sorted(files.items()))}, indent=0)
                 if not args.no_ini:
+                    missing = old_fix_keys(target)
+                    if missing:
+                        # an older XML2 Fix in the folder (a Rebuild before the launcher updated it): the build is
+                        # complete and the ini gets every key; the launcher installs the fix after the build
+                        warn("W_XML2FIX_OLD", f"This build needs XML2 Fix {REQUIRED_XML2FIX} or later; the existing DLL does not "
+                                              f"recognize {', '.join(missing)}. The build is complete: put XML2 Fix {REQUIRED_XML2FIX} or "
+                                              "later into the folder (the Ultimate Legends launcher does it after the build).",
+                             {"missing": missing, "count": len(missing), "required": f">={REQUIRED_XML2FIX}"}, stage="finish")
                     merge_ini(target / "xml2-fix.ini", PORT_INI)
                 finish_extra = extra
             if is_cache and not is_cached and cache:
@@ -1607,7 +1634,7 @@ def run_build(args, out, version, cancel, iso, xml2, target, cache, movies, spee
                             "digest": iso["digest"], "disc_id": iso["disc_id"], "known": iso["dump"] or False},
                    "xml2": {"exe_md5": xml2["exe_md5"], "exe": xml2["exe"], "base_digest": xml2["base_digest"], "base_files": xml2["base_files"],
                             "modified": xml2["modified"], "modified_count": xml2["modified_count"]}},
-        "requires": {"xml2fix": ">=1.2.0", "ini": PORT_INI},
+        "requires": {"xml2fix": f">={REQUIRED_XML2FIX}", "ini": PORT_INI},
         "outputs": {"files": len(files), "bytes": sum(e["size"] for e in files.values()), "built_files": built,
                     "base_files": len(files) - built, "manifest_sha1": digest, "registry_sha1": digest},
         "result": {"errors": 0, "warnings": total_warnings, "seconds": seconds, "repaired": 0},

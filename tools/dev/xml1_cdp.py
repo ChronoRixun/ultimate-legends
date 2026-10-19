@@ -35,7 +35,9 @@ staging, update, pruning), a builder zip the player already has (checked like a 
 damaged, incomplete or older; installed from it with no download; found in tools\\xml1-builder; a damaged one
 there skipped for the download), the build (stamp, ini keys merged with the launcher's Display defaults, fix
 installed), Play and Stop by path, Display / Discord / Mods on the port's page, Verify (the groups and
-counts) / Repair, warnings after a build (their counts from detail.count), E_IO per cause in plain
+counts) / Repair, warnings after a build (their counts from detail.count), a Rebuild over an older XML2
+Fix (updated before the builder runs; when it can't be, the build's W_XML2FIX_OLD on the page), Verify
+Files on an unfinished build with the game in its folder, E_IO per cause in plain
 words, Report a problem (the saved report, paths masked), a rebuild without the disc image, Free up,
 the cancel that ends in a kill, uninstall, and a folder holding only the launcher's files as a
 destination (the builder's info: absent). Screenshots of the states go to tools/dev/xml1-*.png
@@ -119,6 +121,9 @@ class Test:
     def exists(self, selector):
         return self.js(f"!!document.querySelector({json.dumps(selector)})")
 
+    def enabled(self, selector):
+        return self.js(f"(() => {{ const e = document.querySelector({json.dumps(selector)}); return !!e && !e.disabled; }})()")
+
     def set_input(self, selector, value):
         self.js(f"""(() => {{ const e = document.querySelector({json.dumps(selector)}); e.value = {json.dumps(value)};
                   e.dispatchEvent(new Event('input')); e.dispatchEvent(new Event('change')); }})()""")
@@ -158,11 +163,16 @@ class Test:
     def build_done(self, timeout=90):
         """Waits for the build started since the last call to finish. The page checks the builder's
         release before every build (and installs a newer one), so a build starts a moment after its
-        click: first wait for a job that is not the one already seen, then for it to finish."""
+        click: first wait for a job that is not the one already seen, then for it to finish. When no
+        new job starts (a click on a disabled button, a refused start), a failed check and an empty
+        job: never the one before, whose result would read as this build's."""
         if self.real:
             timeout = max(timeout, 1500)
         seen = getattr(self, "_seen_job", None)
-        wait_for(lambda: (lambda job: job is not None and job.get("id") != seen)(self.cmd("get-xml1-build")), 20)
+        if not wait_for(lambda: (lambda job: job is not None and job.get("id") != seen)(self.cmd("get-xml1-build")), 120 if self.real else 30):
+            self.check(False, f"a new build started (none did: the last one is still job {seen})")
+            return {"id": None, "finished": False, "exitCode": None, "killed": False, "result": {"ok": False}, "errors": [],
+                    "notices": [], "warnings": 0, "seconds": 0, "version": None}
         wait_for(lambda: (lambda job: job is not None and job["finished"])(self.cmd("get-xml1-build")), timeout)
         job = self.cmd("get-xml1-build")
         self._seen_job = job.get("id") if job else None
@@ -178,11 +188,17 @@ def publish_builder(www, version, content_version):
     return fake.make_package(www, version=version, content_version=content_version, shim=native.builder_shim())
 
 
+def fix_keys():
+    """The ini key names the fake builder's builds need their XML2 Fix to know (fake.FIX_KEYS)."""
+    return [key for keys in fake.FIX_KEYS.values() for key in keys]
+
+
 def publish_fix(www, version):
+    """The stand-in XML2 Fix release: `version`, knowing the keys the fake's builds write (no W_XML2FIX_OLD)."""
     folder = www / "fix"
     folder.mkdir(exist_ok=True)
     dll = folder / "dinput.dll"
-    shutil.copy2(native.fix_dll(version), dll)
+    shutil.copy2(native.fix_dll(version, fix_keys()), dll)
     data = dll.read_bytes()
     (folder / "ultimate-legends.json").write_text(json.dumps([["dinput.dll", len(data), hashlib.sha1(data).hexdigest().upper(), "game"]]))
 
@@ -714,6 +730,42 @@ def main():
             check(wait_for(lambda: test.status()["state"] == "ready", 30), "up to date again")
             check(sorted(p.name for p in DEBUG_TOOLS.iterdir()) == ["1.1.0"], "old builder pruned after the good build")
 
+        if real:
+            test.skip("a Rebuild over an older XML2 Fix: the fake's stand-in fixes (the real builder asks for the real fix's keys)")
+        else:
+            print("a Rebuild over an older XML2 Fix: the launcher updates it before the builder runs")
+            shutil.copy2(native.fix_dll("1.1.0"), out / "dinput.dll")  # knows none of the keys the build writes
+            test.refresh_port()
+            test.page()
+            check(test.status()["fix"]["version"].startswith("1.1.0"), "the folder holds XML2 Fix 1.1.0")
+            test.click("#xml1-build-panel [data-act='rebuild']")
+            test.message_box(1)
+            job = test.build_done(90)
+            codes = [n.get("code") for n in job.get("notices", [])]
+            check(job["exitCode"] == 0 and "W_XML2FIX_OLD" not in codes, f"the builder met the current fix: no W_XML2FIX_OLD ({codes})")
+            check(wait_for(lambda: test.state() == "ready", 30) and test.status()["fix"]["version"].startswith("1.2.0"), "XML2 Fix 1.2.0; ready")
+
+            print("... and when it can't be updated (no release reachable), the build still runs and the page says so")
+            test.prop("patch-manifest", f"{base}/missing/ultimate-legends.json")
+            shutil.copy2(native.fix_dll("1.1.0"), out / "dinput.dll")
+            test.refresh_port()
+            test.click("#xml1-build-panel [data-act='rebuild']")
+            test.message_box(1)
+            job = test.build_done(90)
+            notice = next((n for n in job.get("notices", []) if n.get("code") == "W_XML2FIX_OLD"), None)
+            detail = (notice or {}).get("detail") or {}
+            check(job["exitCode"] == 0 and notice is not None and detail.get("count") == len(fix_keys())
+                  and len(detail.get("missing") or []) == len(fix_keys()), f"built, W_XML2FIX_OLD names the keys the old fix lacks: {detail}")
+            check(wait_for(lambda: f"older than this build needs ({len(fix_keys())} settings" in
+                           (test.text("#xml1-build-panel .xml1-notice[data-code='W_XML2FIX_OLD']") or ""), 30),
+                  "the page shows that warning, with the count")
+            ini = (out / "xml2-fix.ini").read_text()
+            check(all(f"{key}=" in ini for key in fix_keys()), "the ini got every key anyway")
+            test.shot("fix-old-warning", "#xml1-page .detail-build")
+            test.prop("patch-manifest", f"{base}/fix/ultimate-legends.json")
+            check(wait_for(lambda: test.click("#xml1-build-panel [data-act='install-fix']"), 30), "Install the XML2 Fix offered")
+            check(wait_for(lambda: test.status()["fix"]["version"].startswith("1.2.0") and test.state() == "ready", 30), "installed: ready again")
+
         print("verify: groups and counts; report a problem; repair")
         manifest = json.loads((out / "_build" / "manifest.json").read_text())
         built = sorted(rel for rel, entry in manifest["files"].items() if entry["kind"] == "built")
@@ -808,8 +860,28 @@ def main():
             pathlib.Path(written["path"]).unlink(missing_ok=True)
         check(code in text and profile not in text and "build log, last" in text, "the saved report: the error, the log, no profile path")
         check(test.status()["state"] == "incomplete", "state incomplete: Resume")
+        # Released here, as before Verify Files on an unfinished build was added: Verify Files only reads
+        # and writes the patch's own files (dinput.dll) and the launcher's record of them, never a file of
+        # the build, so the held one has no part in it.
         release_file(held)
         held = None
+
+        print("an unfinished build with the game in its folder: Verify Files installs the current XML2 Fix")
+        check(test.status()["build"]["game"] and wait_for(lambda: test.exists("#xml1-build-panel [data-act='verify-files']"), 10),
+              "Verify Files offered next to Resume")
+        check(js("!document.querySelector('.detail-verify-action[data-game=\"xml1\"]').disabled"), "and in the page's side panel")
+        shutil.copy2(native.fix_dll("1.1.0"), out / "dinput.dll")  # as a finish that failed on an older fix left it
+        test.refresh_port()
+        check(test.click("#xml1-build-panel [data-act='verify-files']"), "Verify Files clicked")
+        check(wait_for(lambda: test.status()["fix"]["version"].startswith("1.2.0"), 30), "the folder holds XML2 Fix 1.2.0 again")
+        # The new dinput.dll is there before Verify Files ends: its worker still holds the folder for a
+        # moment (and marks the entry installed, or not, last), and the launcher's queue keeps the job a
+        # second longer. Resume is disabled until both are done, so a click in between does nothing.
+        check(wait_for(lambda: not cmd("xml1-folder", {"path": str(out)})["updating"] and js("!window.Xml1Port.buildBlocked()"), 30)
+              and wait_for(lambda: test.enabled("#xml1-build-panel [data-act='resume']"), 10),
+              "Verify Files has ended: no updater in the folder, Resume offered again")
+        status = test.status()
+        check(status["state"] == "incomplete" and not status["isInstalled"], "still unfinished, not marked installed: Resume finishes it")
 
         if real:
             test.skip("a failing step (E_PIPELINE): the fake's knob (the real pipeline has no bug to show on demand)")
@@ -817,7 +889,7 @@ def main():
             print("a failed build: a step of the build fails (E_PIPELINE)")
             test.prop("iso", str(failing))
             test.refresh_port()
-            test.click("#xml1-build-panel [data-act='resume']")
+            check(test.click("#xml1-build-panel [data-act='resume']"), "Resume clicked")
             job = test.build_done(60)
             code = job["errors"][0]["code"] if job["errors"] else "-"
             check(job["exitCode"] == 1 and code == "E_PIPELINE", f"exit {job['exitCode']}, {code}")
@@ -840,6 +912,25 @@ def main():
             started = cmd("xml1-build-start", {"iso": str(stubborn), "out": str(out), "movies": True, "keepCache": True})
             check(started["success"], "started")
             wait_for(lambda: (cmd("get-xml1-build") or {}).get("overall", 0) > 5, 30)
+
+            print("no patch work in the folder the builder holds, whatever entry asks (review R2)")
+            # The X-Men Legends II entry pointed at the port's folder (it holds an XMen2.exe), its patch from
+            # the test server, and an older fix in the folder: an admitted Verify would replace it mid-build.
+            saved_xml2_manifest = test.prop("patch-manifest", game="xml2")
+            shutil.copy2(native.fix_dll("1.1.0"), out / "dinput.dll")
+            old_fix = (out / "dinput.dll").read_bytes()
+            try:
+                test.prop("patch-manifest", f"{base}/fix/ultimate-legends.json", game="xml2")
+                cmd("set-game-property", {"game": "xml2", "suffix": "install", "value": str(out)})
+                cmd("verify-game", {"game": "xml2"})
+                time.sleep(3)
+                check((out / "dinput.dll").read_bytes() == old_fix and not (cmd("get-update-progress") or {}).get("active"),
+                      "Verify for X-Men Legends II in the port's folder: refused while the build runs")
+                check(cmd("xml1-folder", {"path": str(out)}).get("updating") is False, "no updater alive in the folder")
+            finally:
+                test.prop("patch-manifest", saved_xml2_manifest or "", game="xml2")
+                cmd("set-game-property", {"game": "xml2", "suffix": "install", "value": str(xml2)})
+
             cmd("xml1-build-cancel")
             began = time.time()
             job = test.build_done(40)

@@ -138,8 +138,9 @@ namespace client_updater
         }
     }
 
-    client_updater::client_updater(const game_config::game_config_t& config, updater::ui_progress_listener* listener)
-        : install_path_(resolve_install_path(config)), client_id_(config.game_key),
+    client_updater::client_updater(const game_config::game_config_t& config, updater::ui_progress_listener* listener,
+                                   const std::optional<std::filesystem::path>& install_path)
+        : install_path_(install_path ? *install_path : resolve_install_path(config)), client_id_(config.game_key),
           update_manifest_url_(config.update_manifest_url), update_folder_url_(config.update_folder_url),
           progress_listener_(listener)
     {

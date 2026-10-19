@@ -156,6 +156,29 @@ def main():
             check(result.get("success") is True and "Width=" not in ini_text() and "force a resolution" not in ini_text(),
                   "removing a key removes its line, comment and all")
 
+            print("fullscreen takes the game's resolution: Width=0 / Height=0, the rest of the file as it was")
+            ini.write_bytes(INI_TEMPLATE.replace("Mode=fullscreen\r\n", "Mode=windowed\r\nWidth=1280\r\nHeight=720 ; 720p\r\nVSync=1\r\n")
+                            .encode("ascii"))
+            result = put({"Mode": "fullscreen"})
+            # The bytes, not ini_text(): read_text() turns "\r\n" into "\n", and the line ends are part of
+            # "the rest of the file as it was".
+            text = ini.read_bytes().decode("ascii")
+            expected = INI_TEMPLATE.replace("Mode=fullscreen\r\n", "Mode=fullscreen\r\nWidth=0\r\nHeight=0 ; 720p\r\nVSync=1\r\n")
+            check(result.get("success") is True and text == expected,
+                  f"Windowed 1280x720 -> Fullscreen writes Width=0 / Height=0, every other line and its CRLF as it was {result.get('error', '')}")
+            if text != expected:
+                print(repr(text))
+            check("1280" not in text and "Height=720" not in text, "the windowed size is gone")
+            check(result.get("values", {}).get("Width") == 0 and result["values"].get("Height") == 0, f"answer: {result.get('values')}")
+            for kept in ("VSync=1\r\n", "; XML2 Fix settings (test copy)\r\n", "[Online]\r\n", "Domain=openspy.net\r\n", "; how the game is shown\r\n"):
+                check(kept in text, f"ini keeps {kept!r}")
+            ini.write_bytes(INI_TEMPLATE.replace("Mode=fullscreen\r\n", "Mode=windowed\r\n").encode("ascii"))
+            result = put({"Width": 1920, "Height": 1080, "Mode": "fullscreen"})
+            check(result.get("success") is True and "Width=0" in ini_text() and "Height=0" in ini_text() and "1920" not in ini_text(),
+                  "a size sent with Fullscreen is not kept")
+            result = put({"Mode": "borderless", "Width": 1920, "Height": 1080})
+            check("Width=1920" in ini_text() and "Height=1080" in ini_text(), "Borderless keeps its size")
+
             print("numbers and a fresh file")
             check(put({"FrameRate": 180}).get("values", {}).get("FrameRate") == "180", "FrameRate 180 written as text")
             check(put({"FrameRate": 0}).get("values", {}).get("FrameRate") == "0", "FrameRate 0 = unlimited")
@@ -202,6 +225,28 @@ def main():
             time.sleep(0.8)
             check(ui("return panel.querySelector('select[data-key=\"Resolution\"]').disabled;") is True, "Resolution disabled again")
             check("Mode=" not in ini_text() and f"Width={desktop['width']}" in ini_text(), "Mode removed, resolution kept for later")
+
+            # Fullscreen picked and left again within the page's 250 ms save delay is never saved: the size stays.
+            set_select("Mode", "windowed")
+            time.sleep(0.8)
+            set_select("Mode", "fullscreen")
+            set_select("Mode", "windowed")
+            time.sleep(0.8)
+            text = ini_text()
+            check("Mode=windowed" in text and f"Width={desktop['width']}" in text and "Width=0" not in text,
+                  "Fullscreen then Windowed before the save: Windowed with its size, no Width=0 / Height=0")
+            check(ui("return panel.querySelector('select[data-key=\"Resolution\"]').value;") == f"{desktop['width']}x{desktop['height']}",
+                  "the Resolution row shows the size again")
+
+            set_select("Mode", "fullscreen")
+            time.sleep(0.8)
+            text = ini_text()
+            check("Mode=fullscreen" in text and "Width=0" in text and "Height=0" in text and f"Width={desktop['width']}" not in text,
+                  "Fullscreen from the page: Width=0 / Height=0, the game's Video options decide")
+            check(ui("const s = panel.querySelector('select[data-key=\"Resolution\"]'); return s.disabled && s.value === '';") is True,
+                  "the Resolution row shows Game setting, disabled")
+            check("VSync=1" in text and "Topmost=1" in text and "; how the game is shown" in text and "[Online]" in text,
+                  "the rest of the file kept")
 
             print("page reads inline comments as the fix does")
             ini.write_bytes(INI_TEMPLATE.replace("Mode=fullscreen\r\n", COMMENTED_DISPLAY).encode("ascii"))

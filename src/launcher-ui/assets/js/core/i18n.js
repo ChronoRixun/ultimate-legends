@@ -403,8 +403,11 @@
                 },
                 players: {
                     one: '1 player in the room (you)',
-                    many: '{{count}} players in the room'
+                    many: '{{count}} players in the room',
+                    oneOf: '1 of {{max}} players in the room (you)',
+                    manyOf: '{{count}} of {{max}} players in the room'
                 },
+                fixOld: 'Online play needs XML2 Fix {{required}} or later; this folder has {{version}}, which can’t host or join. Use Verify Files on this page to update it.',
                 phase: {
                     hostConnecting: 'Connecting…',
                     hostRoom: 'Your room is open.',
@@ -444,7 +447,7 @@
                     },
                     broker_rejected: {
                         title: 'This game version can’t go online',
-                        body: 'The online service does not take this version of the game. Update it on this page (Build section), then try again.'
+                        body: 'The online service does not take this version of the game. Rebuild it on this page (Build section; online play needs XML2 Fix {{required}} or later), then try again.'
                     },
                     code_not_found: {
                         title: 'Code not found',
@@ -460,7 +463,7 @@
                     },
                     version_mismatch: {
                         title: 'Different game version',
-                        body: 'Your game and the host’s are not the same version. Both of you: update the game on this page (Build section), then try again.'
+                        body: 'Your game and the host’s are not the same version. Both of you: Rebuild the game on this page (Build section; online play needs XML2 Fix {{required}} or later), then try again.'
                     },
                     test_mode_on: {
                         title: 'Test mode is on',
@@ -491,7 +494,7 @@
                         inGame: 'In the game, the host picks Play Online → Host, then a new or saved campaign as usual. Friends pick Play Online → Join Game and select the host’s game.'
                     },
                     noPorts: 'Nothing needs port forwarding or router settings: the online service connects you.',
-                    sameVersion: 'Everyone needs the same version of the game: keep it up to date on this page.',
+                    sameVersion: 'Everyone needs the same version of the game: keep it up to date on this page (Rebuild in the Build section when it says an update is available).',
                     lan: 'On the same network, LAN and Connect by IP still work: press Play as usual. Play never opens a room.',
                     testMode: 'Test mode turns online play off: turn it off to host or join.',
                     errorsTitle: 'What the messages mean'
@@ -1220,8 +1223,11 @@
                 },
                 players: {
                     one: '1 joueur dans la salle (vous)',
-                    many: '{{count}} joueurs dans la salle'
+                    many: '{{count}} joueurs dans la salle',
+                    oneOf: '1 joueur sur {{max}} dans la salle (vous)',
+                    manyOf: '{{count}} joueurs sur {{max}} dans la salle'
                 },
+                fixOld: "Le jeu en ligne demande le XML2 Fix {{required}} ou plus recent ; ce dossier a la version {{version}}, qui ne peut ni heberger ni rejoindre. Utilisez Verifier les fichiers sur cette page pour le mettre a jour.",
                 phase: {
                     hostConnecting: 'Connexion…',
                     hostRoom: 'Votre salle est ouverte.',
@@ -1235,7 +1241,7 @@
                 },
                 blocked: {
                     notSetUp: "Configurez d'abord X-Men Legends (Configurer, plus haut) pour jouer en ligne.",
-                    notBuilt: "Construisez d'abord le jeu (section Construction plus bas) pour jouer en ligne.",
+                    notBuilt: "Construisez d'abord le jeu (section Build plus bas) pour jouer en ligne.",
                     noFix: "Installez d'abord le {{fix}} (Verifier les fichiers sur cette page) pour jouer en ligne.",
                     building: 'Une construction est en cours : hebergez ou rejoignez quand elle sera terminee.',
                     updating: "Le XML2 Fix est en cours d'installation ou de mise a jour : hebergez ou rejoignez quand ce sera fini.",
@@ -1261,7 +1267,7 @@
                     },
                     broker_rejected: {
                         title: 'Cette version du jeu ne peut pas aller en ligne',
-                        body: "Le service en ligne n'accepte pas cette version du jeu. Mettez-la a jour sur cette page (section Construction), puis reessayez."
+                        body: "Le service en ligne n'accepte pas cette version du jeu. Reconstruisez-le sur cette page (Rebuild dans la section Build ; le jeu en ligne demande le XML2 Fix {{required}} ou plus recent), puis reessayez."
                     },
                     code_not_found: {
                         title: 'Code introuvable',
@@ -1277,7 +1283,7 @@
                     },
                     version_mismatch: {
                         title: 'Version du jeu differente',
-                        body: "Votre jeu et celui de l'hote ne sont pas de la meme version. Tous les deux : mettez le jeu a jour sur cette page (section Construction), puis reessayez."
+                        body: "Votre jeu et celui de l'hote ne sont pas de la meme version. Tous les deux : reconstruisez le jeu sur cette page (Rebuild dans la section Build ; le jeu en ligne demande le XML2 Fix {{required}} ou plus recent), puis reessayez."
                     },
                     test_mode_on: {
                         title: 'Le mode test est actif',
@@ -1308,7 +1314,7 @@
                         inGame: "Dans le jeu, l'hote choisit Play Online → Host, puis une nouvelle campagne ou une sauvegarde comme d'habitude. Les amis choisissent Play Online → Join Game et selectionnent la partie de l'hote."
                     },
                     noPorts: 'Aucune redirection de ports ni reglage du routeur : le service en ligne vous connecte.',
-                    sameVersion: 'Tout le monde doit avoir la meme version du jeu : tenez-le a jour sur cette page.',
+                    sameVersion: "Tout le monde doit avoir la meme version du jeu : tenez-le a jour sur cette page (Rebuild dans la section Build quand une mise a jour est disponible).",
                     lan: "Sur le meme reseau, le LAN et Connect by IP fonctionnent toujours : appuyez sur Jouer comme d'habitude. Jouer n'ouvre jamais de salle.",
                     testMode: 'Le mode test desactive le jeu en ligne : desactivez-le pour heberger ou rejoindre.',
                     errorsTitle: 'Ce que veulent dire les messages'
@@ -1682,8 +1688,11 @@
                 },
                 players: {
                     one: '1 jugador en la sala (tu)',
-                    many: '{{count}} jugadores en la sala'
+                    many: '{{count}} jugadores en la sala',
+                    oneOf: '1 de {{max}} jugadores en la sala (tu)',
+                    manyOf: '{{count}} de {{max}} jugadores en la sala'
                 },
+                fixOld: 'El juego en linea necesita el XML2 Fix {{required}} o posterior; esta carpeta tiene la version {{version}}, que no puede alojar ni unirse. Usa Verificar archivos en esta pagina para actualizarlo.',
                 phase: {
                     hostConnecting: 'Conectando…',
                     hostRoom: 'Tu sala esta abierta.',
@@ -1697,7 +1706,7 @@
                 },
                 blocked: {
                     notSetUp: 'Primero configura X-Men Legends (Configurar, arriba) para jugar en linea.',
-                    notBuilt: 'Primero construye el juego (seccion Construccion, abajo) para jugar en linea.',
+                    notBuilt: 'Primero construye el juego (seccion Build, abajo) para jugar en linea.',
                     noFix: 'Primero instala el {{fix}} (Verificar archivos en esta pagina) para jugar en linea.',
                     building: 'Hay una construccion en curso: aloja o unete cuando termine.',
                     updating: 'Se esta instalando o actualizando el XML2 Fix: aloja o unete cuando termine.',
@@ -1723,7 +1732,7 @@
                     },
                     broker_rejected: {
                         title: 'Esta version del juego no puede jugar en linea',
-                        body: 'El servicio en linea no acepta esta version del juego. Actualizala en esta pagina (seccion Construccion) y vuelve a intentarlo.'
+                        body: 'El servicio en linea no acepta esta version del juego. Reconstruyelo en esta pagina (Rebuild en la seccion Build; el juego en linea necesita el XML2 Fix {{required}} o posterior) y vuelve a intentarlo.'
                     },
                     code_not_found: {
                         title: 'Codigo no encontrado',
@@ -1739,7 +1748,7 @@
                     },
                     version_mismatch: {
                         title: 'Version del juego distinta',
-                        body: 'Tu juego y el del anfitrion no son de la misma version. Los dos: actualizad el juego en esta pagina (seccion Construccion) y volved a intentarlo.'
+                        body: 'Tu juego y el del anfitrion no son de la misma version. Los dos: reconstruid el juego en esta pagina (Rebuild en la seccion Build; el juego en linea necesita el XML2 Fix {{required}} o posterior) y volved a intentarlo.'
                     },
                     test_mode_on: {
                         title: 'El modo de prueba esta activo',
@@ -1770,7 +1779,7 @@
                         inGame: 'En el juego, el anfitrion elige Play Online → Host y luego una campana nueva o guardada, como siempre. Los amigos eligen Play Online → Join Game y seleccionan la partida del anfitrion.'
                     },
                     noPorts: 'No hace falta abrir puertos ni tocar el router: el servicio en linea os conecta.',
-                    sameVersion: 'Todos necesitan la misma version del juego: mantenlo actualizado en esta pagina.',
+                    sameVersion: 'Todos necesitan la misma version del juego: mantenlo actualizado en esta pagina (Rebuild en la seccion Build cuando haya una actualizacion).',
                     lan: 'En la misma red, LAN y Connect by IP siguen funcionando: pulsa Jugar como siempre. Jugar nunca abre una sala.',
                     testMode: 'El modo de prueba desactiva el juego en linea: desactivalo para alojar o unirte.',
                     errorsTitle: 'Que significan los mensajes'

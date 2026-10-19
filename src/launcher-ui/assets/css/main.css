@@ -4431,6 +4431,23 @@ html[data-reduce-motion] .ul-online-spinner { animation: none; }
 .ul-online-help-errors { margin: 0; display: flex; flex-direction: column; gap: 6px; }
 .ul-online-help-errors dt { font-weight: 600; }
 .ul-online-help-errors dd { margin: 0; color: var(--text-muted); }
+/* The view hides parts with the hidden attribute; the display rules above would win over it. */
+.ul-online-blocked[hidden],
+.ul-online-fix[hidden],
+.ul-online-idle[hidden],
+.ul-online-card[hidden],
+.ul-online-card-actions[hidden],
+.ul-online-code-error[hidden],
+.ul-online-session[hidden],
+.ul-online-phase[hidden],
+.ul-online-code-block[hidden],
+.ul-online-code-row[hidden],
+.ul-online-session-actions[hidden],
+.ul-online-help-body[hidden],
+.ul-online-help-steps[hidden],
+.ul-online-help-notes[hidden],
+.ul-online-help-errors[hidden],
+.ul-online .secondary-action[hidden] { display: none; }
 
 /* ---- X-Men Legends (community port): Build section (xml1-view.js) and setup wizard (xml1-setup.js) ---- */
 .detail-build { margin-top: 24px; }

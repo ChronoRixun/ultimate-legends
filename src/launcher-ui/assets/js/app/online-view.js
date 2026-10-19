@@ -1,14 +1,14 @@
 // Online section of the X-Men Legends page (launcher 0.4.0, with Legends Classic 0.3.0): online play
 // without ini edits or the Connect by IP box. One PC hosts (Host a game), the others join with the
-// code it gets (Join a game); the launcher <-> XML2 Fix contract (v1) is the binding part:
+// code it gets (Join a game); the launcher <-> XML2 Fix contract (v1.1) is the binding part:
 //
 // - Host writes [Online] Host=broker and removes JoinCode, Join writes JoinCode=<code> and removes Host
 //   (prepare-online-start, key by key through fix_ini like the other sections); a normal Play removes
 //   both (launch-game, for every start that isn't this section's own), so a normal start never opens
 //   a room. Broker / BrokerPin are the builder's: never written.
-// - Before a Host or Join start the backend deletes a stale online-status.json; while the game runs the
+// - Before every start the backend deletes a leftover online-status.json; while the game runs the
 //   section reads it (get-online-status, every 500 ms) and shows its state: Connecting..., the room's
-//   code (XXXX-XXXX, Copy) and its players for a host; Looking for the game..., Found it for a joiner;
+//   code (XXXX-XXXX, Copy) and its players ("N of 4" with max_players) for a host; Looking for the game..., Found it for a joiner;
 //   and every error id of the contract in plain words.
 // - Host and Join are off, with the reason, while the port is not built, a build or an XML2 Fix update
 //   holds the folder (Xml1Port, as for Display / Discord / Test mode), Test mode is on (the fix refuses
@@ -26,6 +26,11 @@
     const STATES = ['connecting', 'room', 'joined', 'in_game', 'ended', 'error'];
     const ERRORS = ['broker_unreachable', 'broker_rejected', 'code_not_found', 'code_expired', 'room_full',
         'version_mismatch', 'test_mode_on', 'tls_pin_mismatch', 'internal'];
+    // The first XML2 Fix that reads [Online] Host / JoinCode and writes online-status.json: the one that
+    // ships with Legends Classic 0.3.0 (contract v1.1). Named in the update hints and in the note for an
+    // older fix in the folder.
+    // TODO(release): set to that fix's version when Legends Classic 0.3.0 is released; 1.7.0 is a placeholder.
+    const REQUIRED_FIX = '1.7.0';
     const POLL_MS = 500;
     // While nothing of this section runs, the page still follows the game starting or closing, a build
     // and the file (less often).
@@ -99,7 +104,9 @@
             role: raw.role,
             state: raw.state,
             code: typeof raw.code === 'string' && checkCode(raw.code).code ? checkCode(raw.code).code : null,
+            // Everyone in the room, the host included (host alone = 1); max_players (v1.1) the game's limit.
             players: Number.isInteger(raw.players) && raw.players >= 0 ? raw.players : null,
+            maxPlayers: Number.isInteger(raw.max_players) && raw.max_players > 0 ? raw.max_players : null,
             error: typeof raw.error === 'string' && raw.error ? raw.error : null,
             message: typeof raw.message === 'string' && raw.message ? raw.message : null
         };
@@ -109,6 +116,27 @@
 
     function port() {
         return window.Xml1Port || null;
+    }
+
+    // The folder's XML2 Fix when it is older than REQUIRED_FIX ("1.6.0" < "1.7.0"), else null (also when
+    // it has no version to compare).
+    function fixTooOld() {
+        const p = port();
+        const version = p && p.status && p.status.fix && p.status.fix.installed ? p.status.fix.version : null;
+        if (!version) return null;
+        const parts = text => String(text).split('.').map(part => parseInt(part, 10) || 0);
+        const have = parts(version);
+        const need = parts(REQUIRED_FIX);
+        for (let i = 0; i < need.length; i++) {
+            if ((have[i] || 0) !== need[i]) return (have[i] || 0) < need[i] ? version : null;
+        }
+        return null;
+    }
+
+    // "3 players in the room", or "3 of 4 players in the room" when the fix says how many fit.
+    function playersText(players, max) {
+        if (max) return t(players === 1 ? 'online.players.oneOf' : 'online.players.manyOf', { count: players, max });
+        return t(players === 1 ? 'online.players.one' : 'online.players.many', { count: players });
     }
 
     function testModeOn(gameId, data) {
@@ -154,7 +182,7 @@
         const errors = ERRORS.map(id => `
             <div class="ul-online-help-error" data-error="${escapeHtml(id)}">
                 <dt>${escapeHtml(t(`online.errors.${id}.title`))}</dt>
-                <dd>${escapeHtml(t(`online.errors.${id}.body`))}</dd>
+                <dd>${escapeHtml(t(`online.errors.${id}.body`, { required: REQUIRED_FIX }))}</dd>
             </div>`).join('');
         return `
             <details class="ul-online-help">
@@ -181,6 +209,7 @@
                     <span class="ul-online-blocked-text"></span>
                     <button type="button" class="secondary-action xml1-small ul-online-testmode-off" hidden>${escapeHtml(t('testMode.turnOff'))}</button>
                 </div>
+                <div class="xml1-note is-warn ul-online-fix" hidden></div>
                 <div class="ul-online-idle">
                     <div class="ul-online-card ul-online-host">
                         <h4 class="ul-online-card-title">${escapeHtml(t('online.host.title'))}</h4>
@@ -299,7 +328,7 @@
         // (Not one the player has dismissed with OK: only a newer state of it.)
         if (!session && data.running && status && !['ended', 'error'].includes(status.state) && JSON.stringify(data.status) !== s.dismissed) {
             session = s.session = { role: status.role, code: status.code, adopted: true, launched: true, launchedAt: Date.now(),
-                seenRunning: true, status: null, players: null, playersChanged: false, outcome: null, readsFrom: 0 };
+                seenRunning: true, status: null, players: null, maxPlayers: null, playersChanged: false, outcome: null, readsFrom: 0 };
         }
         if (!session || session.outcome) return;
 
@@ -309,7 +338,10 @@
             // The count of a room that exists (connecting has none yet).
             const counted = ['room', 'joined', 'in_game'].includes(status.state) && status.players !== null;
             session.playersChanged = counted && session.players !== null && status.players !== session.players;
-            if (counted) session.players = status.players;
+            if (counted) {
+                session.players = status.players;
+                session.maxPlayers = status.maxPlayers;
+            }
             session.status = status;
             if (status.state === 'error') session.outcome = { kind: 'error', error: status.error || 'internal', message: status.message };
             else if (status.state === 'ended') session.outcome = { kind: 'ended' };
@@ -353,6 +385,14 @@
         });
         host.querySelectorAll('.ul-online-card').forEach(card => card.classList.toggle('is-disabled', !!reason));
         host.dataset.blocked = reason ? reason.key.split('.').pop() : '';
+
+        // An XML2 Fix too old for online play: said, not blocked (the version is the release's, the
+        // folder's may be read before an update lands).
+        const old = fixTooOld();
+        const fixNote = host.querySelector('.ul-online-fix');
+        const fixText = old ? t('online.fixOld', { required: REQUIRED_FIX, version: old }) : '';
+        fixNote.hidden = !old || live;
+        if (fixNote.textContent !== fixText) fixNote.textContent = fixText;
 
         const focused = document.activeElement;
         const hadFocus = !!focused && !!focused.closest && !!focused.closest(`#${gameId}-online-panel`);
@@ -399,7 +439,7 @@
         const session = s.session;
         const current = phase(session);
         const code = (session.status && session.status.code) || (session.role === 'host' ? session.code : null) || null;
-        const signature = JSON.stringify([current, code, session.players, session.outcome && session.outcome.error, session.outcome && session.outcome.reason]);
+        const signature = JSON.stringify([current, code, session.players, session.maxPlayers, session.outcome && session.outcome.error, session.outcome && session.outcome.reason]);
         if (signature === s.shown) return;
         const focusedInside = !!document.activeElement && !!document.activeElement.closest && document.activeElement.closest('.ul-online-session') === box;
         const keepCopy = focusedInside && document.activeElement.classList.contains('ul-online-copy');
@@ -415,7 +455,7 @@
             line = id ? t(`online.errors.${id}.title`) : t('online.errors.unknown.title', { id: outcome.error });
             body = `
                 <div class="xml1-note is-error ul-online-error" data-error="${escapeHtml(outcome.error)}">
-                    ${escapeHtml(id ? t(`online.errors.${id}.body`) : t('online.errors.unknown.body'))}
+                    ${escapeHtml(id ? t(`online.errors.${id}.body`, { required: REQUIRED_FIX }) : t('online.errors.unknown.body'))}
                     ${outcome.message ? `<div class="ul-online-error-detail">${escapeHtml(t('online.errorDetail', { message: outcome.message }))}</div>` : ''}
                 </div>
                 ${id === 'test_mode_on' ? `<button type="button" class="secondary-action xml1-small ul-online-testmode-off">${escapeHtml(t('testMode.turnOff'))}</button>` : ''}`;
@@ -449,7 +489,7 @@
                         ${outcome ? '' : `<button type="button" class="ul-online-primary ul-online-copy">${escapeHtml(t('online.code.copy'))}</button>`}
                     </div>
                     ${outcome ? '' : `<p class="ul-online-code-hint">${escapeHtml(t('online.code.hint'))}</p>`}
-                    ${players !== null && !outcome ? `<p class="ul-online-players${session.playersChanged ? ' is-new' : ''}" aria-live="polite" data-players="${escapeHtml(players)}">${escapeHtml(t(players === 1 ? 'online.players.one' : 'online.players.many', { count: players }))}</p>` : ''}
+                    ${players !== null && !outcome ? `<p class="ul-online-players${session.playersChanged ? ' is-new' : ''}" aria-live="polite" data-players="${escapeHtml(players)}">${escapeHtml(playersText(players, session.maxPlayers))}</p>` : ''}
                 </div>`;
         } else if (session.role === 'join' && session.code && !outcome) {
             codeHTML = `<p class="ul-online-join-code">${escapeHtml(t('online.join.joining', { code: displayCode(session.code) }))}</p>`;
@@ -566,7 +606,7 @@
         }
 
         const session = { role, code: role === 'join' ? code : null, launched: false, launchedAt: 0, seenRunning: false,
-            status: null, players: null, playersChanged: false, outcome: null, readsFrom: Infinity };
+            status: null, players: null, maxPlayers: null, playersChanged: false, outcome: null, readsFrom: Infinity };
         s.session = session;
         s.lastRole = role;
         sync(gameId);
@@ -646,6 +686,7 @@
         supports: gameId => SUPPORTED.has(backendId(gameId)),
         render,
         reload: load,
+        REQUIRED_FIX,
         normaliseCode,
         checkCode,
         displayCode,

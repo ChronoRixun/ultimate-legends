@@ -16,7 +16,10 @@
 //   through fix_ini (WritePrivateProfileStringW, like [Display], [Discord] and [TestMode]): every other
 //   key and section, the builder's Broker / BrokerPin among them, stays byte for byte.
 // - online-status.json next to the game's exe: written by the fix (atomically, on every state change),
-//   read by the launcher. The launcher deletes a stale one before a Host or Join start.
+//   read by the launcher. The launcher deletes a leftover one before every start it makes (v1.1):
+//   prepare-online-start for a Host or Join start, launch-game for every other.
+// - The fix treats Host / JoinCode as one-shot (v1.1: it removes them at game start); the launcher still
+//   removes them for a normal start.
 namespace online_settings
 {
     constexpr auto section = L"Online";

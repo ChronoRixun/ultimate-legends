@@ -109,6 +109,12 @@ def main():
     def blocked():
         return ui("const n = $('.ul-online-blocked'); return n && !n.hidden ? panel.dataset.blocked : null;")
 
+    def hidden_shown():
+        """The section's parts with the hidden attribute that still take space on the page (main.css's
+        display rules beat the attribute unless a [hidden] rule says display:none): [] when none."""
+        return ui("return [...panel.querySelectorAll('[hidden]')].filter(e => getComputedStyle(e).display !== 'none')"
+                  ".map(e => `${e.tagName.toLowerCase()}.${[...e.classList].join('.')}`);")
+
     def controls_disabled():
         return ui("return [$('.ul-online-host-button'), $('.ul-online-join-button'), $('.ul-online-code-input')].map(c => c.disabled);")
 
@@ -321,6 +327,9 @@ def main():
                   "an Online section")
             check(blocked() is None and controls_disabled() == [False, False, False], "Host and Join on")
             check(ui("return $('.ul-online-help summary').textContent;") == "How online works", "How online works")
+            check(hidden_shown() == [], f"idle: every hidden part is display:none {hidden_shown()}")
+            check(ui("return $('.ul-online-session').offsetParent === null && $('.ul-online-blocked').offsetParent === null;"),
+                  "the session block and the reason line take no space")
             check(ui(f"return {json.dumps(ERRORS)}.every(id => !!$(`.ul-online-help-error[data-error=\"${{id}}\"]`));"), "the help explains every error id")
             shot("idle")
             js("document.querySelector('#xml1-online-panel .ul-online-help').open = true")
@@ -331,6 +340,8 @@ def main():
             write_status(role="host", state="room", code="OLDC0DE0", players=1)
             check(ui("const b = $('.ul-online-host-button'); if (b.disabled) return false; b.click(); return true;"), "Host clicked")
             check(phase() == "Connecting…", "Connecting… at once")
+            check(hidden_shown() == [] and ui("return $('.ul-online-idle').offsetParent === null;"),
+                  "Host / Join hidden while hosting: display:none, not just the attribute")
             check(wait_for(running, 20), "the game starts")
             only_online_changed(["Host=broker"], "the page's Host")
             check(not status_file.exists(), "the stale status deleted before the start")
@@ -345,10 +356,12 @@ def main():
             check(ui("return text('.ul-online-players');") == "1 player in the room (you)", "1 player")
             check(ui("const s = getComputedStyle($('.ul-online-code')); return parseFloat(s.fontSize) >= 32;"), "large")
             shot("host-room")
-            check(ui("$('.ul-online-copy').click(); return true;") and wait_for(lambda: js("navigator.clipboard.readText().then(t => t, () => null)") in ("ABCD-2345", None), 3),
+            check(ui("$('.ul-online-copy').click(); return true;") and wait_for(lambda: js("navigator.clipboard ? navigator.clipboard.readText().then(t => t, () => null) : null") in ("ABCD-2345", None), 3),
                   "Copy (the clipboard holds ABCD-2345 where the page may read it)")
             write_status(role="host", state="room", code="ABCD2345", players=3)
             check(wait_for(lambda: ui("return text('.ul-online-players');") == "3 players in the room", 3), "the count follows: 3 players")
+            write_status(role="host", state="room", code="ABCD2345", players=3, max_players=4)
+            check(wait_for(lambda: ui("return text('.ul-online-players');") == "3 of 4 players in the room", 3), "with max_players (v1.1): 3 of 4")
             write_status(role="host", state="in_game", code="ABCD2345", players=3)
             check(wait_for(lambda: "The game has started" in (phase() or ""), 3), "in_game")
             write_status(role="host", state="ended", code="ABCD2345", players=0)
@@ -418,6 +431,7 @@ def main():
             js("window.TestModeView && window.TestModeView.reload('xml1')")
             reload()
             check(blocked() == "testMode" and controls_disabled() == [True, True, True], "test mode on: off")
+            check(hidden_shown() == [], f"blocked: every hidden part is display:none {hidden_shown()}")
             shot("test-mode")
             check(ui("const b = $('.ul-online-testmode-off'); if (b.hidden || b.disabled) return false; b.click(); return true;"), "Turn test mode off, right there")
             check(wait_for(lambda: blocked() is None and controls_disabled() == [False, False, False], 5)

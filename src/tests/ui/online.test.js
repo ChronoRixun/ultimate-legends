@@ -254,6 +254,56 @@ test('online: every host state renders: connecting, room (the code, Copy, player
     assert.ok(t.backend.calls.filter(c => c === 'get-online-status').length <= polls + 1, 'no more 500 ms polling once it ended');
 });
 
+test('online: players count the host; "N of M" when the fix gives max_players (contract v1.1)', async () => {
+    const t = await open();
+    await host(t);
+    t.backend.write({ role: 'host', state: 'room', code: 'ABCD2345', players: 1, max_players: 4 });
+    await t.clock.advance(600);
+    assert.equal(t.text('.ul-online-players'), '1 of 4 players in the room (you)', 'the host alone is 1');
+    t.backend.write({ role: 'host', state: 'room', code: 'ABCD2345', players: 3, max_players: 4 });
+    await t.clock.advance(600);
+    assert.equal(t.text('.ul-online-players'), '3 of 4 players in the room');
+    assert.equal(t.$('.ul-online-players').classList.contains('is-new'), true);
+    t.backend.write({ role: 'host', state: 'in_game', code: 'ABCD2345', players: 4, max_players: 4 });
+    await t.clock.advance(600);
+    assert.equal(t.text('.ul-online-players'), '4 of 4 players in the room');
+    t.backend.write({ role: 'host', state: 'in_game', code: 'ABCD2345', players: 4, max_players: 'four' });
+    await t.clock.advance(600);
+    assert.equal(t.text('.ul-online-players'), '4 players in the room', 'a max_players that is not a count: the plain count');
+    const view = t.window.OnlineView;
+    assert.equal(view.readStatus({ v: 1, role: 'host', state: 'room', players: 2, max_players: 4 }).maxPlayers, 4);
+    assert.equal(view.readStatus({ v: 1, role: 'host', state: 'room', players: 2 }).maxPlayers, null, 'v1 without it');
+    assert.equal(view.readStatus({ v: 1, role: 'host', state: 'room', players: 2, max_players: 0 }).maxPlayers, null);
+});
+
+test('online: the XML2 Fix online play needs is one constant, named in the update hints and for an older fix', async () => {
+    let t = await open();
+    const required = t.window.OnlineView.REQUIRED_FIX;
+    assert.match(required, /^\d+\.\d+\.\d+$/);
+    for (const id of ['broker_rejected', 'version_mismatch']) {
+        const help = t.text(`.ul-online-help-error[data-error="${id}"] dd`);
+        assert.ok(help.includes(`XML2 Fix ${required} or later`), `${id}: the help names ${required}`);
+        assert.match(help, /Rebuild/, `${id}: the update is a Rebuild`);
+    }
+    await host(t);
+    t.backend.write({ role: 'host', state: 'error', error: 'version_mismatch' });
+    await t.clock.advance(600);
+    assert.ok(t.text('.ul-online-error').includes(`XML2 Fix ${required} or later`), 'and so does the error itself');
+
+    const older = required.split('.').map(Number);
+    const below = older[2] > 0 ? `${older[0]}.${older[1]}.${older[2] - 1}` : older[1] > 0 ? `${older[0]}.${older[1] - 1}.9` : `${older[0] - 1}.9.9`;
+    t = await open({}, { status: { fix: { installed: true, version: below } } });
+    assert.equal(t.visible('.ul-online-fix'), true, `${below} in the folder: said`);
+    assert.ok(t.text('.ul-online-fix').includes(`needs XML2 Fix ${required} or later; this folder has ${below}`));
+    t.controls().forEach(control => assert.equal(control.disabled, false, 'said, not blocked'));
+    for (const version of [required, `${older[0]}.${older[1] + 1}.0`, `${older[0] + 1}.0`]) {
+        t = await open({}, { status: { fix: { installed: true, version } } });
+        assert.equal(t.visible('.ul-online-fix'), false, `${version} is new enough`);
+    }
+    t = await open({}, { status: { fix: { installed: true } } });
+    assert.equal(t.visible('.ul-online-fix'), false, 'no version to compare: nothing said');
+});
+
 test('online: Copy puts XXXX-XXXX on the clipboard', async () => {
     const t = await open();
     await host(t);
@@ -579,4 +629,102 @@ test('online: every string is in en, fr and es', async () => {
         assert.deepEqual(missing, [], `${language}: every online string`);
     }
     for (const id of ERRORS) assert.ok(keys.includes(`online.errors.${id}.title`) && keys.includes(`online.errors.${id}.body`), id);
+});
+
+// ---- the stylesheet: a hidden part of the section is display:none (main.css's display rules would
+// otherwise win over the hidden attribute, as they did on the first Windows run) ----
+
+const CSS = path.resolve(__dirname, '../../launcher-ui/assets/css/main.css');
+
+// Every rule of main.css that sets display, with its selectors and source order (rules inside @media
+// blocks included, as plain rules: what matters here is whether one could win).
+function displayRules() {
+    const css = fs.readFileSync(CSS, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const rules = [];
+    const rule = /([^{}]+)\{([^{}]*)\}/g;
+    let match;
+    let order = 0;
+    while ((match = rule.exec(css))) {
+        const display = /(?:^|;)\s*display\s*:\s*([^;]+)/.exec(match[2]);
+        order++;
+        if (!display) continue;
+        const value = display[1].trim();
+        for (const selector of match[1].split(',').map(text => text.trim()).filter(Boolean)) {
+            rules.push({ selector, value: value.replace(/\s*!important$/, ''), important: /!important$/.test(value), order });
+        }
+    }
+    return rules;
+}
+
+function specificity(selector) {
+    const ids = (selector.match(/#[\w-]+/g) || []).length;
+    const classes = (selector.match(/\.[\w-]+|\[[^\]]*\]/g) || []).length;
+    const tags = (selector.replace(/\[[^\]]*\]|[#.][\w-]+/g, ' ').match(/(^|[\s>])[a-zA-Z][\w-]*/g) || []).length;
+    return [ids, classes, tags];
+}
+
+function later(a, b) {
+    for (let i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) return a[i] > b[i];
+    }
+    return false;
+}
+
+// The display an element gets from main.css (null: none of its rules applies, so the browser's own
+// [hidden] { display: none } does). Selectors the test DOM can't match (pseudo-classes, sibling
+// combinators) are left out.
+function computedDisplay(element, rules) {
+    let winner = null;
+    for (const r of rules) {
+        if (/[:+~]/.test(r.selector)) continue;
+        let matches = false;
+        try {
+            matches = element.matches(r.selector);
+        } catch (_) {
+            continue;
+        }
+        if (!matches) continue;
+        // The cascade: !important, then specificity, then the later rule.
+        const key = [r.important ? 1 : 0, ...specificity(r.selector), r.order];
+        if (!winner || later(key, winner.key)) winner = { key, rule: r };
+    }
+    return winner ? winner.rule : null;
+}
+
+test('online: every hidden part of the section computes to display:none (main.css)', async () => {
+    const rules = displayRules();
+    assert.ok(rules.length > 100, `${rules.length} display rules read`);
+    const checkHidden = (t, when) => {
+        const hidden = t.document.getElementById('xml1-online-panel').querySelectorAll('[hidden]');
+        assert.ok(hidden.length > 0, `${when}: something is hidden`);
+        for (const element of hidden) {
+            const winner = computedDisplay(element, rules);
+            const name = `${element.tagName.toLowerCase()}.${element.className.split(/\s+/).join('.')}`;
+            assert.ok(!winner || winner.value === 'none', `${when}: ${name} is hidden but "${winner && winner.selector}" makes it display:${winner && winner.value}`);
+        }
+    };
+
+    let t = await open();
+    checkHidden(t, 'idle');
+    t = await open({ testMode: true }, { status: { fix: { installed: true, version: '1.0.0' } } });
+    checkHidden(t, 'blocked by test mode');
+    t = await open();
+    t.type('ABCD');
+    t.$('.ul-online-join-button').click();
+    await t.clock.advance(0);
+    checkHidden(t, 'a code error');
+    t = await open();
+    await host(t);
+    t.backend.write({ role: 'host', state: 'room', code: 'ABCD2345', players: 1, max_players: 4 });
+    await t.clock.advance(600);
+    checkHidden(t, 'hosting');
+    t.backend.write({ role: 'host', state: 'error', error: 'test_mode_on' });
+    await t.clock.advance(600);
+    checkHidden(t, 'an error');
+
+    // And the rule itself: every ul-online-* class main.css gives a display has its [hidden] rule.
+    const shown = new Set(rules.filter(r => r.value !== 'none').flatMap(r => (r.selector.match(/\.ul-online-[\w-]+/g) || []).slice(-1)));
+    const covered = new Set(rules.filter(r => r.value === 'none' && /\[hidden\]$/.test(r.selector)).flatMap(r => (r.selector.match(/\.ul-online-[\w-]+(?=\[hidden\]$)/g) || [])));
+    const missing = [...shown].filter(name => !covered.has(name) && !/^\.ul-online-(spinner|primary|code|code-input)$/.test(name));
+    assert.deepEqual(missing, [], 'ul-online-* classes with a display and no [hidden] rule');
 });

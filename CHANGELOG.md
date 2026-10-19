@@ -6,7 +6,7 @@ generates the project, so a release only needs this entry and the tag.
 ## 0.4.0 (unreleased)
 
 Ships on the same day as Legends Classic 0.3.0, whose XML2 Fix reads the keys below (the launcher <-> XML2 Fix
-contract, v1).
+contract, v1.1).
 
 ### Added
 - **Online play for X-Men Legends (Legends Classic port), without ini edits or the Connect by IP box.** An Online
@@ -14,7 +14,8 @@ contract, v1).
   - **Host a game**: one button. It writes `[Online] Host=broker` in the port's `xml2-fix.ini` (and removes
     `JoinCode`), deletes a stale `online-status.json` and starts the game, then shows what the XML2 Fix reports:
     *Connecting...*, then the room's code, large, as `XXXX-XXXX`, with **Copy** and "Send this code to your friends.
-    In the game: Play Online → Host.", and the number of players as it changes.
+    In the game: Play Online → Host.", and the number of players as it changes (the host included; "3 of 4" when the
+    fix gives the room's size).
   - **Join a game**: a code field that takes lower case, spaces and dashes (pasted from a chat), checks the 8
     characters (no 0 O 1 I L) with an inline error, and **Join** (or Enter). It writes `JoinCode` (and removes `Host`),
     starts the game and shows *Looking for the game...*, then "Found it. In the game: Play Online → Join Game, pick the
@@ -26,6 +27,8 @@ contract, v1).
     forwarding, and that LAN and Connect by IP still work.
   - Host and Join are off, with the reason, while the game isn't built, a build or an XML2 Fix update holds its
     folder, Test mode is on (with **Turn test mode off** right there) or the game is running.
+  - A note when the folder's XML2 Fix is older than the one online play needs (one constant, set at release); the
+    update hints name it too.
   - Buttons and one text field in the Tab order with a focus ring; the focus follows what replaces a control (Copy
     when the code is up, Try again after an error).
   - en, fr, es.
@@ -35,8 +38,9 @@ contract, v1).
 
 ### Changed
 - **Play (and every start that isn't the Online section's: the library, `-launch`, `ultimatelegends://play`) removes
-  `[Online]` `Host` and `JoinCode`** from the port's `xml2-fix.ini` before the start, and a leftover
-  `online-status.json`, so a normal start never opens a room. A file without them is not touched.
+  `[Online]` `Host` and `JoinCode`** from the port's `xml2-fix.ini` before the start, so a normal start never opens a
+  room (the XML2 Fix also removes them when the game starts). A file without them is not touched. A leftover
+  `online-status.json` is deleted before every start the launcher makes.
 
 ## 0.3.2 - 2026-10-18
 

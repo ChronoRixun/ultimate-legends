@@ -280,9 +280,10 @@ namespace commands::game_commands
         // A normal start never opens a room: the [Online] Host / JoinCode keys of a game with launcher-led
         // online play (the X-Men Legends port, fix/online_settings.hpp) are removed before it, unless the
         // Online section starts the game itself (it wrote them a moment ago). Nothing is written when
-        // neither key is there. A status file left by an earlier online game goes too, so the page never
-        // takes a normal game for a room (a game that closed without writing `ended` leaves one).
-        // Called with the folder held for patch work.
+        // neither key is there. (The fix also removes them at game start, contract v1.1: this is the
+        // other half.) A status file left by an earlier online game goes too - before every start the
+        // launcher makes, v1.1; the Online section's own starts delete it in prepare-online-start - so
+        // the page never takes a normal game for a room. Called with the folder held for patch work.
         bool clear_online_keys(const game_config::game_config_t& config, std::string& error)
         {
             const auto where = fix_ini::locate(config);

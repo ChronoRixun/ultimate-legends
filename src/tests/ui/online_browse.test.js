@@ -2,8 +2,9 @@
 // The Online section's public games (launcher 0.4.0, contract v1.3): Host's List my game publicly and
 // room name (Public / RoomName written with Host=broker, removed by Join and by Play), the room card's
 // Public / Private, the code copied by itself when it first appears, and Browse games - the broker's
-// public rooms (get-public-rooms, faked here) with Join gated by version, fullness, password and the
-// section's own reasons, its empty / loading / error states and its 10 s refresh. The real HTTPS fetch
+// public rooms (get-public-rooms, faked here) with the level the room sends (zone_name), Join gated by
+// version (none at all for a build without GameVersion), fullness and the section's own reasons, rooms
+// with a password left out (contract v1.4), its empty / loading / error states and its 10 s refresh. The real HTTPS fetch
 // and its pin are tools/dev/online_cdp.py's (a local self-signed server).
 
 const assert = require('node:assert/strict');
@@ -13,7 +14,7 @@ const { open, host } = require('./online_fixture');
 function room(fields = {}) {
     return Object.assign({
         code: 'ABCD2345', name: 'Saturday run', host_display_name: 'Logan', game_mode: 'campaign',
-        zone: 'nyc/alison/nyc1_1_3', version_token: 'LC31', players: 2, max_players: 4,
+        zone: 'nyc/alison/nyc1_1_3', zone_name: 'Alison Rescue', version_token: 'LC31', players: 2, max_players: 4,
         in_progress: true, joinable: true, password_protected: false
     }, fields);
 }
@@ -194,12 +195,12 @@ test('auto-copy: no note when the copy fails, the old copy command otherwise; no
 
 test('browse: each row says name, host, mode and level, N of 4, In progress, and has Join', async () => {
     const t = await browse({ rooms: [room(), room({ code: 'WXYZ6789', name: '', host_display_name: 'Ororo', game_mode: 'danger_room',
-        zone: 'danger/dr_1', players: 1, in_progress: false })] });
+        zone: 'danger/dr_1', zone_name: '', players: 1, in_progress: false })] });
     assert.equal(t.text('.ul-online-browse-head .ul-online-card-title'), 'Browse games');
     assert.equal(t.rows().length, 2);
     assert.equal(t.rowText('ABCD2345', '.ul-online-room-name'), 'Saturday run');
     assert.equal(t.rowText('ABCD2345', '.ul-online-room-host'), 'Hosted by Logan');
-    assert.equal(t.rowText('ABCD2345', '.ul-online-room-where'), 'Campaign · nyc1_1_3', 'an unknown zone: its last path part');
+    assert.equal(t.rowText('ABCD2345', '.ul-online-room-where'), 'Campaign · Alison Rescue', 'the level as the room names it (zone_name)');
     assert.equal(t.rowText('ABCD2345', '.ul-online-room-players'), '2 of 4');
     assert.equal(t.rowText('ABCD2345', '.ul-online-room-badge'), 'In progress');
     assert.equal(t.join('ABCD2345').disabled, false);
@@ -211,17 +212,20 @@ test('browse: each row says name, host, mode and level, N of 4, In progress, and
     assert.equal(t.status(), null, 'no status line with rooms');
 });
 
-test('browse: a zone the table names shows its name (longest match), others their last part', async () => {
-    const t = await browse();
-    const zones = t.window.OnlineZones;
-    zones.NAMES['nyc/alison'] = 'Rescue mission';
-    zones.NAMES['nyc/alison/nyc1_1_3'] = 'Rooftops';
-    assert.equal(zones.levelName('nyc/alison/nyc1_1_3'), 'Rooftops');
-    assert.equal(zones.levelName('NYC\\Alison\\nyc1_1_2'), 'Rescue mission', 'a mission folder; case and \\ do not matter');
-    assert.equal(zones.levelName('nyc/other/nyc9'), 'nyc9');
-    assert.equal(zones.levelName('just_a_zone'), 'just_a_zone');
-    assert.equal(zones.levelName(''), '');
-    assert.equal(zones.levelName(null), '');
+test('browse: the level is the room\'s zone_name, else the last part of its zone; the launcher has no zone table', async () => {
+    const t = await browse({ rooms: [
+        room({ code: 'AAAA2222', zone_name: 'Alison Rescue' }),
+        room({ code: 'BBBB3333', zone_name: '', zone: 'nyc/alison/nyc1_1_3' }),
+        room({ code: 'CCCC4444', zone_name: null, zone: 'NYC\\Alison\\nyc1_1_2' }),
+        room({ code: 'DDDD5555', zone_name: '   ', zone: '' }),
+        room({ code: 'EEEE6666', zone_name: 'x'.repeat(80) })
+    ] });
+    assert.equal(t.rowText('AAAA2222', '.ul-online-room-where'), 'Campaign · Alison Rescue');
+    assert.equal(t.rowText('BBBB3333', '.ul-online-room-where'), 'Campaign · nyc1_1_3', 'empty zone_name: the zone\'s last part');
+    assert.equal(t.rowText('CCCC4444', '.ul-online-room-where'), 'Campaign · nyc1_1_2', 'no zone_name; a \\ path');
+    assert.equal(t.rowText('DDDD5555', '.ul-online-room-where'), 'Campaign', 'neither: the mode alone');
+    assert.ok(t.rowText('EEEE6666', '.ul-online-room-where').length <= 'Campaign · '.length + 48, 'zone_name cut at 48');
+    assert.equal(t.window.OnlineZones, undefined, 'no zone table in the launcher (contract v1.4)');
 });
 
 test('browse: another build\'s room says Different game version and can\'t be joined', async () => {
@@ -232,11 +236,18 @@ test('browse: another build\'s room says Different game version and can\'t be jo
     assert.equal(t.join('WXYZ6789').disabled, false, 'the same build: Join');
     assert.ok(!t.row('WXYZ6789').querySelector('.ul-online-room-reason'));
 
-    t = await browse({ rooms: [room({ version_token: 'LC30' })], versionToken: '' });
-    assert.equal(t.join('ABCD2345').disabled, false, 'no GameVersion in this folder\'s ini: nothing to compare (the game refuses another build itself)');
 });
 
-test('browse: full rooms say Full; a password or a closed room can\'t be joined either', async () => {
+test('browse: no GameVersion in this folder\'s ini (an old build): every row greyed out, "Rebuild to play online"', async () => {
+    const t = await browse({ rooms: [room(), room({ code: 'WXYZ6789', version_token: 'LC30' }), room({ code: 'MNPQ7777', players: 4 })], versionToken: '' });
+    for (const code of ['ABCD2345', 'WXYZ6789', 'MNPQ7777']) {
+        assert.equal(t.join(code).disabled, true, `${code}: no Join`);
+        assert.equal(t.rowText(code, '.ul-online-room-reason'), 'Rebuild to play online', `${code}: the reason`);
+        assert.ok(t.row(code).classList.contains('is-off'), `${code}: greyed out`);
+    }
+});
+
+test('browse: full rooms say Full, closed ones Can\'t join right now; rooms with a password are not listed', async () => {
     const t = await browse({ rooms: [
         room({ code: 'AAAA2222', players: 4, max_players: 4 }),
         room({ code: 'BBBB3333', password_protected: true }),
@@ -245,9 +256,15 @@ test('browse: full rooms say Full; a password or a closed room can\'t be joined 
     ] });
     assert.equal(t.rowText('AAAA2222', '.ul-online-room-reason'), 'Full');
     assert.equal(t.rowText('AAAA2222', '.ul-online-room-players'), '4 of 4');
-    assert.equal(t.rowText('BBBB3333', '.ul-online-room-reason'), 'Needs a password');
+    assert.ok(!t.row('BBBB3333'), 'a password: hidden (no client sends one in 0.3.0)');
     assert.equal(t.rowText('CCCC4444', '.ul-online-room-reason'), 'Can’t join right now');
-    assert.deepEqual(['AAAA2222', 'BBBB3333', 'CCCC4444', 'DDDD5555'].map(code => t.join(code).disabled), [true, true, true, false]);
+    assert.ok(t.row('CCCC4444').classList.contains('is-off'), 'listed, greyed out');
+    assert.deepEqual(['AAAA2222', 'CCCC4444', 'DDDD5555'].map(code => t.join(code).disabled), [true, true, false]);
+    assert.equal(t.rows().length, 3);
+
+    const only = await browse({ rooms: [room({ password_protected: true })] });
+    assert.equal(only.rows().length, 0);
+    assert.match(only.status() || '', /No public games right now/, 'only password rooms: the empty list');
 });
 
 test('browse: Join on a row is the code flow with the row\'s code', async () => {
@@ -394,7 +411,7 @@ test('browse: every string is in en, fr and es; the help mentions public games',
         t.window.LauncherI18n.setLanguage(language);
         for (const key of ['online.host.public', 'online.host.publicNote', 'online.host.roomName', 'online.host.roomNameError',
             'online.code.autoCopied', 'online.visibility.public', 'online.visibility.private', 'online.browse.title',
-            'online.browse.empty', 'online.browse.differentVersion', 'online.browse.full', 'online.browse.inProgress',
+            'online.browse.empty', 'online.browse.differentVersion', 'online.browse.rebuild', 'online.browse.full', 'online.browse.inProgress',
             'online.browse.errors.rate_limited', 'online.browse.errors.busy', 'online.browse.errors.bad_response', 'online.help.public']) {
             const english = (() => {
                 t.window.LauncherI18n.setLanguage('en');

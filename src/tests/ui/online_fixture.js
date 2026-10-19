@@ -1,6 +1,6 @@
 'use strict';
 // The Online section's tests' backend and page (online.test.js, online_browse.test.js): the real
-// online-view.js, online-browse.js, online-zones.js and GameUtils.launchGame (utils.js) on a fake backend
+// online-view.js, online-browse.js and GameUtils.launchGame (utils.js) on a fake backend
 // that keeps the port's [Online] keys and online-status.json the way the C++ does (online_settings /
 // online_rules: Host=broker with Public and RoomName, or JoinCode, the others removed; a stale status
 // deleted before a Host or Join start; launch-game removing all four for every start without `online`),
@@ -127,7 +127,7 @@ async function open(options = {}, port = {}) {
             <div class="button-group" id="xml1-button-group"><div class="left-buttons"><button class="play-button" id="xml1-play-button">Play</button></div></div>
             <div id="xml1-online-panel"></div>
         </div>`;
-    const p = page({ scripts: ['core/utils.js', 'core/i18n.js', 'app/online-zones.js', 'app/online-browse.js', 'app/online-view.js'], body, backend });
+    const p = page({ scripts: ['core/utils.js', 'core/i18n.js', 'app/online-browse.js', 'app/online-view.js'], body, backend });
     p.window.ProgressManager = { show() {}, update() {}, hide() {} };
     // What the view reads of Xml1Port: a build running or starting, patch work in the folder.
     p.window.Xml1Port = Object.assign({

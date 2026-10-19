@@ -516,7 +516,7 @@
                     joinLabel: 'Join {{name}}',
                     differentVersion: 'Different game version',
                     full: 'Full',
-                    password: 'Needs a password',
+                    rebuild: 'Rebuild to play online',
                     closed: 'Can’t join right now',
                     errors: {
                         rate_limited: 'The list was refreshed too often. It refreshes again in a moment.',
@@ -1379,7 +1379,7 @@
                     joinLabel: 'Rejoindre {{name}}',
                     differentVersion: 'Version du jeu differente',
                     full: 'Pleine',
-                    password: 'Mot de passe requis',
+                    rebuild: 'Reconstruisez (Rebuild) pour jouer en ligne',
                     closed: 'Impossible de rejoindre pour le moment',
                     errors: {
                         rate_limited: 'La liste a ete actualisee trop souvent. Elle se met a jour dans un instant.',
@@ -1887,7 +1887,7 @@
                     joinLabel: 'Unirse a {{name}}',
                     differentVersion: 'Version del juego distinta',
                     full: 'Llena',
-                    password: 'Necesita contrasena',
+                    rebuild: 'Reconstruye (Rebuild) para jugar en linea',
                     closed: 'No se puede unir ahora mismo',
                     errors: {
                         rate_limited: 'La lista se actualizo demasiadas veces. Se actualiza de nuevo en un momento.',

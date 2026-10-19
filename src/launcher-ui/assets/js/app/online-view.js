@@ -32,11 +32,9 @@
     const STATES = ['connecting', 'room', 'joined', 'in_game', 'ended', 'error'];
     const ERRORS = ['broker_unreachable', 'broker_rejected', 'code_not_found', 'code_expired', 'room_full',
         'version_mismatch', 'test_mode_on', 'tls_pin_mismatch', 'internal'];
-    // The first XML2 Fix that reads [Online] Host / JoinCode and writes online-status.json: the one that
-    // ships with Legends Classic 0.3.0 (contract v1.1). Named in the update hints and in the note for an
-    // older fix in the folder.
-    // TODO(release): set to that fix's version when Legends Classic 0.3.0 is released; 1.7.0 is a placeholder.
-    const REQUIRED_FIX = '1.7.0';
+    // The first XML2 Fix with online rooms (Legends Classic 0.3.0's; 1.7.0, 0.2.4's, has none: contract
+    // v1.4). Named in the update hints and in the note for an older fix in the folder.
+    const REQUIRED_FIX = '1.8.0';
     const POLL_MS = 500;
     // While nothing of this section runs, the page still follows the game starting or closing, a build
     // and the file (less often).
@@ -137,7 +135,7 @@
         return window.Xml1Port || null;
     }
 
-    // The folder's XML2 Fix when it is older than REQUIRED_FIX ("1.6.0" < "1.7.0"), else null (also when
+    // The folder's XML2 Fix when it is older than REQUIRED_FIX ("1.7.0" < "1.8.0"), else null (also when
     // it has no version to compare).
     function fixTooOld() {
         const p = port();

@@ -6,10 +6,12 @@
 
 // The public game browser's room list (contract v1.3): GET https://<broker host>:10021/v1/rooms, read
 // only, no authentication. The broker's certificate is self-signed, so Windows' own check can't vouch
-// for it: WinHTTP is told to accept an unknown CA - nothing else - and the launcher then compares the
-// SHA-256 of the certificate's SubjectPublicKeyInfo with the pin (the port's [Online] BrokerPin, or the
-// project broker's). A server whose key isn't the pinned one is never read: its answer is dropped
-// unread. (The request itself, a GET with no credentials or cookies, goes out with the handshake.)
+// for it: the pin is the trust anchor (contract v1.4). WinHTTP lets an unknown CA, a name mismatch and
+// a date outside the certificate's through, and the launcher then compares the SHA-256 of the
+// certificate's SubjectPublicKeyInfo with the pin (the port's [Online] BrokerPin, or the project
+// broker's): those errors are accepted only when it matches. A server whose key isn't the pinned one
+// is never read: its answer is dropped unread. (The request itself, a GET with no credentials or
+// cookies, goes out with the handshake: acceptable, v1.4.)
 //
 // Commands run on CEF's IO thread, so the fetch runs on a worker of its own: refresh() starts one
 // unless one is under way, and the page polls current().

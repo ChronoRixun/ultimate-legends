@@ -7,7 +7,7 @@
 
 // Online play of the X-Men Legends port (Legends Classic 0.3.0, the XML2 Fix's broker rooms): what the
 // launcher writes into the [Online] section of the port's xml2-fix.ini for the next game start. The
-// launcher <-> XML2 Fix contract (v1.3) is binding:
+// launcher <-> XML2 Fix contract (v1.4) is binding:
 //
 //   [Online]
 //   Host = broker          ; this PC hosts a room through the broker at the next game start
@@ -25,7 +25,8 @@
 // player may type it in lower case, with spaces or dashes (it is shown as XXXX-XXXX).
 //
 // The public room list comes from the broker over HTTPS (GET https://<Broker's host>:10021/v1/rooms),
-// its self-signed certificate checked against BrokerPin (the SHA-256 of its SubjectPublicKeyInfo).
+// its self-signed certificate checked against BrokerPin (the SHA-256 of its SubjectPublicKeyInfo): the
+// pin is the trust anchor.
 //
 // This part looks only at text (no ini, no Windows), so the unit tests (src/tests) build it on their
 // own; fix/online_settings.hpp reads and writes the file, online/public_rooms.hpp fetches the list.

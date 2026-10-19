@@ -6,7 +6,7 @@ generates the project, so a release only needs this entry and the tag.
 ## 0.4.0 (unreleased)
 
 Ships on the same day as Legends Classic 0.3.0, whose XML2 Fix reads the keys below (the launcher <-> XML2 Fix
-contract, v1.3).
+contract, v1.4).
 
 ### Added
 - **Online play for X-Men Legends (Legends Classic port), without ini edits or the Connect by IP box.** An Online
@@ -28,9 +28,11 @@ contract, v1.3).
     note; Copy stays.
   - **Browse games** under Host / Join: the public games of everyone with the launcher, from the online service
     (`https://<broker>:10021/v1/rooms`, its self-signed certificate checked against the pinned key - `BrokerPin`, or
-    the project broker's - and never read otherwise). Each row: the room's name, its host, the mode and level, "2 of
-    4", **In progress**, and **Join** - the code flow with that room's code. Another game version, a full room, a room
-    that needs a password or can't take a player now: no Join, and the row says why. Refresh, and every 10 s while the
+    the project broker's, the trust anchor - and never read otherwise). Each row: the room's name, its host, the mode
+    and level (the name the game gives the area, sent with the room), "2 of 4", **In progress**, and **Join** - the
+    code flow with that room's code. Another game version, a full room or one that can't take a player now: no Join,
+    and the row says why; a build too old for online play greys out every row ("Rebuild to play online"). Rooms with
+    a password are not listed. Refresh, and every 10 s while the
     page shows the list; the empty list, the service unreachable, busy or rate-limited, and a key that isn't the pinned
     one in plain words.
   - Every error the fix reports in plain words: code not found, code expired, room full, a different game version,
@@ -40,8 +42,7 @@ contract, v1.3).
     forwarding, and that LAN and Connect by IP still work.
   - Host and Join are off, with the reason, while the game isn't built, a build or an XML2 Fix update holds its
     folder, Test mode is on (with **Turn test mode off** right there) or the game is running.
-  - A note when the folder's XML2 Fix is older than the one online play needs (one constant, set at release); the
-    update hints name it too.
+  - A note when the folder's XML2 Fix is older than 1.8.0, the first with online rooms; the update hints name it too.
   - Buttons and text fields in the Tab order with a focus ring; the focus follows what replaces a control (Copy
     when the code is up, Try again after an error, the same row's Join after a refresh of the list).
   - en, fr, es.

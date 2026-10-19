@@ -50,8 +50,8 @@ namespace public_rooms
         {
             const auto code = GetLastError();
             const auto detail = std::string(step) + " failed (WinHTTP error " + std::to_string(code) + ")";
-            // A TLS failure other than the unknown CA (a name or date the certificate doesn't have, no TLS at
-            // all): the service could not be verified.
+            // A TLS failure the flags don't cover (no TLS at all, a broken chain, a revoked or misused
+            // certificate): the service could not be verified.
             if (code == ERROR_WINHTTP_SECURE_FAILURE || code == ERROR_WINHTTP_SECURE_CHANNEL_ERROR ||
                 code == ERROR_WINHTTP_SECURE_INVALID_CERT || code == ERROR_WINHTTP_SECURE_CERT_DATE_INVALID ||
                 code == ERROR_WINHTTP_SECURE_CERT_CN_INVALID || code == ERROR_WINHTTP_SECURE_INVALID_CA ||
@@ -130,9 +130,11 @@ namespace public_rooms
             return network_failure("WinHttpOpenRequest");
         }
 
-        // The broker's certificate is self-signed: accept an unknown CA, and only that. The pin below is what
-        // trusts the server.
-        DWORD flags = SECURITY_FLAG_IGNORE_UNKNOWN_CA;
+        // The pin is the trust anchor (contract v1.4, as the XML2 Fix does): the broker's self-signed
+        // certificate's unknown CA, a name it wasn't made for and its dates are let through the handshake
+        // only so that its key can be checked below - and a key that isn't the pinned one is refused
+        // before anything of the answer is read. Nothing else is ignored.
+        DWORD flags = SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_CN_INVALID | SECURITY_FLAG_IGNORE_CERT_DATE_INVALID;
         if (!WinHttpSetOption(request.value, WINHTTP_OPTION_SECURITY_FLAGS, &flags, sizeof(flags)))
         {
             return network_failure("WinHttpSetOption");

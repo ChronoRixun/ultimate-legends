@@ -137,7 +137,7 @@ test('online: players count the host; "N of M" when the fix gives max_players (c
 test('online: the XML2 Fix online play needs is one constant, named in the update hints and for an older fix', async () => {
     let t = await open();
     const required = t.window.OnlineView.REQUIRED_FIX;
-    assert.match(required, /^\d+\.\d+\.\d+$/);
+    assert.equal(required, '1.8.0', 'Legends Classic 0.3.0\'s XML2 Fix (contract v1.4; 1.7.0 has no online rooms)');
     for (const id of ['broker_rejected', 'version_mismatch']) {
         const help = t.text(`.ul-online-help-error[data-error="${id}"] dd`);
         assert.ok(help.includes(`XML2 Fix ${required} or later`), `${id}: the help names ${required}`);

@@ -2,13 +2,17 @@
 // (launcher 0.4.0, contract v1.3). Hosts who turn on List my game publicly are listed by the broker
 // (get-public-rooms fetches https://<broker>:10021/v1/rooms on a worker, the certificate pinned); each
 // row says the room's name, its host, the mode and level, "N of 4", In progress, and has Join - exactly
-// the code flow, with the row's code (online-view.js).
+// the code flow, with the row's code (online-view.js). The level is the room's zone_name (the game's own
+// name for the area, sent by the XML2 Fix: contract v1.4), else the last part of its zone path; the
+// launcher keeps no zone table of its own.
 //
 // Join is off on a row whose game is another build (its version_token isn't this folder's [Online]
-// GameVersion), that is full, that needs a password, or that can't take a player now, with the reason
-// on the row; and on every row while the Online section's own reason (a build, test mode, the game
-// running...) holds. The list refreshes every 10 s while the page is visible, and on Refresh. What the
-// broker sends is shown as text only, and a row without a valid code is left out.
+// GameVersion), that is full, or that can't take a player now, with the reason on the row; on every row,
+// "Rebuild to play online", when this folder's ini has no GameVersion (a build older than online play);
+// and on every row while the Online section's own reason (a build, test mode, the game running...)
+// holds. Rooms with a password are not listed: no launcher sends one in 0.3.0. The list refreshes
+// every 10 s while the page is visible, and on Refresh. What the broker sends is shown as text only,
+// and a row without a valid code is left out.
 //
 // Keyboard and controller: Refresh and each row's Join are buttons in the Tab order; a refresh keeps the
 // focus on the same row's Join (or on Refresh when that row is gone).
@@ -48,9 +52,16 @@
         return max && s.length > max ? `${s.slice(0, max - 1)}…` : s;
     }
 
-    // A row of the broker's list as the page uses it, or null when it isn't one (no valid code).
+    // The last part of a zone path ("nyc/alison/nyc1_1_3" -> "nyc1_1_3").
+    function zoneTail(zone) {
+        return text(zone, 200).replace(/\\/g, '/').split('/').filter(Boolean).pop() || '';
+    }
+
+    // A row of the broker's list as the page uses it, or null when it isn't one (no valid code) or isn't
+    // listed (a password).
     function readRoom(raw) {
         if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+        if (raw.password_protected === true) return null;
         const checked = window.OnlineView ? window.OnlineView.checkCode(raw.code) : { code: null };
         if (!checked.code) return null;
         const count = value => (Number.isInteger(value) && value >= 0 ? value : null);
@@ -60,21 +71,21 @@
             host: text(raw.host_display_name, 32),
             mode: MODES.includes(raw.game_mode) ? raw.game_mode : null,
             zone: text(raw.zone, 200),
+            level: text(raw.zone_name, 48) || zoneTail(raw.zone),
             versionToken: typeof raw.version_token === 'string' ? raw.version_token.trim() : '',
             players: count(raw.players),
             maxPlayers: count(raw.max_players) || null,
             inProgress: raw.in_progress === true,
-            joinable: raw.joinable !== false,
-            password: raw.password_protected === true
+            joinable: raw.joinable !== false
         };
     }
 
-    // Why this row's Join is off, or null. With no GameVersion in this folder's ini nothing is compared
-    // (the game itself still refuses another build: version_mismatch).
+    // Why this row's Join is off, or null. No GameVersion in this folder's ini: a build from before online
+    // play, which can't join any room.
     function rowReason(room, versionToken) {
-        if (versionToken && room.versionToken !== versionToken) return 'differentVersion';
+        if (!versionToken) return 'rebuild';
+        if (room.versionToken !== versionToken) return 'differentVersion';
         if (room.maxPlayers && room.players !== null && room.players >= room.maxPlayers) return 'full';
-        if (room.password) return 'password';
         if (!room.joinable) return 'closed';
         return null;
     }
@@ -106,8 +117,7 @@
     function rowHTML(room, versionToken, blocked) {
         const reason = rowReason(room, versionToken);
         const name = room.name || (room.host ? t('online.browse.hostsGame', { name: room.host }) : t('online.browse.unnamed'));
-        const level = window.OnlineZones ? window.OnlineZones.levelName(room.zone) : room.zone;
-        const where = [room.mode ? t(`online.browse.mode.${room.mode}`) : '', level].filter(Boolean).join(' · ');
+        const where = [room.mode ? t(`online.browse.mode.${room.mode}`) : '', room.level].filter(Boolean).join(' · ');
         const players = room.players === null ? ''
             : room.maxPlayers ? t('online.browse.players', { count: room.players, max: room.maxPlayers })
                 : t('online.browse.playersPlain', { count: room.players });

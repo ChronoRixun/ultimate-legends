@@ -18,8 +18,10 @@ dinput.dll, _build/stamp.json) and an xml2-fix.ini with what a build leaves ther
 - contract v1.3: Host's Public / RoomName written with Host=broker (and removed by Join and by Play), the
   room card's Public / Private, the code copied by itself; Browse games against a FAKE local broker
   (https://127.0.0.1:10021/v1/rooms, a self-signed certificate made for the run, its SPKI pinned in the
-  ini's BrokerPin): the rows, version gating, Full, Join from a row, the empty and error states, and the
-  pin - a server with another key, a certificate for another name, or no TLS at all is never read.
+  ini's BrokerPin): the rows (the level from zone_name), version gating and "Rebuild to play online", Full,
+  Can't join right now, rooms with a password left out, Join from a row, the empty and error states, and
+  the pin as the trust anchor - a certificate for another name or out of date passes only with the pinned
+  key; another key, or no TLS at all, is never read.
 
 Needs: pip install websocket-client cryptography (the fake broker's certificate). Port 10021 must be free.
 
@@ -93,9 +95,10 @@ def sections(text):
 ROOMS_PORT = 10021
 
 
-def make_certificate(folder, name, ips=()):
+def make_certificate(folder, name, ips=(), expired=False):
     """A self-signed certificate and key for `name` (and `ips` as IP SANs) in `folder`, made for this run
-    (no key is kept in the repo); returns (cert path, key path, SPKI SHA-256 hex) - the pin."""
+    (no key is kept in the repo), valid now or (`expired`) only until yesterday; returns (cert path, key
+    path, SPKI SHA-256 hex) - the pin."""
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import ec
@@ -106,8 +109,9 @@ def make_certificate(folder, name, ips=()):
     now = datetime.datetime.now(datetime.timezone.utc)
     alt = [x509.DNSName(name)] + [x509.IPAddress(ipaddress.ip_address(ip)) for ip in ips]
     cert = (x509.CertificateBuilder().subject_name(subject).issuer_name(subject).public_key(key.public_key())
-            .serial_number(x509.random_serial_number()).not_valid_before(now - datetime.timedelta(days=1))
-            .not_valid_after(now + datetime.timedelta(days=30))
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(now - datetime.timedelta(days=30 if expired else 1))
+            .not_valid_after(now - datetime.timedelta(days=1) if expired else now + datetime.timedelta(days=30))
             .add_extension(x509.SubjectAlternativeName(alt), critical=False)
             .sign(key, hashes.SHA256()))
     cert_path = pathlib.Path(folder) / f"{name}.crt"
@@ -163,7 +167,7 @@ class FakeBroker:
 def room(**fields):
     """A row of the broker's list (contract v1.3)."""
     return dict({"code": "ABCD2345", "name": "Saturday run", "host_display_name": "Logan", "game_mode": "campaign",
-                 "zone": "nyc/alison/nyc1_1_3", "version_token": "LC31", "players": 2, "max_players": 4,
+                 "zone": "nyc/alison/nyc1_1_3", "zone_name": "Alison Rescue", "version_token": "LC31", "players": 2, "max_players": 4,
                  "in_progress": True, "joinable": True, "password_protected": False}, **fields)
 
 
@@ -608,26 +612,35 @@ def main():
             cert, key, pin = make_certificate(certs / "a", "127.0.0.1", ips=["127.0.0.1"])
             other_cert, other_key, other_pin = make_certificate(certs / "b", "127.0.0.1", ips=["127.0.0.1"])
             named_cert, named_key, named_pin = make_certificate(certs / "c", "broker.invalid")
+            (certs / "d").mkdir()
+            expired_cert, expired_key, expired_pin = make_certificate(certs / "d", "127.0.0.1", ips=["127.0.0.1"], expired=True)
             broker = FakeBroker(cert, key)
             try:
                 use_ini(pin)
                 broker.rooms = [room(), room(code="WXYZ6789", name="Old build", version_token="LC30"),
-                                room(code="MNPQ7777", name="Full house", players=4), room(code="OOOO0000")]
+                                room(code="MNPQ7777", name="Full house", players=4), room(code="OOOO0000"),
+                                room(code="PQRS2345", name="Locked", password_protected=True),
+                                room(code="HJKM3456", name="Lobby closed", zone_name="", zone="danger/dr_1", game_mode="danger_room", joinable=False)]
                 answer = rooms()
                 result = answer.get("result") or {}
-                check(result.get("ok") is True and len(result.get("rooms", [])) == 4 and answer.get("host") == "127.0.0.1"
-                      and answer.get("versionToken") == "LC31", f"ok: 4 rooms from 127.0.0.1, this build LC31 {answer}")
+                check(result.get("ok") is True and len(result.get("rooms", [])) == 6 and answer.get("host") == "127.0.0.1"
+                      and answer.get("versionToken") == "LC31", f"ok: 6 rooms from 127.0.0.1, this build LC31 {answer}")
                 check(broker.requests >= 1, "the broker was asked")
 
                 open_page()
-                check(wait_for(lambda: len(rows() or []) == 3, 15), f"the page lists 3 rooms (a row without a valid code left out): {rows()}")
+                check(wait_for(lambda: len(rows() or []) == 4, 15),
+                      f"the page lists 4 rooms (a row without a valid code and a room with a password left out): {rows()}")
                 listed = {r["code"]: r for r in rows() or []}
                 first = listed.get("ABCD2345", {})
-                check(first.get("name") == "Saturday run" and first.get("where") == "Campaign · nyc1_1_3" and first.get("players") == "2 of 4"
+                check(first.get("name") == "Saturday run" and first.get("where") == "Campaign · Alison Rescue" and first.get("players") == "2 of 4"
                       and first.get("join") is True, f"a row: name, mode and level, 2 of 4, Join {first}")
                 check(listed.get("WXYZ6789", {}).get("reason") == "differentVersion" and listed["WXYZ6789"]["join"] is False,
                       "another build: Different game version, no Join")
                 check(listed.get("MNPQ7777", {}).get("reason") == "full" and listed["MNPQ7777"]["join"] is False, "4 of 4: Full, no Join")
+                check("PQRS2345" not in listed, "a room with a password: not listed")
+                closed = listed.get("HJKM3456", {})
+                check(closed.get("reason") == "closed" and closed.get("join") is False and closed.get("where") == "Danger Room · dr_1",
+                      f"joinable false: listed, Can't join right now; no zone_name: the zone's last part {closed}")
                 check(ui("return [...panel.querySelectorAll('.ul-online-room-badge')].every(b => b.textContent === 'In progress');"), "In progress badges")
                 check(hidden_shown() == [], f"every hidden part is display:none {hidden_shown()}")
                 shot("browse", "#xml1-online-panel .ul-online-browse")
@@ -680,16 +693,37 @@ def main():
                 check((rooms().get("result") or {}).get("error") == "bad_pin", "no BrokerPin: the project broker's pin, not this key: bad_pin")
                 use_ini(pin)
                 check((rooms().get("result") or {}).get("ok") is True, "the right pin again: ok")
+
+                print("  no GameVersion in the ini (an old build): every row greyed out")
+                use_ini(pin, version=None)
+                broker.rooms = [room(), room(code="WXYZ6789", version_token="LC30")]
+                check((rooms().get("result") or {}).get("ok") is True, "the list itself is fine")
+                refresh_page()
+                listed = rows() or []
+                check(len(listed) == 2 and all(r["reason"] == "rebuild" and r["join"] is False for r in listed)
+                      and ui("return [...panel.querySelectorAll('.ul-online-room-reason')].every(e => e.textContent === 'Rebuild to play online');"),
+                      f"every row: Rebuild to play online, no Join {listed}")
+                use_ini(pin)
             finally:
                 broker.close()
 
+            print("  the pin is the trust anchor: a name or a date the certificate doesn't fit, only with the pinned key")
             named = FakeBroker(named_cert, named_key)
             try:
                 use_ini(named_pin)
-                check((rooms().get("result") or {}).get("error") == "bad_pin",
-                      "a pinned key on a certificate for another name: refused (only the unknown CA is ignored)")
+                check((rooms().get("result") or {}).get("ok") is True, "a certificate for another name, its key pinned: ok")
+                use_ini(pin)
+                check((rooms().get("result") or {}).get("error") == "bad_pin", "the same certificate, another key pinned: bad_pin")
             finally:
                 named.close()
+            expired = FakeBroker(expired_cert, expired_key)
+            try:
+                use_ini(expired_pin)
+                check((rooms().get("result") or {}).get("ok") is True, "an expired certificate, its key pinned: ok")
+                use_ini(pin)
+                check((rooms().get("result") or {}).get("error") == "bad_pin", "an expired certificate, another key pinned: bad_pin")
+            finally:
+                expired.close()
             plain = FakeBroker()
             try:
                 use_ini(pin)

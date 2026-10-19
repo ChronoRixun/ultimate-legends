@@ -3,6 +3,7 @@
 #include "cef/cef_ui.hpp"
 #include "fix/fix_ini.hpp"
 #include "fix/online_settings.hpp"
+#include "online/public_rooms.hpp"
 #include "updater/folder_work.hpp"
 #include "xml1/xml1_port.hpp"
 
@@ -129,7 +130,8 @@ namespace commands::online_commands
         // join, a stale online-status.json deleted. The page then starts the game with launch-game
         // { online: true }. Answers { success, values, code } or { success: false, reason, error } with
         // reason one of not_supported, not_installed, no_fix, not_built, running, test_mode_on, bad_code,
-        // bad_mode, busy, write_failed. Nothing is written while the builder holds the folder.
+        // bad_room_name, bad_mode, busy, write_failed. Nothing is written while the builder holds the folder.
+        // A host start also takes { public, roomName } (Public=1|0, RoomName for a public room).
         cef_ui.add_command("prepare-online-start", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
         {
             const auto config = ctx.get_game_config_from_request(value);
@@ -182,6 +184,22 @@ namespace commands::online_commands
                     return;
                 }
             }
+            // { public: true, roomName: "..." } for a host start (contract v1.3); the name is only written for
+            // a public room.
+            online_rules::host_options options{};
+            if (*mode == online_rules::mode::host)
+            {
+                options.is_public = value.HasMember("public") && value["public"].IsBool() && value["public"].GetBool();
+                const auto name_text = value.HasMember("roomName") && value["roomName"].IsString() ? std::string(value["roomName"].GetString())
+                                                                                                    : std::string{};
+                const auto name = online_rules::normalise_room_name(name_text);
+                if (!name)
+                {
+                    fail(response, "bad_room_name", "That room name can't be used.");
+                    return;
+                }
+                options.room_name = *name;
+            }
 
             const auto ini = *where.ini();
             const auto& fix = *where.info;
@@ -200,7 +218,7 @@ namespace commands::online_commands
             }
 
             std::string error;
-            if (!online_settings::prepare(ini, fix, *mode, code.value_or(""), error))
+            if (!online_settings::prepare(ini, fix, *mode, code.value_or(""), error, options))
             {
                 fail(response, "write_failed", error);
                 return;
@@ -219,6 +237,88 @@ namespace commands::online_commands
             {
                 response.AddMember("code", make_string(*code, allocator), allocator);
             }
+        });
+
+        // { game, refresh }: the public game browser (contract v1.3). With refresh, a fetch of the broker's
+        // room list starts on a worker (unless one runs); the page polls without it until `fetching` is false.
+        // Answers { supported, fetching, host, versionToken, result: { ok, error, status, rooms, ts, age } | null }:
+        // `rooms` as the broker sent them (at most 50; the page checks each), `age` ms since that fetch ended,
+        // `versionToken` the port's [Online] GameVersion ("" when the ini has none).
+        cef_ui.add_command("get-public-rooms", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+
+            const auto where = fix_ini::locate(ctx.get_game_config_from_request(value));
+            const auto is_supported = supported(where);
+            response.AddMember("supported", is_supported, allocator);
+            if (!is_supported)
+            {
+                return;
+            }
+
+            const auto target = online_settings::target(where.fix_installed ? where.ini() : std::nullopt, where.info);
+            if (value.HasMember("refresh") && value["refresh"].IsBool() && value["refresh"].GetBool())
+            {
+                public_rooms::refresh(target.host, target.pin);
+            }
+            const auto snapshot = public_rooms::current();
+            response.AddMember("fetching", snapshot.fetching, allocator);
+            response.AddMember("host", make_string(target.host, allocator), allocator);
+            response.AddMember("versionToken", make_string(target.version_token, allocator), allocator);
+
+            if (!snapshot.last)
+            {
+                response.AddMember("result", rapidjson::Value(rapidjson::kNullType), allocator);
+                return;
+            }
+
+            const auto& last = *snapshot.last;
+            rapidjson::Value result(rapidjson::kObjectType);
+            std::string error = last.error;
+            rapidjson::Value rooms(rapidjson::kArrayType);
+            std::int64_t ts = 0;
+            if (last.ok)
+            {
+                rapidjson::Document parsed;
+                parsed.Parse(last.body.data(), last.body.size());
+                // (MemberEnd() on anything but an object throws: rapidjson_config.hpp.)
+                const auto object = !parsed.HasParseError() && parsed.IsObject();
+                const auto list = object ? parsed.FindMember("rooms") : rapidjson::Document::MemberIterator{};
+                if (!object || list == parsed.MemberEnd() || !list->value.IsArray())
+                {
+                    error = "bad_response";
+                }
+                else
+                {
+                    for (auto& room : list->value.GetArray())
+                    {
+                        if (rooms.Size() >= 50)
+                        {
+                            break;
+                        }
+                        if (room.IsObject())
+                        {
+                            rapidjson::Value copy;
+                            copy.CopyFrom(room, allocator);
+                            rooms.PushBack(copy, allocator);
+                        }
+                    }
+                    const auto stamp = parsed.FindMember("ts");
+                    if (stamp != parsed.MemberEnd() && stamp->value.IsInt64())
+                    {
+                        ts = stamp->value.GetInt64();
+                    }
+                }
+            }
+            const auto age = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - snapshot.at).count();
+            result.AddMember("ok", error.empty(), allocator);
+            result.AddMember("error", error.empty() ? rapidjson::Value(rapidjson::kNullType) : make_string(error, allocator), allocator);
+            result.AddMember("status", static_cast<std::uint64_t>(last.status), allocator);
+            result.AddMember("rooms", rooms, allocator);
+            result.AddMember("ts", ts, allocator);
+            result.AddMember("age", static_cast<std::int64_t>(age), allocator);
+            response.AddMember("result", result, allocator);
         });
     }
 }

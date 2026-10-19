@@ -40,6 +40,24 @@ namespace online_settings
                 }
                 value = *change.value;
             }
+            else if (change.value && change.key == "Public")
+            {
+                if (*change.value != "0" && *change.value != "1")
+                {
+                    error = "Public must be 0 or 1.";
+                    return false;
+                }
+                value = *change.value;
+            }
+            else if (change.value && change.key == "RoomName")
+            {
+                value = online_rules::normalise_room_name(*change.value);
+                if (!value || value->empty())
+                {
+                    error = "That room name can't be used.";
+                    return false;
+                }
+            }
             else if (change.value)
             {
                 value = online_rules::normalise_code(*change.value);
@@ -59,7 +77,7 @@ namespace online_settings
     }
 
     bool prepare(const std::filesystem::path& ini, const fix_ini::fix& fix, const online_rules::mode mode, const std::string& code,
-                 std::string& error)
+                 std::string& error, const online_rules::host_options& options)
     {
         std::string normalised;
         if (mode == online_rules::mode::join)
@@ -73,7 +91,22 @@ namespace online_settings
             normalised = *valid;
         }
         const auto present = fix_ini::present(ini, section, online_rules::keys());
-        return write(ini, fix, online_rules::changes_for(mode, normalised, present), error);
+        return write(ini, fix, online_rules::changes_for(mode, normalised, present, options), error);
+    }
+
+    browse_target target(const std::optional<std::filesystem::path>& ini, const fix_ini::fix* fix)
+    {
+        std::map<std::string, std::string> values;
+        if (ini && fix)
+        {
+            values = fix_ini::read(*ini, section, {"Broker", "BrokerPin", "GameVersion"}, fix->comment_chars);
+        }
+        const auto value = [&values](const char* key)
+        {
+            const auto it = values.find(key);
+            return it == values.end() ? std::string{} : it->second;
+        };
+        return {online_rules::rooms_host(value("Broker")), online_rules::rooms_pin(value("BrokerPin")), value("GameVersion")};
     }
 
     bool test_mode_on(const std::filesystem::path& ini, const fix_ini::fix& fix)

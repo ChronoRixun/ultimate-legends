@@ -11,6 +11,10 @@
 //   up, the room not open until Play Online in the game) where to go, the room's
 //   code (XXXX-XXXX, Copy) and its players ("N of 4" with max_players) for a host; Looking for the game..., Found it for a joiner;
 //   and every error id of the contract in plain words.
+// - Host can list the game publicly (contract v1.3: Public=1 and an optional RoomName, written with
+//   Host=broker); the room card says Public or Private, and the code goes on the clipboard by itself
+//   when it first appears. Browse games (online-browse.js) lists the public rooms; its Join is the
+//   code flow with the row's code.
 // - Host and Join are off, with the reason, while the port is not built, a build or an XML2 Fix update
 //   holds the folder (Xml1Port, as for Display / Discord / Test mode), Test mode is on (the fix refuses
 //   online play then; Turn test mode off is right there), or the game is already running.
@@ -24,6 +28,7 @@
     const SUPPORTED = new Set(['xml1']);
     const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
     const CODE_LENGTH = 8;
+    const ROOM_NAME_LENGTH = 32;
     const STATES = ['connecting', 'room', 'joined', 'in_game', 'ended', 'error'];
     const ERRORS = ['broker_unreachable', 'broker_rejected', 'code_not_found', 'code_expired', 'room_full',
         'version_mismatch', 'test_mode_on', 'tls_pin_mismatch', 'internal'];
@@ -65,7 +70,7 @@
     function getState(gameId) {
         if (!state[gameId]) {
             state[gameId] = { data: null, session: null, timer: null, loading: null, lastIdleRefresh: 0, codeTried: false, shown: '',
-                lastRole: null, dismissed: null, loads: 0 };
+                lastRole: null, dismissed: null, loads: 0, isPublic: false };
         }
         return state[gameId];
     }
@@ -89,6 +94,16 @@
         return { code };
     }
 
+    // A room name as the contract takes it: trimmed, at most 32 printable ASCII characters, no ';' (a
+    // comment in the ini) or '"' (the profile API drops quotes) - online_rules::normalise_room_name.
+    // { name } or { error: 'chars' | 'long' }.
+    function checkRoomName(text) {
+        const name = String(text || '').replace(/^[ \t]+|[ \t]+$/g, '');
+        if (name.length > ROOM_NAME_LENGTH) return { error: 'long' };
+        if (/[^\x20-\x7e]|[;"]/.test(name)) return { error: 'chars' };
+        return { name };
+    }
+
     function displayCode(code) {
         const text = String(code || '');
         return text.length === CODE_LENGTH ? `${text.slice(0, 4)}-${text.slice(4)}` : text;
@@ -109,7 +124,10 @@
             players: Number.isInteger(raw.players) && raw.players >= 0 ? raw.players : null,
             maxPlayers: Number.isInteger(raw.max_players) && raw.max_players > 0 ? raw.max_players : null,
             error: typeof raw.error === 'string' && raw.error ? raw.error : null,
-            message: typeof raw.message === 'string' && raw.message ? raw.message : null
+            message: typeof raw.message === 'string' && raw.message ? raw.message : null,
+            // v1.3: whether the room is listed publicly, and its name.
+            isPublic: typeof raw.public === 'boolean' ? raw.public : null,
+            roomName: typeof raw.room_name === 'string' ? raw.room_name.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 64) : null
         };
     }
 
@@ -179,7 +197,7 @@
 
     function helpHTML() {
         const steps = ['host', 'share', 'join', 'inGame'].map(step => `<li>${escapeHtml(t(`online.help.steps.${step}`))}</li>`).join('');
-        const notes = ['noPorts', 'sameVersion', 'lan', 'testMode'].map(note => `<li>${escapeHtml(t(`online.help.${note}`))}</li>`).join('');
+        const notes = ['public', 'noPorts', 'sameVersion', 'lan', 'testMode'].map(note => `<li>${escapeHtml(t(`online.help.${note}`))}</li>`).join('');
         const errors = ERRORS.map(id => `
             <div class="ul-online-help-error" data-error="${escapeHtml(id)}">
                 <dt>${escapeHtml(t(`online.errors.${id}.title`))}</dt>
@@ -215,6 +233,19 @@
                     <div class="ul-online-card ul-online-host">
                         <h4 class="ul-online-card-title">${escapeHtml(t('online.host.title'))}</h4>
                         <p class="ul-online-card-body">${escapeHtml(t('online.host.body'))}</p>
+                        <div class="ul-online-public">
+                            <span class="ul-online-public-label" id="${escapeHtml(gameId)}-online-public-label">${escapeHtml(t('online.host.public'))}</span>
+                            <div class="toggle-group small ul-online-public-toggle" role="group" aria-labelledby="${escapeHtml(gameId)}-online-public-label">
+                                <button type="button" class="toggle-btn active" data-value="0" aria-pressed="true">${escapeHtml(t('testMode.off'))}</button>
+                                <button type="button" class="toggle-btn" data-value="1" aria-pressed="false">${escapeHtml(t('testMode.on'))}</button>
+                            </div>
+                        </div>
+                        <p class="ul-online-public-note">${escapeHtml(t('online.host.publicNote'))}</p>
+                        <input type="text" class="xml1-input ul-online-room-name-input" id="${escapeHtml(gameId)}-online-room-name"
+                            aria-label="${escapeHtml(t('online.host.roomName'))}" aria-describedby="${escapeHtml(gameId)}-online-room-name-error"
+                            placeholder="${escapeHtml(t('online.host.roomNamePlaceholder'))}" maxlength="${ROOM_NAME_LENGTH}"
+                            autocomplete="off" spellcheck="false" disabled>
+                        <div class="ul-online-room-name-error" id="${escapeHtml(gameId)}-online-room-name-error" role="alert" hidden></div>
                         <div class="ul-online-card-actions">
                             <button type="button" class="ul-online-primary ul-online-host-button">${escapeHtml(t('online.host.button'))}</button>
                         </div>
@@ -232,6 +263,7 @@
                         <div class="ul-online-code-error" id="${escapeHtml(gameId)}-online-code-error" role="alert" hidden></div>
                     </div>
                 </div>
+                <section class="ul-online-browse"></section>
                 <div class="ul-online-session" tabindex="-1" hidden></div>
                 ${helpHTML()}
             </div>`;
@@ -252,6 +284,25 @@
             if (checked.code) input.value = displayCode(checked.code);
         });
         host.querySelector('.ul-online-testmode-off').addEventListener('click', () => turnTestModeOff(gameId));
+        host.querySelector('.ul-online-public-toggle').addEventListener('click', event => {
+            const button = event.target.closest && event.target.closest('.toggle-btn');
+            if (!button || button.disabled) return;
+            s.isPublic = button.dataset.value === '1';
+            sync(gameId);
+        });
+        host.querySelector('.ul-online-room-name-input').addEventListener('input', () => showRoomNameError(gameId, false));
+        host.querySelector('.ul-online-room-name-input').addEventListener('keydown', event => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                start(gameId, 'host');
+            }
+        });
+        if (window.OnlineBrowse) {
+            window.OnlineBrowse.render(gameId, host.querySelector('.ul-online-browse'), {
+                join: code => joinCode(gameId, code),
+                blocked: () => !!getState(gameId).session || !!blocked(gameId)
+            });
+        }
         host.querySelector('.ul-online-session').addEventListener('click', event => onSessionClick(gameId, event));
 
         if (!s.timer) s.timer = setInterval(() => tick(gameId), POLL_MS);
@@ -272,6 +323,21 @@
         box.hidden = !show;
         box.textContent = show ? t(`online.codeError.${checked.error}`, { count: checked.count, length: CODE_LENGTH, chars: checked.chars }) : '';
         input.classList.toggle('is-invalid', !!show);
+        input.setAttribute('aria-invalid', show ? 'true' : 'false');
+        return checked;
+    }
+
+    // The inline error under the room name: shown as it is typed (the field's maxlength keeps it to 32).
+    function showRoomNameError(gameId) {
+        const host = panel(gameId);
+        if (!host) return null;
+        const input = host.querySelector('.ul-online-room-name-input');
+        const box = host.querySelector('.ul-online-room-name-error');
+        const checked = checkRoomName(input.value);
+        const show = !!checked.error && getState(gameId).isPublic;
+        box.hidden = !show;
+        box.textContent = show ? t('online.host.roomNameError', { length: ROOM_NAME_LENGTH }) : '';
+        input.classList.toggle('is-invalid', show);
         input.setAttribute('aria-invalid', show ? 'true' : 'false');
         return checked;
     }
@@ -308,6 +374,7 @@
     function tick(gameId) {
         const s = getState(gameId);
         if (!panel(gameId)) return;
+        if (window.OnlineBrowse) window.OnlineBrowse.tick(gameId, visible(gameId) && !s.session);
         if (s.session && !s.session.outcome) {
             load(gameId);
         } else if (visible(gameId) && Date.now() - s.lastIdleRefresh >= IDLE_REFRESH_MS) {
@@ -381,9 +448,17 @@
         const off = host.querySelector('.ul-online-testmode-off');
         off.hidden = !(reason && reason.action === 'test-mode-off');
         off.disabled = !!(port() && (port().starting || port().isBuilding()));
-        host.querySelectorAll('.ul-online-host-button, .ul-online-join-button, .ul-online-code-input').forEach(control => {
+        host.querySelectorAll('.ul-online-host-button, .ul-online-join-button, .ul-online-code-input, .ul-online-public-toggle .toggle-btn').forEach(control => {
             control.disabled = !!reason;
         });
+        // List my game publicly, and the room name it goes with (only a public room has one).
+        host.querySelectorAll('.ul-online-public-toggle .toggle-btn').forEach(button => {
+            const active = (button.dataset.value === '1') === !!s.isPublic;
+            button.classList.toggle('active', active);
+            button.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+        host.querySelector('.ul-online-room-name-input').disabled = !!reason || !s.isPublic;
+        showRoomNameError(gameId);
         host.querySelectorAll('.ul-online-card').forEach(card => card.classList.toggle('is-disabled', !!reason));
         host.dataset.blocked = reason ? reason.key.split('.').pop() : '';
 
@@ -399,6 +474,10 @@
         const hadFocus = !!focused && !!focused.closest && !!focused.closest(`#${gameId}-online-panel`);
         idle.hidden = live;
         sessionBox.hidden = !live;
+        // Browse games sits under Host / Join, and goes with them while a session runs.
+        const browse = host.querySelector('.ul-online-browse');
+        browse.hidden = live;
+        if (window.OnlineBrowse) window.OnlineBrowse.show(gameId);
         if (live) renderSession(gameId, sessionBox);
         else s.shown = '';
 
@@ -440,7 +519,22 @@
         const session = s.session;
         const current = phase(session);
         const code = (session.status && session.status.code) || (session.role === 'host' ? session.code : null) || null;
-        const signature = JSON.stringify([current, code, session.seenRunning, session.players, session.maxPlayers, session.outcome && session.outcome.error, session.outcome && session.outcome.reason]);
+        const status = session.status;
+        const isPublic = status && status.isPublic !== null ? status.isPublic : !!session.isPublic;
+        const roomName = status && status.roomName !== null ? status.roomName : session.roomName || '';
+        // The code goes on the clipboard by itself the first time it shows (not for a room the page took up
+        // after a launcher restart: that would overwrite the clipboard out of the blue).
+        if (session.role === 'host' && code && !session.outcome && !session.adopted && session.autoCopied !== code) {
+            session.autoCopied = code;
+            copyText(displayCode(code)).then(copied => {
+                session.copiedNote = copied;
+                if (copied && s.session === session) {
+                    s.shown = '';
+                    sync(gameId);
+                }
+            });
+        }
+        const signature = JSON.stringify([current, code, session.seenRunning, session.players, session.maxPlayers, isPublic, roomName, !!session.copiedNote, session.outcome && session.outcome.error, session.outcome && session.outcome.reason]);
         if (signature === s.shown) return;
         const focusedInside = !!document.activeElement && !!document.activeElement.closest && document.activeElement.closest('.ul-online-session') === box;
         const keepCopy = focusedInside && document.activeElement.classList.contains('ul-online-copy');
@@ -487,11 +581,17 @@
             const players = session.players;
             codeHTML = `
                 <div class="ul-online-code-block">
+                    <div class="ul-online-room-line">
+                        <span class="ul-online-visibility is-${isPublic ? 'public' : 'private'}">${escapeHtml(t(isPublic ? 'online.visibility.public' : 'online.visibility.private'))}</span>
+                        ${roomName ? `<span class="ul-online-room-title">${escapeHtml(roomName)}</span>` : ''}
+                        <span class="ul-online-visibility-note">${escapeHtml(t(isPublic ? 'online.visibility.publicNote' : 'online.visibility.privateNote'))}</span>
+                    </div>
                     <span class="ul-online-code-label">${escapeHtml(t('online.code.label'))}</span>
                     <div class="ul-online-code-row">
                         <span class="ul-online-code" data-code="${escapeHtml(code)}">${escapeHtml(displayCode(code))}</span>
                         ${outcome ? '' : `<button type="button" class="ul-online-primary ul-online-copy">${escapeHtml(t('online.code.copy'))}</button>`}
                     </div>
+                    ${outcome || !session.copiedNote ? '' : `<p class="ul-online-copied" role="status">${escapeHtml(t('online.code.autoCopied'))}</p>`}
                     ${outcome ? '' : `<p class="ul-online-code-hint">${escapeHtml(t('online.code.hint'))}</p>`}
                     ${players !== null && !outcome ? `<p class="ul-online-players${session.playersChanged ? ' is-new' : ''}" aria-live="polite" data-players="${escapeHtml(players)}">${escapeHtml(playersText(players, session.maxPlayers))}</p>` : ''}
                 </div>`;
@@ -551,21 +651,21 @@
         }
     }
 
-    async function copy(gameId) {
-        const session = getState(gameId).session;
-        const code = session && ((session.status && session.status.code) || session.code);
-        if (!code) return;
-        const text = displayCode(code);
-        let copied = false;
+    // The Clipboard API, else the old copy command; true when it worked.
+    async function copyText(text) {
         try {
             await navigator.clipboard.writeText(text);
-            copied = true;
+            return true;
         } catch (_) {
+            // (Selecting the text moves the focus: it goes back where it was, so an automatic copy never
+            // takes it from a keyboard or controller user.)
+            const focused = document.activeElement;
             const area = document.createElement('textarea');
             area.value = text;
             area.style.position = 'fixed';
             area.style.opacity = '0';
             document.body.appendChild(area);
+            let copied = false;
             try {
                 area.select();
                 copied = document.execCommand('copy');
@@ -573,7 +673,17 @@
                 copied = false;
             }
             area.remove();
+            if (focused && focused !== document.body && typeof focused.focus === 'function') focused.focus();
+            return !!copied;
         }
+    }
+
+    async function copy(gameId) {
+        const session = getState(gameId).session;
+        const code = session && ((session.status && session.status.code) || session.code);
+        if (!code) return;
+        const text = displayCode(code);
+        const copied = await copyText(text);
         window.showToast(copied ? t('online.code.copied', { code: text }) : t('online.code.copyFailed', { code: text }), copied ? 'success' : 'error');
     }
 
@@ -598,6 +708,18 @@
         start(gameId, 'join', checked.code);
     }
 
+    // Join from Browse games: the code flow with the row's code (it goes in the code field too, so Try
+    // again has it).
+    function joinCode(gameId, code) {
+        const host = panel(gameId);
+        const checked = checkCode(code);
+        if (!host || !checked.code) return;
+        host.querySelector('.ul-online-code-input').value = displayCode(checked.code);
+        getState(gameId).codeTried = false;
+        showCodeError(gameId);
+        start(gameId, 'join', checked.code);
+    }
+
     // Host or Join: the [Online] key written (and a stale status deleted) right before the start, after
     // the launch's own checks and prompts, then the game started as this section's (launch-game
     // { online: true }) and its status followed.
@@ -609,8 +731,21 @@
             return;
         }
 
+        // A public room's name, checked like the backend checks it (online_rules::normalise_room_name).
+        let roomName = '';
+        if (role === 'host' && s.isPublic) {
+            const checked = showRoomNameError(gameId);
+            if (!checked || checked.error) {
+                const input = panel(gameId).querySelector('.ul-online-room-name-input');
+                if (input && !input.disabled) input.focus();
+                return;
+            }
+            roomName = checked.name;
+        }
+
         const session = { role, code: role === 'join' ? code : null, launched: false, launchedAt: 0, seenRunning: false,
-            status: null, players: null, maxPlayers: null, playersChanged: false, outcome: null, readsFrom: Infinity };
+            status: null, players: null, maxPlayers: null, playersChanged: false, outcome: null, readsFrom: Infinity,
+            isPublic: role === 'host' && !!s.isPublic, roomName, autoCopied: null, copiedNote: false };
         s.session = session;
         s.lastRole = role;
         sync(gameId);
@@ -621,7 +756,9 @@
             started = await GameUtils.launchGame(backendId(gameId), gameId, {
                 online: true,
                 beforeLaunch: async () => {
-                    const result = await run('prepare-online-start', { game: backendId(gameId), mode: role, code: code || '' });
+                    const request = { game: backendId(gameId), mode: role, code: code || '' };
+                    if (role === 'host') Object.assign(request, { public: session.isPublic, roomName: session.roomName });
+                    const result = await run('prepare-online-start', request);
                     if (!result || !result.success) {
                         refused = result || { reason: 'write_failed', error: '' };
                         return false;
@@ -638,10 +775,11 @@
         if (s.session !== session) return;
 
         if (refused) {
-            if (refused.reason === 'bad_code') {
+            if (refused.reason === 'bad_code' || refused.reason === 'bad_room_name') {
                 s.session = null;
                 sync(gameId);
-                showCodeError(gameId);
+                if (refused.reason === 'bad_code') showCodeError(gameId);
+                else showRoomNameError(gameId);
                 return;
             }
             session.outcome = { kind: 'start_failed', reason: refused.reason, message: refused.error };
@@ -693,6 +831,7 @@
         REQUIRED_FIX,
         normaliseCode,
         checkCode,
+        checkRoomName,
         displayCode,
         readStatus
     };

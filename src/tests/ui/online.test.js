@@ -1,165 +1,19 @@
 'use strict';
 // The X-Men Legends page's Online section (launcher 0.4.0): Host a game / Join a game against the
-// launcher <-> XML2 Fix contract (v1). The real online-view.js and GameUtils.launchGame (utils.js) run
-// against a fake backend that keeps the port's [Online] keys and online-status.json the way the C++
-// does (online_settings / online_rules: Host=broker or JoinCode, the other removed; a stale status
-// deleted before a Host or Join start; launch-game removing both for every start without `online`).
-// A test writes the status file as the fix would: every state and error id must render. That the rest
-// of the ini stays byte for byte is the real WritePrivateProfileString's job: tools/dev/online_cdp.py
-// checks it, and src/tests/online_rules_tests.cpp the keys each start writes.
+// launcher <-> XML2 Fix contract. The real online-view.js and GameUtils.launchGame (utils.js) run against
+// online_fixture.js's fake backend, which keeps the port's [Online] keys and online-status.json the way
+// the C++ does. A test writes the status file as the fix would: every state and error id must render.
+// That the rest of the ini stays byte for byte is the real WritePrivateProfileString's job:
+// tools/dev/online_cdp.py checks it, and src/tests/online_rules_tests.cpp the keys each start writes.
+// The public games (v1.3) are online_browse.test.js's.
 
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const { page, test } = require('./harness');
+const { test } = require('./harness');
 
-const FOLDER = 'D:\\Games\\X-Men Legends (Port)';
-const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-const ERRORS = ['broker_unreachable', 'broker_rejected', 'code_not_found', 'code_expired', 'room_full',
-    'version_mismatch', 'test_mode_on', 'tls_pin_mismatch', 'internal'];
-
-class Backend {
-    constructor(options = {}) {
-        this.installed = options.installed !== false;
-        this.playable = options.playable !== false;
-        this.fixInstalled = options.fixInstalled !== false;
-        this.running = !!options.running;
-        this.testMode = !!options.testMode;
-        // The port's xml2-fix.ini [Online]: the builder's keys and whatever the launcher wrote.
-        this.online = Object.assign({ Broker: 'broker.example:7777', BrokerPin: 'ab'.repeat(32) }, options.online || {});
-        this.status = options.status === undefined ? null : options.status; // online-status.json, as parsed
-        this.calls = [];
-        this.prepares = [];
-        this.launches = [];
-        this.refuse = null; // a reason the next prepare-online-start answers with
-    }
-
-    write(status) {
-        this.status = Object.assign({ v: 1, code: null, players: 0, error: null, message: null, updated: '2026-10-19T12:00:00Z' }, status);
-    }
-
-    handle(command, data) {
-        this.calls.push(command);
-        switch (command) {
-            case 'get-online-status':
-                return {
-                    supported: true, installed: this.installed, fixInstalled: this.installed && this.fixInstalled,
-                    playable: this.installed && this.playable, running: this.running, testMode: this.testMode,
-                    fix: 'XML2 Fix', file: 'xml2-fix.ini', ini: `${FOLDER}\\xml2-fix.ini`,
-                    values: { Host: this.online.Host === undefined ? null : this.online.Host, JoinCode: this.online.JoinCode === undefined ? null : this.online.JoinCode },
-                    status: this.status === null ? null : JSON.parse(JSON.stringify(this.status)),
-                    statusUnreadable: false
-                };
-            case 'prepare-online-start': {
-                this.prepares.push(Object.assign({}, data));
-                if (this.refuse) {
-                    const reason = this.refuse;
-                    this.refuse = null;
-                    return { success: false, reason, error: `refused: ${reason}` };
-                }
-                if (this.running) return { success: false, reason: 'running', error: 'running' };
-                if (this.testMode) return { success: false, reason: 'test_mode_on', error: 'test mode' };
-                if (data.mode === 'host') {
-                    this.online.Host = 'broker';
-                    delete this.online.JoinCode;
-                } else if (data.mode === 'join') {
-                    const code = String(data.code).toUpperCase().replace(/[\s-]/g, '');
-                    if (code.length !== 8 || [...code].some(c => !ALPHABET.includes(c))) return { success: false, reason: 'bad_code', error: 'bad code' };
-                    this.online.JoinCode = code;
-                    delete this.online.Host;
-                } else {
-                    return { success: false, reason: 'bad_mode', error: 'bad mode' };
-                }
-                this.status = null; // the stale online-status.json
-                return { success: true, values: { Host: this.online.Host || null, JoinCode: this.online.JoinCode || null }, code: this.online.JoinCode };
-            }
-            case 'launch-game':
-                this.launches.push(Object.assign({}, data));
-                if (data.online !== true) {
-                    delete this.online.Host;
-                    delete this.online.JoinCode;
-                    this.status = null;
-                }
-                return null;
-            case 'get-update-progress':
-                return { active: false, progress: 100, message: 'Complete' };
-            case 'get-game-property':
-                return data && data.suffix === 'install' ? FOLDER : '';
-            case 'get-property':
-                return null;
-            case 'get-missing-redists-for-game':
-                return { checked: true, missing: [] };
-            default:
-                return null;
-        }
-    }
-}
-
-async function open(options = {}, port = {}) {
-    const backend = new Backend(options);
-    const body = `
-        <div id="xml1-page">
-            <div class="button-group" id="xml1-button-group"><div class="left-buttons"><button class="play-button" id="xml1-play-button">Play</button></div></div>
-            <div id="xml1-online-panel"></div>
-        </div>`;
-    const p = page({ scripts: ['core/utils.js', 'core/i18n.js', 'app/online-view.js'], body, backend });
-    p.window.ProgressManager = { show() {}, update() {}, hide() {} };
-    // What the view reads of Xml1Port: a build running or starting, patch work in the folder.
-    p.window.Xml1Port = Object.assign({
-        starting: null,
-        building: false,
-        working: false,
-        isBuilding() { return this.building; },
-        isWorking() { return this.working || !!this.starting; },
-        patchQueued() { return false; }
-    }, port);
-    const clipboard = [];
-    p.window.navigator.clipboard.writeText = async text => { clipboard.push(text); };
-    if (options.testModeView) p.window.TestModeView = options.testModeView;
-    p.window.OnlineView.render('xml1');
-    await p.clock.advance(0);
-
-    const $ = selector => p.document.querySelector(`#xml1-online-panel ${selector}`);
-    const text = selector => ($(selector) ? $(selector).textContent.replace(/\s+/g, ' ').trim() : null);
-    const visible = selector => {
-        for (let node = $(selector); node; node = node.parentNode) {
-            if (node.hidden) return false;
-            if (node.id === 'xml1-online-panel') return true;
-        }
-        return false;
-    };
-    const input = () => $('.ul-online-code-input');
-    const type = value => {
-        input().value = value;
-        input().dispatchEvent(new p.window.Event('input', { bubbles: true }));
-    };
-    const key = name => {
-        const event = new p.window.Event('keydown', { bubbles: true });
-        event.key = name;
-        input().dispatchEvent(event);
-    };
-    const phase = () => text('.ul-online-phase-text');
-    const blockedText = () => (visible('.ul-online-blocked') ? text('.ul-online-blocked-text') : null);
-    const controls = () => [$('.ul-online-host-button'), $('.ul-online-join-button'), input()];
-    return { ...p, backend, clipboard, $, text, visible, input, type, key, phase, blockedText, controls };
-}
-
-// Host pressed and the game handed to launch-game; `running` makes the game show up.
-async function host(t, { running = true } = {}) {
-    t.$('.ul-online-host-button').click();
-    await t.clock.advance(1500); // the launch's progress poll and its 1 s settle
-    if (running) t.backend.running = true;
-    await t.clock.advance(600);
-}
-
-async function joinWith(t, code, { running = true } = {}) {
-    t.type(code);
-    t.$('.ul-online-join-button').click();
-    await t.clock.advance(1500);
-    if (running) t.backend.running = true;
-    await t.clock.advance(600);
-}
+const { ALPHABET, ERRORS, open, host, joinWith } = require('./online_fixture');
 
 test('online: Host a game and Join a game, with the help, on a built game', async () => {
     const t = await open();
@@ -183,7 +37,7 @@ test('online: Host writes Host (prepare-online-start host), then starts the game
     t.$('.ul-online-host-button').click();
     assert.equal(t.phase(), 'Connecting…', 'Connecting… at the click');
     await t.clock.advance(1500);
-    assert.deepEqual(t.backend.prepares, [{ game: 'xml1', mode: 'host', code: '' }]);
+    assert.deepEqual(t.backend.prepares, [{ game: 'xml1', mode: 'host', code: '', public: false, roomName: '' }], 'private by default');
     assert.deepEqual(t.backend.launches, [{ game: 'xml1', online: true }], 'launch-game keeps the keys it was given');
     assert.equal(t.backend.online.Host, 'broker');
     assert.equal(t.backend.online.JoinCode, undefined, 'JoinCode removed');
@@ -313,9 +167,10 @@ test('online: Copy puts XXXX-XXXX on the clipboard', async () => {
     await host(t);
     t.backend.write({ role: 'host', state: 'room', code: 'WXYZ6789', players: 1 });
     await t.clock.advance(600);
+    assert.deepEqual(t.clipboard, ['WXYZ-6789'], 'copied by itself when it appeared');
     t.$('.ul-online-copy').click();
     await t.clock.advance(0);
-    assert.deepEqual(t.clipboard, ['WXYZ-6789']);
+    assert.deepEqual(t.clipboard, ['WXYZ-6789', 'WXYZ-6789'], 'and again with Copy');
     assert.equal(t.toasts.length, 1);
     assert.match(String(t.toasts[0][0]), /WXYZ-6789 copied/);
 });
@@ -740,6 +595,17 @@ test('online: every hidden part of the section computes to display:none (main.cs
     t.backend.write({ role: 'host', state: 'error', error: 'test_mode_on' });
     await t.clock.advance(600);
     checkHidden(t, 'an error');
+    // v1.3: the public toggle and its name error, Browse games empty, with rows, with an error.
+    t = await open({ rooms: [] });
+    await t.clock.advance(1000);
+    t.$('.ul-online-public-toggle .toggle-btn[data-value="1"]').click();
+    checkHidden(t, 'public on, an empty list');
+    t = await open({ rooms: [{ code: 'ABCD2345', name: 'A', players: 1, max_players: 4, version_token: 'LC31' }] });
+    await t.clock.advance(1000);
+    checkHidden(t, 'a list');
+    t = await open({ rooms: { ok: false, error: 'busy', rooms: [] } });
+    await t.clock.advance(1000);
+    checkHidden(t, 'a list error');
 
     // And the rule itself: every ul-online-* class main.css gives a display has its [hidden] rule.
     const shown = new Set(rules.filter(r => r.value !== 'none').flatMap(r => (r.selector.match(/\.ul-online-[\w-]+/g) || []).slice(-1)));

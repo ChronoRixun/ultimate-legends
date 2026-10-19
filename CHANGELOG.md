@@ -6,7 +6,7 @@ generates the project, so a release only needs this entry and the tag.
 ## 0.4.0 (unreleased)
 
 Ships on the same day as Legends Classic 0.3.0, whose XML2 Fix reads the keys below (the launcher <-> XML2 Fix
-contract, v1.2).
+contract, v1.3).
 
 ### Added
 - **Online play for X-Men Legends (Legends Classic port), without ini edits or the Connect by IP box.** An Online
@@ -21,6 +21,18 @@ contract, v1.2).
     characters (no 0 O 1 I L) with an inline error, and **Join** (or Enter). It writes `JoinCode` (and removes `Host`),
     starts the game and shows *Looking for the game...*, "Open Play Online → Join Game in the game" once it is up, then
     "Found it. In the game: Play Online → Join Game, pick the game." and "Connected – playing together".
+  - **Public games** (contract v1.3): Host has **List my game publicly** (off by default) and an optional room name
+    (up to 32 characters), written as `Public` and `RoomName` with `Host=broker`. The room card says Public or Private
+    (and the room's name) as the XML2 Fix reports it.
+  - **The code goes on the clipboard by itself** the first time it appears, with a small "Copied to the clipboard"
+    note; Copy stays.
+  - **Browse games** under Host / Join: the public games of everyone with the launcher, from the online service
+    (`https://<broker>:10021/v1/rooms`, its self-signed certificate checked against the pinned key - `BrokerPin`, or
+    the project broker's - and never read otherwise). Each row: the room's name, its host, the mode and level, "2 of
+    4", **In progress**, and **Join** - the code flow with that room's code. Another game version, a full room, a room
+    that needs a password or can't take a player now: no Join, and the row says why. Refresh, and every 10 s while the
+    page shows the list; the empty list, the service unreachable, busy or rate-limited, and a key that isn't the pinned
+    one in plain words.
   - Every error the fix reports in plain words: code not found, code expired, room full, a different game version,
     the online service unreachable or turning the version away, test mode on, the service not verified, an internal
     error; also the game closing or not starting.
@@ -30,17 +42,17 @@ contract, v1.2).
     folder, Test mode is on (with **Turn test mode off** right there) or the game is running.
   - A note when the folder's XML2 Fix is older than the one online play needs (one constant, set at release); the
     update hints name it too.
-  - Buttons and one text field in the Tab order with a focus ring; the focus follows what replaces a control (Copy
-    when the code is up, Try again after an error).
+  - Buttons and text fields in the Tab order with a focus ring; the focus follows what replaces a control (Copy
+    when the code is up, Try again after an error, the same row's Join after a refresh of the list).
   - en, fr, es.
 - Each key is written on its own (WritePrivateProfileStringW, like Display, Discord and Test mode): every other key
-  and section of the file stays byte for byte. Only `Host` and `JoinCode` are written; the builder's `Broker` /
-  `BrokerPin` never are.
+  and section of the file stays byte for byte. Only `Host`, `Public`, `RoomName` and `JoinCode` are written; the
+  builder's `Broker` / `BrokerPin` / `GameVersion` never are.
 
 ### Changed
 - **Play (and every start that isn't the Online section's: the library, `-launch`, `ultimatelegends://play`) removes
-  `[Online]` `Host` and `JoinCode`** from the port's `xml2-fix.ini` before the start, so a normal start never opens a
-  room (the XML2 Fix also removes them when the game starts). A file without them is not touched. A leftover
+  `[Online]` `Host`, `Public`, `RoomName` and `JoinCode`** from the port's `xml2-fix.ini` before the start, so a
+  normal start never opens a room (the XML2 Fix also removes them when the game starts). A file without them is not touched. A leftover
   `online-status.json` is deleted before every start the launcher makes.
 
 ## 0.3.2 - 2026-10-18

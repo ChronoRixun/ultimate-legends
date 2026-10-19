@@ -14,7 +14,14 @@ dinput.dll, _build/stamp.json) and an xml2-fix.ini with what a build leaves ther
 - the page's Host / Join buttons start the dummy game as an online start, and every state and error id
   the test writes into online-status.json (as the XML2 Fix would: temp file + rename) renders;
 - code input normalisation and the inline error, the disabled states and their reasons, the keyboard
-  (Tab, Enter, a focus ring). Screenshots of the main states.
+  (Tab, Enter, a focus ring). Screenshots of the main states;
+- contract v1.3: Host's Public / RoomName written with Host=broker (and removed by Join and by Play), the
+  room card's Public / Private, the code copied by itself; Browse games against a FAKE local broker
+  (https://127.0.0.1:10021/v1/rooms, a self-signed certificate made for the run, its SPKI pinned in the
+  ini's BrokerPin): the rows, version gating, Full, Join from a row, the empty and error states, and the
+  pin - a server with another key, a certificate for another name, or no TLS at all is never read.
+
+Needs: pip install websocket-client cryptography (the fake broker's certificate). Port 10021 must be free.
 
 Never touches a real game install, and puts the entry's settings back afterwards. That nothing is
 written while the builder holds the folder is checked by xml1_cdp.py, which runs real builds.
@@ -22,13 +29,19 @@ written while the builder holds the folder is checked by xml1_cdp.py, which runs
     tools\\run-test-debug.bat
     python tools\\dev\\online_cdp.py
 """
+import datetime
+import hashlib
+import http.server
+import ipaddress
 import json
 import os
 import pathlib
 import shutil
+import ssl
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 import native
@@ -75,6 +88,83 @@ def sections(text):
         else:
             result[-1][1].append(line)
     return result
+
+
+ROOMS_PORT = 10021
+
+
+def make_certificate(folder, name, ips=()):
+    """A self-signed certificate and key for `name` (and `ips` as IP SANs) in `folder`, made for this run
+    (no key is kept in the repo); returns (cert path, key path, SPKI SHA-256 hex) - the pin."""
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.x509.oid import NameOID
+
+    key = ec.generate_private_key(ec.SECP256R1())
+    subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, name)])
+    now = datetime.datetime.now(datetime.timezone.utc)
+    alt = [x509.DNSName(name)] + [x509.IPAddress(ipaddress.ip_address(ip)) for ip in ips]
+    cert = (x509.CertificateBuilder().subject_name(subject).issuer_name(subject).public_key(key.public_key())
+            .serial_number(x509.random_serial_number()).not_valid_before(now - datetime.timedelta(days=1))
+            .not_valid_after(now + datetime.timedelta(days=30))
+            .add_extension(x509.SubjectAlternativeName(alt), critical=False)
+            .sign(key, hashes.SHA256()))
+    cert_path = pathlib.Path(folder) / f"{name}.crt"
+    key_path = pathlib.Path(folder) / f"{name}.key"
+    cert_path.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+    key_path.write_bytes(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
+    spki = cert.public_key().public_bytes(serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo)
+    return cert_path, key_path, hashlib.sha256(spki).hexdigest()
+
+
+class FakeBroker:
+    """The broker's room list on 127.0.0.1:10021: GET /v1/rooms answers `self.status` with `self.body`
+    (the rooms JSON by default). TLS with the given certificate, or plain HTTP when cert is None."""
+
+    def __init__(self, cert=None, key=None):
+        broker = self
+        self.status = 200
+        self.rooms = []
+        self.body = None  # raw text instead of the rooms JSON
+        self.requests = 0
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                broker.requests += 1
+                if self.path != "/v1/rooms":
+                    self.send_response(404)
+                    self.end_headers()
+                    return
+                body = broker.body if broker.body is not None else json.dumps({"v": 1, "ts": int(time.time()), "rooms": broker.rooms})
+                data = body.encode("utf-8")
+                self.send_response(broker.status)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+            def log_message(self, *args):
+                pass
+
+        self.server = http.server.ThreadingHTTPServer(("127.0.0.1", ROOMS_PORT), Handler)
+        if cert:
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.load_cert_chain(str(cert), str(key))
+            self.server.socket = context.wrap_socket(self.server.socket, server_side=True)
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+
+    def close(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+
+def room(**fields):
+    """A row of the broker's list (contract v1.3)."""
+    return dict({"code": "ABCD2345", "name": "Saturday run", "host_display_name": "Logan", "game_mode": "campaign",
+                 "zone": "nyc/alison/nyc1_1_3", "version_token": "LC31", "players": 2, "max_players": 4,
+                 "in_progress": True, "joinable": True, "password_protected": False}, **fields)
 
 
 def main():
@@ -130,9 +220,17 @@ def main():
 
     def focused():
         return js("""(() => { const e = document.activeElement; if (!e) return null;
-            for (const c of ['ul-online-host-button', 'ul-online-code-input', 'ul-online-join-button', 'ul-online-copy', 'ul-online-again']) {
+            for (const c of ['ul-online-host-button', 'ul-online-code-input', 'ul-online-join-button', 'ul-online-copy', 'ul-online-again',
+                             'ul-online-browse-refresh', 'ul-online-room-join', 'ul-online-room-name-input']) {
                 if (e.classList.contains(c)) return c; }
+            if (e.closest('.ul-online-public-toggle')) return `public:${e.dataset.value}`;
             return e.tagName; })()""")
+
+    def type_into(selector, text):
+        launcher.call("Runtime.evaluate", {"expression": f"(() => {{ const i = document.querySelector({json.dumps(selector)}); "
+                                                       "i.value = ''; i.focus(); })()"})
+        launcher.call("Input.insertText", {"text": text})
+        time.sleep(0.2)
 
     def type_code(text):
         launcher.call("Runtime.evaluate", {"expression": "(() => { const i = document.querySelector('#xml1-online-panel .ul-online-code-input'); "
@@ -224,7 +322,7 @@ def main():
             reset()
             state = status()
             check(state["supported"] and state["installed"] and state["fixInstalled"] and state["playable"], "a finished build with its fix")
-            check(state["values"] == {"Host": None, "JoinCode": None} and state["testMode"] is False and state["running"] is False,
+            check(state["values"] == {"Host": None, "Public": None, "RoomName": None, "JoinCode": None} and state["testMode"] is False and state["running"] is False,
                   f"no Host / JoinCode yet, test mode off, not running: {state['values']}")
             check(state["status"] is None and state["statusUnreadable"] is False, "no status file")
             for state_name in ["connecting", "room", "joined", "in_game", "ended", "error"]:
@@ -238,25 +336,26 @@ def main():
             print("Host: Host=broker, nothing else; a stale status deleted")
             write_status(role="host", state="room", code="OLDC0DE0", players=1)
             result = prepare("host")
-            check(result.get("success") is True and result["values"] == {"Host": "broker", "JoinCode": None}, f"host {result}")
-            only_online_changed(["Host=broker"], "host")
+            check(result.get("success") is True and result["values"] == {"Host": "broker", "Public": "0", "RoomName": None, "JoinCode": None},
+                  f"host {result}")
+            only_online_changed(["Host=broker", "Public=0"], "host (private by default)")
             check(not status_file.exists(), "the stale online-status.json is gone")
             check(text().count("Broker=") == 1 and text().count(f"BrokerPin={PIN}") == 1, "Broker / BrokerPin written once, by the builder")
 
             print("Join: JoinCode, Host removed")
             write_status(role="host", state="ended")
             result = prepare("join", " abcd-efgh ")
-            check(result.get("success") is True and result.get("code") == "ABCDEFGH" and result["values"] == {"Host": None, "JoinCode": "ABCDEFGH"},
+            check(result.get("success") is True and result.get("code") == "ABCDEFGH" and result["values"] == {"Host": None, "Public": None, "RoomName": None, "JoinCode": "ABCDEFGH"},
                   f"join, normalised {result}")
             only_online_changed(["JoinCode=ABCDEFGH"], "join after host")
             check(not status_file.exists(), "the stale status is gone")
             result = prepare("host")
-            only_online_changed(["Host=broker"], "host after join (JoinCode's line gone)")
+            only_online_changed(["Host=broker", "Public=0"], "host after join (JoinCode's line gone)")
 
             print("a JoinCode written by hand with a comment: its line goes")
             ini.write_bytes(INI_TEMPLATE.replace("Domain=openspy.net\r\n", "Domain=openspy.net\r\nJoinCode = ZZZZ9999   ; from a friend\r\n").encode("utf-8"))
             prepare("host")
-            only_online_changed(["Host=broker"], "host over a hand-written JoinCode")
+            only_online_changed(["Host=broker", "Public=0"], "host over a hand-written JoinCode")
 
             print("refused before a write")
             reset()
@@ -301,6 +400,25 @@ def main():
             check(prepare("normal").get("success") is True and not ini.exists(), "normal on no ini: none created")
             reset()
 
+            print("v1.3: Public and RoomName go with Host; Join and a normal start remove them")
+            result = prepare("host", public=True, roomName="  Saturday run ")
+            check(result.get("success") is True and result["values"] == {"Host": "broker", "Public": "1", "RoomName": "Saturday run", "JoinCode": None},
+                  f"public host {result.get('values')}")
+            only_online_changed(["Host=broker", "Public=1", "RoomName=Saturday run"], "public host, the name trimmed")
+            before = raw()
+            for bad in ["run; Host=evil", '"quoted"', "x" * 33, "café", "tab\there"]:
+                result = prepare("host", public=True, roomName=bad)
+                check(result.get("reason") == "bad_room_name" and raw() == before, f"room name {bad!r}: refused, nothing written")
+            check(prepare("host", public=True, roomName="x" * 32).get("success") is True, "32 characters: fine")
+            prepare("host", public=False, roomName="not written")
+            only_online_changed(["Host=broker", "Public=0"], "private host: the old RoomName goes, the new one isn't written")
+            prepare("host", public=True, roomName="Saturday run")
+            prepare("join", "ABCD2345")
+            only_online_changed(["JoinCode=ABCD2345"], "join after a public host: Host, Public and RoomName gone")
+            prepare("host", public=True, roomName="Saturday run")
+            check(prepare("normal").get("success") is True and raw() == INI_TEMPLATE.encode("utf-8"), "normal: all four gone, the template byte for byte")
+            check("GameVersion" not in text(), "GameVersion is never written (the builder's)")
+
             print("Play: a normal start removes Host and JoinCode (and an old status)")
             open_page()
             prepare("host")
@@ -310,9 +428,10 @@ def main():
             check(raw() == INI_TEMPLATE.encode("utf-8"), "Host removed by Play: the template byte for byte")
             check(not status_file.exists(), "the old status deleted")
             stop()
-            ini.write_bytes(INI_TEMPLATE.replace("Domain=openspy.net\r\n", "Domain=openspy.net\r\nJoinCode=ABCD2345\r\nHost=broker\r\n").encode("utf-8"))
+            ini.write_bytes(INI_TEMPLATE.replace("Domain=openspy.net\r\n", "Domain=openspy.net\r\nJoinCode=ABCD2345\r\nHost=broker\r\n"
+                                                                  "Public=1\r\nRoomName=Saturday run\r\n").encode("utf-8"))
             cmd("launch-game", {"game": "xml1"})
-            check(wait_for(running, 20) and raw() == INI_TEMPLATE.encode("utf-8"), "launch-game without `online`: both removed")
+            check(wait_for(running, 20) and raw() == INI_TEMPLATE.encode("utf-8"), "launch-game without `online`: Host, JoinCode, Public and RoomName removed")
             stop()
             reset()
             mtime = ini.stat().st_mtime_ns
@@ -343,7 +462,7 @@ def main():
             check(hidden_shown() == [] and ui("return $('.ul-online-idle').offsetParent === null;"),
                   "Host / Join hidden while hosting: display:none, not just the attribute")
             check(wait_for(running, 20), "the game starts")
-            only_online_changed(["Host=broker"], "the page's Host")
+            only_online_changed(["Host=broker", "Public=0"], "the page's Host")
             check(not status_file.exists(), "the stale status deleted before the start")
             check(wait_for(lambda: phase() == "Open Play Online in the game – your code appears here.", 5), "the game up, no status yet: where to go (contract v1.2)")
             write_status(role="host", state="connecting")
@@ -423,6 +542,166 @@ def main():
                 stop()
                 ui("$('.ul-online-again').click(); return true;")
 
+            print("page: host publicly (v1.3)")
+            reset()
+            reload()
+            check(wait_for(lambda: blocked() is None, 5), "Host and Join on")
+            check(ui("return $('.ul-online-room-name-input').disabled;"), "the room name is off while the game is private")
+            check(ui("const b = $('.ul-online-public-toggle .toggle-btn[data-value=\"1\"]'); b.click(); return b.getAttribute('aria-pressed') === 'true';"),
+                  "List my game publicly: ON")
+            type_into("#xml1-online-panel .ul-online-room-name-input", "  Saturday run ")
+            check(ui("const e = $('.ul-online-room-name-error'); return e.hidden;"), "a valid name: no error")
+            shot("host-public-card", "#xml1-online-panel .ul-online-host")
+            check(ui("$('.ul-online-host-button').click(); return true;"), "Host clicked")
+            check(wait_for(running, 20), "the game starts")
+            only_online_changed(["Host=broker", "Public=1", "RoomName=Saturday run"], "the page's public Host")
+            write_status(role="host", state="room", code="ABCD2345", players=1, max_players=4, public=True, room_name="Saturday run")
+            check(wait_for(lambda: ui("return text('.ul-online-visibility');") == "Public", 3)
+                  and ui("return text('.ul-online-room-title');") == "Saturday run", "the room card: Public, Saturday run")
+            if ui("return !!$('.ul-online-copied');"):
+                check(ui("return text('.ul-online-copied');") == "Copied to the clipboard" and ui("return !!$('.ul-online-copy');"),
+                      "the code copied by itself, with the note; Copy stays")
+            else:
+                print("  skip  the automatic copy: this page has no clipboard it may write (the unit tests check it)")
+            shot("host-public-room")
+            stop()
+            ui("$('.ul-online-again').click(); return true;")
+            js("document.querySelector('#xml1-online-panel .ul-online-public-toggle .toggle-btn[data-value=\"0\"]').click()")
+
+            print("Browse games: a fake broker on 127.0.0.1:10021, its key pinned in BrokerPin")
+            online_line = "Broker=broker.example.org:7777   ; host[:port]\r\n"
+
+            def use_ini(pin, version="LC31"):
+                """The template with the fake broker in [Online] (and GameVersion); pin None: no BrokerPin line."""
+                body = INI_TEMPLATE.replace(online_line, "Broker=127.0.0.1:7777\r\n" + (f"GameVersion={version}\r\n" if version else ""))
+                body = body.replace(f"BrokerPin={PIN}\r\n", f"BrokerPin={pin}\r\n" if pin else "")
+                ini.write_bytes(body.encode("utf-8"))
+
+            def rooms():
+                answer = cmd("get-public-rooms", {"game": "xml1", "refresh": True})
+                for _ in range(80):
+                    if not answer.get("fetching"):
+                        break
+                    time.sleep(0.25)
+                    answer = cmd("get-public-rooms", {"game": "xml1", "refresh": False})
+                return answer
+
+            def rows():
+                return ui("return [...panel.querySelectorAll('.ul-online-room')].map(r => ({ code: r.dataset.code, reason: r.dataset.reason, "
+                          "name: r.querySelector('.ul-online-room-name').textContent, join: !r.querySelector('.ul-online-room-join').disabled, "
+                          "where: (r.querySelector('.ul-online-room-where') || {}).textContent || '', "
+                          "players: (r.querySelector('.ul-online-room-players') || {}).textContent || '' }));")
+
+            def browse_status():
+                return ui("const e = $('.ul-online-browse-status'); return e.hidden ? null : e.textContent;")
+
+            def refresh_page():
+                ui("$('.ul-online-browse-refresh').click(); return true;")
+                wait_for(lambda: ui("return !$('.ul-online-browse-refresh').disabled;"), 15)
+                time.sleep(0.3)
+
+            print("  get-public-rooms against the fake broker (the real one's TLS, self-signed, pinned)")
+            certs = pathlib.Path(tempfile.mkdtemp(prefix="ul-fake-broker-"))
+            (certs / "a").mkdir()
+            (certs / "b").mkdir()
+            (certs / "c").mkdir()
+            cert, key, pin = make_certificate(certs / "a", "127.0.0.1", ips=["127.0.0.1"])
+            other_cert, other_key, other_pin = make_certificate(certs / "b", "127.0.0.1", ips=["127.0.0.1"])
+            named_cert, named_key, named_pin = make_certificate(certs / "c", "broker.invalid")
+            broker = FakeBroker(cert, key)
+            try:
+                use_ini(pin)
+                broker.rooms = [room(), room(code="WXYZ6789", name="Old build", version_token="LC30"),
+                                room(code="MNPQ7777", name="Full house", players=4), room(code="OOOO0000")]
+                answer = rooms()
+                result = answer.get("result") or {}
+                check(result.get("ok") is True and len(result.get("rooms", [])) == 4 and answer.get("host") == "127.0.0.1"
+                      and answer.get("versionToken") == "LC31", f"ok: 4 rooms from 127.0.0.1, this build LC31 {answer}")
+                check(broker.requests >= 1, "the broker was asked")
+
+                open_page()
+                check(wait_for(lambda: len(rows() or []) == 3, 15), f"the page lists 3 rooms (a row without a valid code left out): {rows()}")
+                listed = {r["code"]: r for r in rows() or []}
+                first = listed.get("ABCD2345", {})
+                check(first.get("name") == "Saturday run" and first.get("where") == "Campaign · nyc1_1_3" and first.get("players") == "2 of 4"
+                      and first.get("join") is True, f"a row: name, mode and level, 2 of 4, Join {first}")
+                check(listed.get("WXYZ6789", {}).get("reason") == "differentVersion" and listed["WXYZ6789"]["join"] is False,
+                      "another build: Different game version, no Join")
+                check(listed.get("MNPQ7777", {}).get("reason") == "full" and listed["MNPQ7777"]["join"] is False, "4 of 4: Full, no Join")
+                check(ui("return [...panel.querySelectorAll('.ul-online-room-badge')].every(b => b.textContent === 'In progress');"), "In progress badges")
+                check(hidden_shown() == [], f"every hidden part is display:none {hidden_shown()}")
+                shot("browse", "#xml1-online-panel .ul-online-browse")
+
+                print("  the keyboard: Refresh, then each Join")
+                js("document.querySelector('#xml1-online-panel .ul-online-browse-refresh').focus()")
+                press("Tab")
+                check(focused() == "ul-online-room-join", "Tab from Refresh: the first open row's Join")
+                requests = broker.requests
+                js("document.querySelector('#xml1-online-panel .ul-online-browse-refresh').focus()")
+                press("Enter")
+                check(wait_for(lambda: broker.requests > requests, 5), "Enter on Refresh fetches")
+                time.sleep(1)
+
+                print("  the empty list, the broker's errors")
+                broker.rooms = []
+                refresh_page()
+                check(browse_status() == "No public games right now – host one and turn on List my game publicly.", f"empty: {browse_status()}")
+                for status, error in [(429, "rate_limited"), (503, "busy"), (500, "bad_response")]:
+                    broker.status = status
+                    check((rooms().get("result") or {}).get("error") == error, f"HTTP {status}: {error}")
+                broker.status = 200
+                broker.body = "not json"
+                check((rooms().get("result") or {}).get("error") == "bad_response", "a body that isn't the list: bad_response")
+                broker.body = None
+                broker.status = 503
+                refresh_page()
+                check("The online service is busy" in (browse_status() or ""), f"the page says busy: {browse_status()}")
+                shot("browse-error", "#xml1-online-panel .ul-online-browse")
+                broker.status = 200
+
+                print("  Join from a row: the code flow")
+                broker.rooms = [room()]
+                refresh_page()
+                check(ui("const b = $('.ul-online-room[data-code=\"ABCD2345\"] .ul-online-room-join'); if (!b || b.disabled) return false; b.click(); return true;"),
+                      "Join on the row")
+                check(wait_for(running, 20), "the game starts")
+                check("JoinCode=ABCD2345\r\n" in text() and "Host=" not in text() and "Public=" not in text(), "JoinCode written, Host / Public not")
+                check(phase() == "Looking for the game…" or "Join Game" in (phase() or ""), f"the join session: {phase()}")
+                stop()
+                ui("$('.ul-online-again').click(); return true;")
+
+                print("  the pin: another key, no pin line, the right key")
+                use_ini(other_pin)
+                result = rooms().get("result") or {}
+                check(result.get("error") == "bad_pin" and not result.get("rooms"), "BrokerPin of another key: bad_pin, nothing read")
+                refresh_page()
+                check("could not be verified" in (browse_status() or ""), f"the page: could not be verified ({browse_status()})")
+                use_ini(None)
+                check((rooms().get("result") or {}).get("error") == "bad_pin", "no BrokerPin: the project broker's pin, not this key: bad_pin")
+                use_ini(pin)
+                check((rooms().get("result") or {}).get("ok") is True, "the right pin again: ok")
+            finally:
+                broker.close()
+
+            named = FakeBroker(named_cert, named_key)
+            try:
+                use_ini(named_pin)
+                check((rooms().get("result") or {}).get("error") == "bad_pin",
+                      "a pinned key on a certificate for another name: refused (only the unknown CA is ignored)")
+            finally:
+                named.close()
+            plain = FakeBroker()
+            try:
+                use_ini(pin)
+                check((rooms().get("result") or {}).get("error") == "bad_pin", "no TLS at all: bad_pin")
+            finally:
+                plain.close()
+            check((rooms().get("result") or {}).get("error") == "unreachable", "nothing listening: unreachable")
+            refresh_page()
+            check("Can’t reach the online service" in (browse_status() or ""), f"the page: can't reach ({browse_status()})")
+            shutil.rmtree(certs, ignore_errors=True)
+            reset()
+
             print("page: off, with the reason")
             reset()
             reload()
@@ -464,12 +743,18 @@ def main():
             press("Tab")
             check(focused() == "ul-online-join-button", "Tab: Join")
             press("Tab")
-            check(focused() == "SUMMARY", "Tab: How online works")
+            check(focused() == "ul-online-browse-refresh", "Tab: Browse games' Refresh")
+            for _ in range(60):
+                if focused() == "SUMMARY":
+                    break
+                check(focused() in ("ul-online-browse-refresh", "ul-online-room-join"), f"Tab through the list: {focused()}")
+                press("Tab")
+            check(focused() == "SUMMARY", "then How online works")
             press("Enter")
             check(js("document.querySelector('#xml1-online-panel .ul-online-help').open === true"), "Enter opens it")
             press("Enter")
             press("Tab", shift=True)
-            check(focused() == "ul-online-join-button", "Shift+Tab: back to Join")
+            check(focused() in ("ul-online-browse-refresh", "ul-online-room-join"), "Shift+Tab: back into Browse games")
             js("document.querySelector('#xml1-online-panel .ul-online-host-button').focus()")
             press("Enter")
             check(wait_for(running, 20), "Enter on Host hosts")

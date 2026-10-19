@@ -378,7 +378,12 @@
                 host: {
                     title: 'Host a game',
                     body: 'Starts the game; open Play Online in it and your room opens. You get a code to send to your friends.',
-                    button: 'Host a game'
+                    button: 'Host a game',
+                    public: 'List my game publicly',
+                    publicNote: 'On: anyone with the launcher sees your game in Browse games and can join it. Off: only friends with the code.',
+                    roomName: 'Room name (optional)',
+                    roomNamePlaceholder: 'Room name, shown in the public list',
+                    roomNameError: 'Use up to {{length}} letters, digits, spaces and simple punctuation (no ; or ").'
                 },
                 join: {
                     title: 'Join a game',
@@ -399,6 +404,7 @@
                     copy: 'Copy',
                     copied: 'Code {{code}} copied.',
                     copyFailed: 'The code could not be copied: it is {{code}}.',
+                    autoCopied: 'Copied to the clipboard',
                     hint: 'Send this code to your friends. In the game: Play Online → Host.'
                 },
                 players: {
@@ -484,6 +490,40 @@
                         body: 'Try again; if it keeps happening, report it with the game’s xml2-fix.log.'
                     }
                 },
+                visibility: {
+                    public: 'Public',
+                    private: 'Private',
+                    publicNote: 'Listed in Browse games',
+                    privateNote: 'Only friends with the code can join'
+                },
+                browse: {
+                    title: 'Browse games',
+                    refresh: 'Refresh',
+                    refreshing: 'Refreshing…',
+                    loading: 'Looking for public games…',
+                    empty: 'No public games right now – host one and turn on List my game publicly.',
+                    unnamed: 'Unnamed game',
+                    hostsGame: '{{name}}’s game',
+                    hostedBy: 'Hosted by {{name}}',
+                    mode: {
+                        campaign: 'Campaign',
+                        danger_room: 'Danger Room'
+                    },
+                    players: '{{count}} of {{max}}',
+                    playersPlain: '{{count}} players',
+                    inProgress: 'In progress',
+                    join: 'Join',
+                    joinLabel: 'Join {{name}}',
+                    differentVersion: 'Different game version',
+                    full: 'Full',
+                    password: 'Needs a password',
+                    closed: 'Can’t join right now',
+                    errors: {
+                        rate_limited: 'The list was refreshed too often. It refreshes again in a moment.',
+                        busy: 'The online service is busy. The list refreshes again in a moment.',
+                        bad_response: 'The game list could not be read. It tries again in a moment; if it keeps happening, update the launcher.'
+                    }
+                },
                 errorDetail: 'Details: {{message}}',
                 again: 'Try again',
                 done: 'OK',
@@ -495,6 +535,7 @@
                         join: 'Each friend types or pastes the code under Join a game and presses Join. Lower case, spaces and dashes are fine.',
                         inGame: 'In the game, the host picks Play Online → Host, then a new or saved campaign as usual. Friends open Play Online → Join Game and select the host’s game. Once you are together, this page says Connected – playing together.'
                     },
+                    public: 'Public games: turn on List my game publicly when you host, and your game shows in Browse games for everyone with the launcher, who can join it there. Off, only friends with the code can join.',
                     noPorts: 'Nothing needs port forwarding or router settings: the online service connects you.',
                     sameVersion: 'Everyone needs the same version of the game: keep it up to date on this page (Rebuild in the Build section when it says an update is available).',
                     lan: 'On the same network, LAN and Connect by IP still work: press Play as usual. Play never opens a room.',
@@ -1201,7 +1242,12 @@
                 host: {
                     title: 'Heberger une partie',
                     body: 'Lance le jeu ; ouvrez Play Online et votre salle s’ouvre. Vous recevez un code a envoyer a vos amis.',
-                    button: 'Heberger une partie'
+                    button: 'Heberger une partie',
+                    public: 'Rendre ma partie publique',
+                    publicNote: "Active : tous les joueurs du lanceur voient votre partie dans Parcourir les parties et peuvent la rejoindre. Desactive : seulement les amis qui ont le code.",
+                    roomName: 'Nom de la salle (facultatif)',
+                    roomNamePlaceholder: 'Nom de la salle, affiche dans la liste publique',
+                    roomNameError: "Jusqu'a {{length}} lettres, chiffres, espaces et ponctuation simple (sans ; ni \")."
                 },
                 join: {
                     title: 'Rejoindre une partie',
@@ -1221,6 +1267,7 @@
                     copy: 'Copier',
                     copied: 'Code {{code}} copie.',
                     copyFailed: "Le code n'a pas pu etre copie : c'est {{code}}.",
+                    autoCopied: 'Copie dans le presse-papiers',
                     hint: 'Envoyez ce code a vos amis. Dans le jeu : Play Online → Host.'
                 },
                 players: {
@@ -1306,6 +1353,40 @@
                         body: 'Reessayez ; si cela se repete, signalez-le avec le fichier xml2-fix.log du jeu.'
                     }
                 },
+                visibility: {
+                    public: 'Publique',
+                    private: 'Privee',
+                    publicNote: 'Visible dans Parcourir les parties',
+                    privateNote: 'Seuls les amis qui ont le code peuvent rejoindre'
+                },
+                browse: {
+                    title: 'Parcourir les parties',
+                    refresh: 'Actualiser',
+                    refreshing: 'Actualisation…',
+                    loading: 'Recherche de parties publiques…',
+                    empty: 'Aucune partie publique pour le moment – hebergez-en une et activez Rendre ma partie publique.',
+                    unnamed: 'Partie sans nom',
+                    hostsGame: 'Partie de {{name}}',
+                    hostedBy: 'Hebergee par {{name}}',
+                    mode: {
+                        campaign: 'Campagne',
+                        danger_room: 'Danger Room'
+                    },
+                    players: '{{count}} sur {{max}}',
+                    playersPlain: '{{count}} joueurs',
+                    inProgress: 'En cours',
+                    join: 'Rejoindre',
+                    joinLabel: 'Rejoindre {{name}}',
+                    differentVersion: 'Version du jeu differente',
+                    full: 'Pleine',
+                    password: 'Mot de passe requis',
+                    closed: 'Impossible de rejoindre pour le moment',
+                    errors: {
+                        rate_limited: 'La liste a ete actualisee trop souvent. Elle se met a jour dans un instant.',
+                        busy: 'Le service en ligne est occupe. La liste se met a jour dans un instant.',
+                        bad_response: "La liste des parties n'a pas pu etre lue. Nouvel essai dans un instant ; si cela se repete, mettez le lanceur a jour."
+                    }
+                },
                 errorDetail: 'Details : {{message}}',
                 again: 'Reessayer',
                 done: 'OK',
@@ -1317,6 +1398,7 @@
                         join: 'Chaque ami tape ou colle le code sous Rejoindre une partie et appuie sur Rejoindre. Minuscules, espaces et tirets sont acceptes.',
                         inGame: "Dans le jeu, l'hote choisit Play Online → Host, puis une nouvelle campagne ou une sauvegarde comme d'habitude. Les amis ouvrent Play Online → Join Game et selectionnent la partie de l'hote. Une fois ensemble, cette page affiche Connecte – vous jouez ensemble."
                     },
+                    public: "Parties publiques : activez Rendre ma partie publique quand vous hebergez, et votre partie apparait dans Parcourir les parties pour tous les joueurs du lanceur, qui peuvent la rejoindre. Desactive, seuls les amis qui ont le code peuvent rejoindre.",
                     noPorts: 'Aucune redirection de ports ni reglage du routeur : le service en ligne vous connecte.',
                     sameVersion: "Tout le monde doit avoir la meme version du jeu : tenez-le a jour sur cette page (Rebuild dans la section Build quand une mise a jour est disponible).",
                     lan: "Sur le meme reseau, le LAN et Connect by IP fonctionnent toujours : appuyez sur Jouer comme d'habitude. Jouer n'ouvre jamais de salle.",
@@ -1668,7 +1750,12 @@
                 host: {
                     title: 'Alojar una partida',
                     body: 'Inicia el juego; abre Play Online y tu sala se abre. Recibes un codigo para enviar a tus amigos.',
-                    button: 'Alojar una partida'
+                    button: 'Alojar una partida',
+                    public: 'Hacer publica mi partida',
+                    publicNote: 'Activado: cualquiera con el lanzador ve tu partida en Explorar partidas y puede unirse. Desactivado: solo los amigos con el codigo.',
+                    roomName: 'Nombre de la sala (opcional)',
+                    roomNamePlaceholder: 'Nombre de la sala, visible en la lista publica',
+                    roomNameError: 'Hasta {{length}} letras, cifras, espacios y signos simples (sin ; ni ").'
                 },
                 join: {
                     title: 'Unirse a una partida',
@@ -1688,6 +1775,7 @@
                     copy: 'Copiar',
                     copied: 'Codigo {{code}} copiado.',
                     copyFailed: 'No se pudo copiar el codigo: es {{code}}.',
+                    autoCopied: 'Copiado al portapapeles',
                     hint: 'Envia este codigo a tus amigos. En el juego: Play Online → Host.'
                 },
                 players: {
@@ -1773,6 +1861,40 @@
                         body: 'Vuelve a intentarlo; si se repite, informa adjuntando el xml2-fix.log del juego.'
                     }
                 },
+                visibility: {
+                    public: 'Publica',
+                    private: 'Privada',
+                    publicNote: 'Visible en Explorar partidas',
+                    privateNote: 'Solo los amigos con el codigo pueden unirse'
+                },
+                browse: {
+                    title: 'Explorar partidas',
+                    refresh: 'Actualizar',
+                    refreshing: 'Actualizando…',
+                    loading: 'Buscando partidas publicas…',
+                    empty: 'No hay partidas publicas ahora mismo – aloja una y activa Hacer publica mi partida.',
+                    unnamed: 'Partida sin nombre',
+                    hostsGame: 'Partida de {{name}}',
+                    hostedBy: 'Anfitrion: {{name}}',
+                    mode: {
+                        campaign: 'Campana',
+                        danger_room: 'Danger Room'
+                    },
+                    players: '{{count}} de {{max}}',
+                    playersPlain: '{{count}} jugadores',
+                    inProgress: 'En curso',
+                    join: 'Unirse',
+                    joinLabel: 'Unirse a {{name}}',
+                    differentVersion: 'Version del juego distinta',
+                    full: 'Llena',
+                    password: 'Necesita contrasena',
+                    closed: 'No se puede unir ahora mismo',
+                    errors: {
+                        rate_limited: 'La lista se actualizo demasiadas veces. Se actualiza de nuevo en un momento.',
+                        busy: 'El servicio en linea esta ocupado. La lista se actualiza de nuevo en un momento.',
+                        bad_response: 'No se pudo leer la lista de partidas. Se reintenta en un momento; si se repite, actualiza el lanzador.'
+                    }
+                },
                 errorDetail: 'Detalles: {{message}}',
                 again: 'Reintentar',
                 done: 'Aceptar',
@@ -1784,6 +1906,7 @@
                         join: 'Cada amigo escribe o pega el codigo en Unirse a una partida y pulsa Unirse. Valen minusculas, espacios y guiones.',
                         inGame: 'En el juego, el anfitrion elige Play Online → Host y luego una campana nueva o guardada, como siempre. Los amigos abren Play Online → Join Game y seleccionan la partida del anfitrion. Cuando esteis juntos, esta pagina dice Conectado – jugando juntos.'
                     },
+                    public: 'Partidas publicas: activa Hacer publica mi partida al alojar, y tu partida aparece en Explorar partidas para todos los que tienen el lanzador, que pueden unirse desde alli. Desactivado, solo los amigos con el codigo pueden unirse.',
                     noPorts: 'No hace falta abrir puertos ni tocar el router: el servicio en linea os conecta.',
                     sameVersion: 'Todos necesitan la misma version del juego: mantenlo actualizado en esta pagina (Rebuild en la seccion Build cuando haya una actualizacion).',
                     lan: 'En la misma red, LAN y Connect by IP siguen funcionando: pulsa Jugar como siempre. Jugar nunca abre una sala.',

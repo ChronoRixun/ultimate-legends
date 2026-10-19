@@ -3,20 +3,7 @@
 The launcher's version comes from its release tag (`v0.3.2`): premake reads it with `git describe` when it
 generates the project, so a release only needs this entry and the tag.
 
-## 0.3.3 (unreleased)
-
-### Fixed
-- **X-Men Legends: Display and Discord changes are no longer lost to a build.** The builder merges its own keys into
-  the port's `xml2-fix.ini` (it reads the file, changes it and puts it back), so a Display or Discord change saved
-  while it held the folder could be overwritten with the file as the builder had read it. Like Test mode in 0.3.2:
-  - The launcher writes neither section while the builder holds the folder. A change that reaches it anyway (a
-    build started between the click and the save) is refused with a message, and the section shows the file again.
-  - On the X-Men Legends page, the Display and Discord controls are disabled while a build runs or starts, with a
-    status line, and come back with what the file holds when it ends.
-  - X-Men Legends II, MUA and MUA2 in their own folders are not affected. The `[Display]` defaults a first build
-    writes are still written.
-
-## 0.3.2 (unreleased)
+## 0.3.2 - 2026-10-18
 
 ### Added
 - **Test mode for X-Men Legends (Legends Classic port), for testers.** A Test mode section on the port's page
@@ -35,7 +22,18 @@ generates the project, so a release only needs this entry and the tag.
   - Nothing is written while a build runs in the folder. Rebuild, Repair, Verify Files and the XML2 Fix update
     before a build keep the keys; Uninstall deletes `xml2-fix.ini`, test mode with it, as before.
 
-## 0.3.1 (unreleased)
+### Fixed
+- **X-Men Legends: Display and Discord changes are no longer lost to a build.** The builder merges its own keys into
+  the port's `xml2-fix.ini` (it reads the file, changes it and puts it back), so a Display or Discord change saved
+  while it held the folder could be overwritten with the file as the builder had read it. Like Test mode:
+  - The launcher writes neither section while the builder holds the folder. A change that reaches it anyway (a
+    build started between the click and the save) is refused with a message, and the section shows the file again.
+  - On the X-Men Legends page, the Display and Discord controls are disabled while a build runs or starts, with a
+    status line, and come back with what the file holds when it ends.
+  - X-Men Legends II, MUA and MUA2 in their own folders are not affected. The `[Display]` defaults a first build
+    writes are still written.
+
+## 0.3.1 - 2026-10-18
 
 ### Added
 - The X-Men Legends builder installs from a zip the player already has (chosen in the setup, or found in Downloads

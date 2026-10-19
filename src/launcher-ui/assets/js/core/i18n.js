@@ -369,6 +369,134 @@
                 turnOff: 'Turn test mode off',
                 saveFailed: 'The test mode setting could not be saved.'
             },
+            // The X-Men Legends page's Online section (online-view.js): hosting and joining through the
+            // XML2 Fix's online service, and what each of its states and errors means.
+            online: {
+                title: 'Online',
+                intro: 'Play X-Men Legends online with friends: one player hosts, the others join with the code the host gets. No port forwarding, no settings to edit.',
+                loading: 'Loading online play…',
+                host: {
+                    title: 'Host a game',
+                    body: 'Starts the game with a room open. You get a code to send to your friends.',
+                    button: 'Host a game'
+                },
+                join: {
+                    title: 'Join a game',
+                    body: 'Type or paste the code your host sent you, then press Join.',
+                    label: 'Join code',
+                    placeholder: 'ABCD-EFGH',
+                    button: 'Join',
+                    joining: 'Code {{code}}'
+                },
+                codeError: {
+                    empty: 'Type the code your host sent you first.',
+                    short: 'A code has {{length}} letters and digits; this one has {{count}}. Check it with your host.',
+                    long: 'A code has {{length}} letters and digits; this one has {{count}}. Check it with your host.',
+                    chars: 'A code has only letters and digits, never 0, O, 1, I or L: “{{chars}}” is not part of one. Check it with your host.'
+                },
+                code: {
+                    label: 'Your join code',
+                    copy: 'Copy',
+                    copied: 'Code {{code}} copied.',
+                    copyFailed: 'The code could not be copied: it is {{code}}.',
+                    hint: 'Send this code to your friends. In the game: Play Online → Host.'
+                },
+                players: {
+                    one: '1 player in the room (you)',
+                    many: '{{count}} players in the room'
+                },
+                phase: {
+                    hostConnecting: 'Connecting…',
+                    hostRoom: 'Your room is open.',
+                    hostInGame: 'The game has started. Friends can still join with the code.',
+                    joinConnecting: 'Looking for the game…',
+                    joinJoined: 'Found it. In the game: Play Online → Join Game, pick the game.',
+                    joinInGame: 'You are in the game.',
+                    ended: 'The online game has ended.',
+                    closed: 'The game was closed.',
+                    notStarted: 'The game did not start. Try again; if it keeps happening, start it with Play to see why.'
+                },
+                blocked: {
+                    notSetUp: 'Set up X-Men Legends first (Set up, above) to play online.',
+                    notBuilt: 'Build the game first (Build section below) to play online.',
+                    noFix: 'Install the {{fix}} first (Verify Files on this page) to play online.',
+                    building: 'A build is running: host or join when it has finished.',
+                    updating: 'The XML2 Fix is being installed or updated: host or join when it has finished.',
+                    otherUpdating: 'Another game is updating: host or join when it has finished.',
+                    testMode: 'Test mode is on, and the XML2 Fix turns online play off while it is. Turn it off to play online.',
+                    running: 'X-Men Legends is running. Close it to host or join a game.'
+                },
+                startFailed: {
+                    not_supported: 'This game has no online play here.',
+                    not_installed: 'Set up X-Men Legends first.',
+                    no_fix: 'Install the XML2 Fix first (Verify Files on this page).',
+                    not_built: 'The game has not finished building.',
+                    running: 'X-Men Legends is already running. Close it, then host or join again.',
+                    test_mode_on: 'Test mode is on: turn it off, then host or join again.',
+                    busy: 'A build is running in the game folder: host or join when it has finished.',
+                    bad_mode: 'The launcher sent the game a request it does not know: {{error}}',
+                    write_failed: 'The online settings could not be saved: {{error}}'
+                },
+                errors: {
+                    broker_unreachable: {
+                        title: 'Can’t reach the online service',
+                        body: 'Check your internet connection and try again. If it still fails, the service may be down for a moment: try again later.'
+                    },
+                    broker_rejected: {
+                        title: 'This game version can’t go online',
+                        body: 'The online service does not take this version of the game. Update it on this page (Build section), then try again.'
+                    },
+                    code_not_found: {
+                        title: 'Code not found',
+                        body: 'No game is open with that code. Check the code with your host, and that their game is still running.'
+                    },
+                    code_expired: {
+                        title: 'Code expired',
+                        body: 'That room is closed. Ask your host to host again and send you the new code.'
+                    },
+                    room_full: {
+                        title: 'The game is full',
+                        body: 'That room has no free place. Ask your host when a place frees up.'
+                    },
+                    version_mismatch: {
+                        title: 'Different game version',
+                        body: 'Your game and the host’s are not the same version. Both of you: update the game on this page (Build section), then try again.'
+                    },
+                    test_mode_on: {
+                        title: 'Test mode is on',
+                        body: 'The XML2 Fix turns online play off while test mode is on. Turn test mode off, then try again.'
+                    },
+                    tls_pin_mismatch: {
+                        title: 'The online service could not be verified',
+                        body: 'The game did not connect, to keep you safe: the service did not prove it is the real one. Check that nothing on your network intercepts connections, update the game, and report it if it keeps happening.'
+                    },
+                    internal: {
+                        title: 'Something went wrong',
+                        body: 'The game’s online code ran into a problem. Try again; if it keeps happening, report it with the game’s xml2-fix.log.'
+                    },
+                    unknown: {
+                        title: 'The game reported a problem ({{id}})',
+                        body: 'Try again; if it keeps happening, report it with the game’s xml2-fix.log.'
+                    }
+                },
+                errorDetail: 'Details: {{message}}',
+                again: 'Try again',
+                done: 'OK',
+                help: {
+                    title: 'How online works',
+                    steps: {
+                        host: 'One player presses Host a game. The game starts with a room open, and this page shows a code like ABCD-EFGH.',
+                        share: 'The host sends the code to the friends who play (a chat message is fine). Copy puts it on the clipboard.',
+                        join: 'Each friend types or pastes the code under Join a game and presses Join. Lower case, spaces and dashes are fine.',
+                        inGame: 'In the game, the host picks Play Online → Host, then a new or saved campaign as usual. Friends pick Play Online → Join Game and select the host’s game.'
+                    },
+                    noPorts: 'Nothing needs port forwarding or router settings: the online service connects you.',
+                    sameVersion: 'Everyone needs the same version of the game: keep it up to date on this page.',
+                    lan: 'On the same network, LAN and Connect by IP still work: press Play as usual. Play never opens a room.',
+                    testMode: 'Test mode turns online play off: turn it off to host or join.',
+                    errorsTitle: 'What the messages mean'
+                }
+            },
             // X-Men Legends (community port): setup wizard, Build section, builder errors.
             xml1: {
                 name: 'X-Men Legends',
@@ -1060,6 +1188,131 @@
                 badgeOnline: 'Jeu en ligne desactive',
                 turnOff: 'Desactiver le mode test',
                 saveFailed: "L'option du mode test n'a pas pu etre enregistree."
+            },
+            online: {
+                title: 'En ligne',
+                intro: "Jouez a X-Men Legends en ligne avec vos amis : un joueur heberge, les autres rejoignent avec le code qu'il recoit. Pas de redirection de ports, aucun reglage a modifier.",
+                loading: 'Chargement du jeu en ligne…',
+                host: {
+                    title: 'Heberger une partie',
+                    body: 'Lance le jeu avec une salle ouverte. Vous recevez un code a envoyer a vos amis.',
+                    button: 'Heberger une partie'
+                },
+                join: {
+                    title: 'Rejoindre une partie',
+                    body: "Tapez ou collez le code envoye par l'hote, puis appuyez sur Rejoindre.",
+                    label: 'Code de la partie',
+                    button: 'Rejoindre',
+                    joining: 'Code {{code}}'
+                },
+                codeError: {
+                    empty: "Tapez d'abord le code envoye par l'hote.",
+                    short: "Un code a {{length}} lettres et chiffres ; celui-ci en a {{count}}. Verifiez-le avec l'hote.",
+                    long: "Un code a {{length}} lettres et chiffres ; celui-ci en a {{count}}. Verifiez-le avec l'hote.",
+                    chars: "Un code n'a que des lettres et des chiffres, jamais 0, O, 1, I ou L : « {{chars}} » n'en fait pas partie. Verifiez-le avec l'hote."
+                },
+                code: {
+                    label: 'Votre code',
+                    copy: 'Copier',
+                    copied: 'Code {{code}} copie.',
+                    copyFailed: "Le code n'a pas pu etre copie : c'est {{code}}.",
+                    hint: 'Envoyez ce code a vos amis. Dans le jeu : Play Online → Host.'
+                },
+                players: {
+                    one: '1 joueur dans la salle (vous)',
+                    many: '{{count}} joueurs dans la salle'
+                },
+                phase: {
+                    hostConnecting: 'Connexion…',
+                    hostRoom: 'Votre salle est ouverte.',
+                    hostInGame: 'La partie a commence. Vos amis peuvent encore rejoindre avec le code.',
+                    joinConnecting: 'Recherche de la partie…',
+                    joinJoined: 'Trouvee. Dans le jeu : Play Online → Join Game, choisissez la partie.',
+                    joinInGame: 'Vous etes dans la partie.',
+                    ended: 'La partie en ligne est terminee.',
+                    closed: 'Le jeu a ete ferme.',
+                    notStarted: "Le jeu n'a pas demarre. Reessayez ; si cela se repete, lancez-le avec Jouer pour voir pourquoi."
+                },
+                blocked: {
+                    notSetUp: "Configurez d'abord X-Men Legends (Configurer, plus haut) pour jouer en ligne.",
+                    notBuilt: "Construisez d'abord le jeu (section Construction plus bas) pour jouer en ligne.",
+                    noFix: "Installez d'abord le {{fix}} (Verifier les fichiers sur cette page) pour jouer en ligne.",
+                    building: 'Une construction est en cours : hebergez ou rejoignez quand elle sera terminee.',
+                    updating: "Le XML2 Fix est en cours d'installation ou de mise a jour : hebergez ou rejoignez quand ce sera fini.",
+                    otherUpdating: 'Un autre jeu est en cours de mise a jour : hebergez ou rejoignez quand ce sera fini.',
+                    testMode: 'Le mode test est actif, et le XML2 Fix desactive alors le jeu en ligne. Desactivez-le pour jouer en ligne.',
+                    running: 'X-Men Legends est en cours. Fermez-le pour heberger ou rejoindre une partie.'
+                },
+                startFailed: {
+                    not_supported: "Ce jeu n'a pas de jeu en ligne ici.",
+                    not_installed: "Configurez d'abord X-Men Legends.",
+                    no_fix: "Installez d'abord le XML2 Fix (Verifier les fichiers sur cette page).",
+                    not_built: "La construction du jeu n'est pas terminee.",
+                    running: 'X-Men Legends est deja en cours. Fermez-le, puis hebergez ou rejoignez a nouveau.',
+                    test_mode_on: 'Le mode test est actif : desactivez-le, puis hebergez ou rejoignez a nouveau.',
+                    busy: 'Une construction est en cours dans le dossier du jeu : hebergez ou rejoignez quand elle sera terminee.',
+                    bad_mode: 'Le lanceur a envoye une demande inconnue : {{error}}',
+                    write_failed: "Les reglages en ligne n'ont pas pu etre enregistres : {{error}}"
+                },
+                errors: {
+                    broker_unreachable: {
+                        title: 'Service en ligne injoignable',
+                        body: 'Verifiez votre connexion internet et reessayez. Si cela echoue encore, le service est peut-etre indisponible un moment : reessayez plus tard.'
+                    },
+                    broker_rejected: {
+                        title: 'Cette version du jeu ne peut pas aller en ligne',
+                        body: "Le service en ligne n'accepte pas cette version du jeu. Mettez-la a jour sur cette page (section Construction), puis reessayez."
+                    },
+                    code_not_found: {
+                        title: 'Code introuvable',
+                        body: "Aucune partie n'est ouverte avec ce code. Verifiez le code avec l'hote, et que son jeu tourne toujours."
+                    },
+                    code_expired: {
+                        title: 'Code expire',
+                        body: "Cette salle est fermee. Demandez a l'hote d'heberger a nouveau et de vous envoyer le nouveau code."
+                    },
+                    room_full: {
+                        title: 'La partie est pleine',
+                        body: "Cette salle n'a plus de place libre. Demandez a l'hote quand une place se libere."
+                    },
+                    version_mismatch: {
+                        title: 'Version du jeu differente',
+                        body: "Votre jeu et celui de l'hote ne sont pas de la meme version. Tous les deux : mettez le jeu a jour sur cette page (section Construction), puis reessayez."
+                    },
+                    test_mode_on: {
+                        title: 'Le mode test est actif',
+                        body: 'Le XML2 Fix desactive le jeu en ligne tant que le mode test est actif. Desactivez le mode test, puis reessayez.'
+                    },
+                    tls_pin_mismatch: {
+                        title: "Le service en ligne n'a pas pu etre verifie",
+                        body: "Le jeu ne s'est pas connecte, pour votre securite : le service n'a pas prouve qu'il est le vrai. Verifiez que rien sur votre reseau n'intercepte les connexions, mettez le jeu a jour, et signalez-le si cela se repete."
+                    },
+                    internal: {
+                        title: 'Un probleme est survenu',
+                        body: 'Le code en ligne du jeu a rencontre un probleme. Reessayez ; si cela se repete, signalez-le avec le fichier xml2-fix.log du jeu.'
+                    },
+                    unknown: {
+                        title: 'Le jeu a signale un probleme ({{id}})',
+                        body: 'Reessayez ; si cela se repete, signalez-le avec le fichier xml2-fix.log du jeu.'
+                    }
+                },
+                errorDetail: 'Details : {{message}}',
+                again: 'Reessayer',
+                done: 'OK',
+                help: {
+                    title: 'Comment fonctionne le jeu en ligne',
+                    steps: {
+                        host: 'Un joueur appuie sur Heberger une partie. Le jeu demarre avec une salle ouverte, et cette page affiche un code comme ABCD-EFGH.',
+                        share: "L'hote envoie le code aux amis qui jouent (un message suffit). Copier le met dans le presse-papiers.",
+                        join: 'Chaque ami tape ou colle le code sous Rejoindre une partie et appuie sur Rejoindre. Minuscules, espaces et tirets sont acceptes.',
+                        inGame: "Dans le jeu, l'hote choisit Play Online → Host, puis une nouvelle campagne ou une sauvegarde comme d'habitude. Les amis choisissent Play Online → Join Game et selectionnent la partie de l'hote."
+                    },
+                    noPorts: 'Aucune redirection de ports ni reglage du routeur : le service en ligne vous connecte.',
+                    sameVersion: 'Tout le monde doit avoir la meme version du jeu : tenez-le a jour sur cette page.',
+                    lan: "Sur le meme reseau, le LAN et Connect by IP fonctionnent toujours : appuyez sur Jouer comme d'habitude. Jouer n'ouvre jamais de salle.",
+                    testMode: 'Le mode test desactive le jeu en ligne : desactivez-le pour heberger ou rejoindre.',
+                    errorsTitle: 'Ce que veulent dire les messages'
+                }
             }
         },
         es: {
@@ -1397,6 +1650,131 @@
                 badgeOnline: 'Juego en linea desactivado',
                 turnOff: 'Desactivar el modo de prueba',
                 saveFailed: 'No se pudo guardar la opcion del modo de prueba.'
+            },
+            online: {
+                title: 'En linea',
+                intro: 'Juega a X-Men Legends en linea con amigos: un jugador aloja la partida y los demas se unen con el codigo que recibe. Sin abrir puertos ni editar ajustes.',
+                loading: 'Cargando el juego en linea…',
+                host: {
+                    title: 'Alojar una partida',
+                    body: 'Inicia el juego con una sala abierta. Recibes un codigo para enviar a tus amigos.',
+                    button: 'Alojar una partida'
+                },
+                join: {
+                    title: 'Unirse a una partida',
+                    body: 'Escribe o pega el codigo que te envio el anfitrion y pulsa Unirse.',
+                    label: 'Codigo de la partida',
+                    button: 'Unirse',
+                    joining: 'Codigo {{code}}'
+                },
+                codeError: {
+                    empty: 'Primero escribe el codigo que te envio el anfitrion.',
+                    short: 'Un codigo tiene {{length}} letras y cifras; este tiene {{count}}. Compruebalo con el anfitrion.',
+                    long: 'Un codigo tiene {{length}} letras y cifras; este tiene {{count}}. Compruebalo con el anfitrion.',
+                    chars: 'Un codigo solo tiene letras y cifras, nunca 0, O, 1, I ni L: «{{chars}}» no forma parte de uno. Compruebalo con el anfitrion.'
+                },
+                code: {
+                    label: 'Tu codigo',
+                    copy: 'Copiar',
+                    copied: 'Codigo {{code}} copiado.',
+                    copyFailed: 'No se pudo copiar el codigo: es {{code}}.',
+                    hint: 'Envia este codigo a tus amigos. En el juego: Play Online → Host.'
+                },
+                players: {
+                    one: '1 jugador en la sala (tu)',
+                    many: '{{count}} jugadores en la sala'
+                },
+                phase: {
+                    hostConnecting: 'Conectando…',
+                    hostRoom: 'Tu sala esta abierta.',
+                    hostInGame: 'La partida ha empezado. Tus amigos aun pueden unirse con el codigo.',
+                    joinConnecting: 'Buscando la partida…',
+                    joinJoined: 'Encontrada. En el juego: Play Online → Join Game, elige la partida.',
+                    joinInGame: 'Estas en la partida.',
+                    ended: 'La partida en linea ha terminado.',
+                    closed: 'El juego se cerro.',
+                    notStarted: 'El juego no se inicio. Vuelve a intentarlo; si se repite, inicialo con Jugar para ver por que.'
+                },
+                blocked: {
+                    notSetUp: 'Primero configura X-Men Legends (Configurar, arriba) para jugar en linea.',
+                    notBuilt: 'Primero construye el juego (seccion Construccion, abajo) para jugar en linea.',
+                    noFix: 'Primero instala el {{fix}} (Verificar archivos en esta pagina) para jugar en linea.',
+                    building: 'Hay una construccion en curso: aloja o unete cuando termine.',
+                    updating: 'Se esta instalando o actualizando el XML2 Fix: aloja o unete cuando termine.',
+                    otherUpdating: 'Otro juego se esta actualizando: aloja o unete cuando termine.',
+                    testMode: 'El modo de prueba esta activo, y el XML2 Fix desactiva el juego en linea mientras lo este. Desactivalo para jugar en linea.',
+                    running: 'X-Men Legends esta en ejecucion. Cierralo para alojar o unirte a una partida.'
+                },
+                startFailed: {
+                    not_supported: 'Este juego no tiene juego en linea aqui.',
+                    not_installed: 'Primero configura X-Men Legends.',
+                    no_fix: 'Primero instala el XML2 Fix (Verificar archivos en esta pagina).',
+                    not_built: 'La construccion del juego no ha terminado.',
+                    running: 'X-Men Legends ya esta en ejecucion. Cierralo y vuelve a alojar o unirte.',
+                    test_mode_on: 'El modo de prueba esta activo: desactivalo y vuelve a alojar o unirte.',
+                    busy: 'Hay una construccion en curso en la carpeta del juego: aloja o unete cuando termine.',
+                    bad_mode: 'El lanzador envio una peticion desconocida: {{error}}',
+                    write_failed: 'No se pudieron guardar los ajustes en linea: {{error}}'
+                },
+                errors: {
+                    broker_unreachable: {
+                        title: 'No se puede conectar con el servicio en linea',
+                        body: 'Comprueba tu conexion a internet y vuelve a intentarlo. Si sigue fallando, puede que el servicio no este disponible un momento: intentalo mas tarde.'
+                    },
+                    broker_rejected: {
+                        title: 'Esta version del juego no puede jugar en linea',
+                        body: 'El servicio en linea no acepta esta version del juego. Actualizala en esta pagina (seccion Construccion) y vuelve a intentarlo.'
+                    },
+                    code_not_found: {
+                        title: 'Codigo no encontrado',
+                        body: 'No hay ninguna partida abierta con ese codigo. Compruebalo con el anfitrion, y que su juego siga en marcha.'
+                    },
+                    code_expired: {
+                        title: 'Codigo caducado',
+                        body: 'Esa sala esta cerrada. Pide al anfitrion que vuelva a alojar y te envie el nuevo codigo.'
+                    },
+                    room_full: {
+                        title: 'La partida esta llena',
+                        body: 'Esa sala no tiene sitio libre. Pregunta al anfitrion cuando quede uno.'
+                    },
+                    version_mismatch: {
+                        title: 'Version del juego distinta',
+                        body: 'Tu juego y el del anfitrion no son de la misma version. Los dos: actualizad el juego en esta pagina (seccion Construccion) y volved a intentarlo.'
+                    },
+                    test_mode_on: {
+                        title: 'El modo de prueba esta activo',
+                        body: 'El XML2 Fix desactiva el juego en linea mientras el modo de prueba este activo. Desactivalo y vuelve a intentarlo.'
+                    },
+                    tls_pin_mismatch: {
+                        title: 'No se pudo verificar el servicio en linea',
+                        body: 'El juego no se conecto, por tu seguridad: el servicio no demostro ser el autentico. Comprueba que nada en tu red intercepte las conexiones, actualiza el juego e informa si se repite.'
+                    },
+                    internal: {
+                        title: 'Algo salio mal',
+                        body: 'El codigo en linea del juego tuvo un problema. Vuelve a intentarlo; si se repite, informa adjuntando el xml2-fix.log del juego.'
+                    },
+                    unknown: {
+                        title: 'El juego informo de un problema ({{id}})',
+                        body: 'Vuelve a intentarlo; si se repite, informa adjuntando el xml2-fix.log del juego.'
+                    }
+                },
+                errorDetail: 'Detalles: {{message}}',
+                again: 'Reintentar',
+                done: 'Aceptar',
+                help: {
+                    title: 'Como funciona el juego en linea',
+                    steps: {
+                        host: 'Un jugador pulsa Alojar una partida. El juego se inicia con una sala abierta, y esta pagina muestra un codigo como ABCD-EFGH.',
+                        share: 'El anfitrion envia el codigo a los amigos que juegan (un mensaje basta). Copiar lo pone en el portapapeles.',
+                        join: 'Cada amigo escribe o pega el codigo en Unirse a una partida y pulsa Unirse. Valen minusculas, espacios y guiones.',
+                        inGame: 'En el juego, el anfitrion elige Play Online → Host y luego una campana nueva o guardada, como siempre. Los amigos eligen Play Online → Join Game y seleccionan la partida del anfitrion.'
+                    },
+                    noPorts: 'No hace falta abrir puertos ni tocar el router: el servicio en linea os conecta.',
+                    sameVersion: 'Todos necesitan la misma version del juego: mantenlo actualizado en esta pagina.',
+                    lan: 'En la misma red, LAN y Connect by IP siguen funcionando: pulsa Jugar como siempre. Jugar nunca abre una sala.',
+                    testMode: 'El modo de prueba desactiva el juego en linea: desactivalo para alojar o unirte.',
+                    errorsTitle: 'Que significan los mensajes'
+                }
             }
         },
         ru: {

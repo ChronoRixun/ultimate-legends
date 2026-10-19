@@ -4389,6 +4389,49 @@ html:not([data-color-uninstalled]) .library-card:not(.is-installed):not(.is-comi
 .ul-testmode-badge-note { color: var(--text-muted); font-size: 12px; }
 .ul-testmode-off:focus-visible { outline: 2px solid var(--warn); outline-offset: 2px; }
 
+/* ---- Online section of the X-Men Legends page (online-view.js) ---- */
+.detail-online { margin-top: 24px; }
+.ul-online-blocked { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ul-online-idle { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.ul-online-card { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; background: var(--surface-lo); border: 1px solid var(--border); border-radius: 12px; }
+.ul-online-card.is-disabled .ul-online-card-title, .ul-online-card.is-disabled .ul-online-card-body { opacity: 0.55; }
+.ul-online-card-title { margin: 0; font-size: 14px; letter-spacing: 0.02em; }
+.ul-online-card-body { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--text-muted); }
+.ul-online-card-actions { display: flex; gap: 8px; align-items: center; margin-top: auto; }
+.ul-online-code-input { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 15px; letter-spacing: 0.12em; text-transform: uppercase; }
+.ul-online-code-input::placeholder { letter-spacing: 0.12em; color: var(--text-dim); }
+.ul-online-code-input.is-invalid { border-color: var(--danger); }
+.ul-online-code-input:disabled { opacity: 0.45; }
+.ul-online-code-error { font-size: 12.5px; color: #ff8a9a; }
+.ul-online-primary { min-height: 36px; padding: 8px 16px; border-radius: 10px; border: 1px solid transparent; background: var(--accent-grad); color: #fff; font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer; flex-shrink: 0; transition: box-shadow 0.2s var(--ease), transform 0.2s var(--ease); }
+.ul-online-primary:hover:not(:disabled) { box-shadow: 0 0 18px var(--accent-glow); transform: translateY(-1px); }
+.ul-online-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+/* Keyboard and controller focus (Tab, Steam Input's desktop layout). */
+.ul-online-primary:focus-visible, .ul-online .secondary-action:focus-visible, .ul-online-help summary:focus-visible { outline: 2px solid var(--warn); outline-offset: 2px; }
+.ul-online-session { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; background: var(--surface-lo); border: 1px solid var(--border-hi); border-radius: 12px; outline: none; }
+.ul-online-phase { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; }
+.ul-online-phase.is-error { color: #ff8a9a; }
+.ul-online-spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--accent-soft); border-top-color: var(--accent); animation: ul-online-spin 0.9s linear infinite; flex-shrink: 0; }
+@keyframes ul-online-spin { to { transform: rotate(360deg); } }
+html[data-reduce-motion] .ul-online-spinner { animation: none; }
+.ul-online-code-block { display: flex; flex-direction: column; gap: 6px; }
+.ul-online-code-label { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
+.ul-online-code-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.ul-online-code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 40px; font-weight: 500; letter-spacing: 0.14em; line-height: 1.1; user-select: all; }
+.ul-online-code-hint, .ul-online-join-code { margin: 0; font-size: 13px; line-height: 1.5; }
+.ul-online-players { margin: 0; font-size: 12.5px; color: var(--text-muted); }
+.ul-online-players.is-new { color: var(--play); }
+.ul-online-error-detail { margin-top: 6px; font-size: 11.5px; opacity: 0.75; font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+.ul-online-session-actions { display: flex; gap: 8px; }
+.ul-online-help { border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; background: var(--surface-lo); }
+.ul-online-help summary { cursor: pointer; font-size: 12.5px; font-weight: 600; }
+.ul-online-help-body { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; font-size: 12.5px; line-height: 1.55; }
+.ul-online-help-steps, .ul-online-help-notes { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.ul-online-help-heading { margin: 6px 0 0; font-size: 12.5px; }
+.ul-online-help-errors { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.ul-online-help-errors dt { font-weight: 600; }
+.ul-online-help-errors dd { margin: 0; color: var(--text-muted); }
+
 /* ---- X-Men Legends (community port): Build section (xml1-view.js) and setup wizard (xml1-setup.js) ---- */
 .detail-build { margin-top: 24px; }
 .secondary-action.xml1-small { width: auto; min-height: 32px; padding: 6px 12px; font-size: 12px; flex-shrink: 0; }

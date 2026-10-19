@@ -44,6 +44,13 @@ over. A build first brings the XML2 Fix already in its folder up to date, and a 
 **Verify Files** (the fix) next to **Resume**. Display, Discord and Mods work as for X-Men Legends II. Uninstalling
 removes the built game and, if you want, the build cache; your saves in `Documents\Activision\X-Men Legends` are kept.
 
+**Online play** (with Legends Classic 0.3.0): the page's **Online** section has **Host a game** and **Join a game**.
+The host gets a code like `ABCD-EFGH` to send to friends, who type or paste it and press Join; in the game, the host
+picks Play Online → Host and the friends Play Online → Join Game. There is no port forwarding and nothing to edit: the
+launcher writes the XML2 Fix's `[Online]` `Host` or `JoinCode` key for that start, and **Play** removes both, so a
+normal start never opens a room (LAN and Connect by IP work as before). **How online works** on the page explains each
+message.
+
 For testers, a **Test mode** section switches the XML2 Fix's (1.6.0 or later) `[TestMode]` keys in the port's
 `xml2-fix.ini`: the Forge at every Xtraction point, and the F8/F9/F10 test hotkeys. While either is on, the fix turns
 online play off, and a **Test mode on** badge under Play offers **Turn test mode off**. Rebuilds and Verify Files keep

@@ -19,6 +19,8 @@
 #include "updater/game_updater.hpp"
 #include "updater/ui_progress_listener.hpp"
 #include "xml1/xml1_port.hpp"
+#include "fix/fix_ini.hpp"
+#include "fix/online_settings.hpp"
 
 namespace commands::game_commands
 {
@@ -275,6 +277,28 @@ namespace commands::game_commands
                                 : "X-Men Legends is being built in the folder of " + config.display_name + ". " + then;
         }
 
+        // A normal start never opens a room: the [Online] Host / JoinCode keys of a game with launcher-led
+        // online play (the X-Men Legends port, fix/online_settings.hpp) are removed before it, unless the
+        // Online section starts the game itself (it wrote them a moment ago). Nothing is written when
+        // neither key is there. A status file left by an earlier online game goes too, so the page never
+        // takes a normal game for a room (a game that closed without writing `ended` leaves one).
+        // Called with the folder held for patch work.
+        bool clear_online_keys(const game_config::game_config_t& config, std::string& error)
+        {
+            const auto where = fix_ini::locate(config);
+            if (!where.info || !where.info->online || !where.game_dir)
+            {
+                return true;
+            }
+            if (!online_settings::prepare(*where.ini(), *where.info, online_rules::mode::normal, {}, error))
+            {
+                return false;
+            }
+            std::string ignored;
+            online_settings::clear_status(*where.game_dir, ignored);
+            return true;
+        }
+
         // Patch-update-then-launch sequence; assumes the caller holds the barrier and reserved `generation`.
         void run_launch_worker(game_config::game_config_t config, cef::cef_ui& cef_ui, const uint64_t generation)
         {
@@ -383,6 +407,16 @@ namespace commands::game_commands
                 }
 
                 cef_ui.show_message_box("Game Launch Error", message);
+                return;
+            }
+
+            // { online: true }: the Online section's Host / Join start, whose [Online] keys stay.
+            const auto online_start = value.HasMember("online") && value["online"].IsBool() && value["online"].GetBool();
+            std::string online_error;
+            if (!online_start && !clear_online_keys(*config, online_error))
+            {
+                unlock_launch_barrier();
+                cef_ui.show_message_box("Game Launch Error", "The online settings could not be reset for a normal start: " + online_error);
                 return;
             }
 

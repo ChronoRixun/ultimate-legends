@@ -13,7 +13,7 @@
 // game's exe, MUA Controller Fix (dinput8.dll) mua-controller-fix.ini. The launcher's sections for
 // them (Display, Discord) all go through here, so a game whose fix reads the same kind of file only
 // needs an entry in the table in fix_ini.cpp: the X-Men Legends port runs on the XML2 engine with
-// the same fix (plus its [TestMode] section), and both MUA games share MUA Controller Fix.
+// the same fix (plus its [TestMode] and [Online] sections), and both MUA games share MUA Controller Fix.
 //
 // Files are read and written with the Windows profile API (Get/WritePrivateProfileStringW), the
 // same one the fixes use, one key at a time: every other key, section, comment and blank line
@@ -38,6 +38,7 @@ namespace fix_ini
         bool display{};  // [Display], display/xml2_display.hpp (the XML2 engine's Direct3D 8 options)
         bool presence{}; // [Discord], fix/presence_settings.hpp
         bool test_mode{}; // [TestMode], fix/test_mode_settings.hpp (testers' switches, XML2 Fix 1.6.0 on)
+        bool online{};    // [Online] Host / JoinCode, fix/online_settings.hpp (broker rooms, Legends Classic 0.3.0)
 
         // The [Discord] switches the launcher shows for this fix, in order: Enabled, then what it
         // shares (the XML2 Fix's ShowZone and ShowParty, MUA Controller Fix's ShowZone and ShowHero).
@@ -76,6 +77,9 @@ namespace fix_ini
     // missing key, or one with an empty value, is left out (the fixes read both as "not set").
     std::map<std::string, std::string> read(const std::filesystem::path& ini, const std::wstring& section,
                                             const std::vector<std::string>& keys, const std::wstring& comments = L";");
+
+    // Which of `keys` are in [section] at all, empty values included (a line "Key=" is there).
+    std::vector<std::string> present(const std::filesystem::path& ini, const std::wstring& section, const std::vector<std::string>& keys);
 
     // key -> value; nullopt removes the key.
     using changes = std::vector<std::pair<std::string, std::optional<std::string>>>;

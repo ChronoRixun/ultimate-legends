@@ -571,7 +571,11 @@ class GameUtils {
      * @param {string} uiGameId - UI game ID (mua, xml2, etc.) for progress bar
      * @returns {Promise} Promise that resolves when launch completes
      */
-    static async launchGame(backendGame, uiGameId) {
+    // `options` (the X-Men Legends page's Online section): `online` starts the game with the [Online] keys
+    // it wrote (every other start removes them, launch-game in game_commands.cpp), and `beforeLaunch`
+    // runs right before the start, after the checks and the redist prompt, and stops it by answering
+    // false. Resolves true once the game was handed to launch-game.
+    static async launchGame(backendGame, uiGameId, options = {}) {
         const gameConfig = this.getGameConfig(backendGame);
         if (!gameConfig) {
             console.error(`No configuration found for game: ${backendGame}`);
@@ -654,11 +658,13 @@ class GameUtils {
             }
         }
 
+        if (options.beforeLaunch && (await options.beforeLaunch()) === false) return false;
+
         // Track launch progress
-        const result = await this.trackCommandProgress({
+        await this.trackCommandProgress({
             gameId: uiGameId,
             command: 'launch-game',
-            commandArgs: { game: backendGame },
+            commandArgs: options.online ? { game: backendGame, online: true } : { game: backendGame },
             initialMessage: window.LauncherI18n
                 ? window.LauncherI18n.t('progress.launching', { game: gameConfig.displayName })
                 : `Launching ${gameConfig.displayName}...`,
@@ -669,7 +675,7 @@ class GameUtils {
             window.GameStateManager.markGameLaunched(uiGameId);
         }
 
-        return result;
+        return true;
     }
 }
 

@@ -5,7 +5,71 @@ generates the project, so a release only needs this entry and the tag.
 
 ## 0.4.0 (unreleased)
 
+Ships in one coordinated release with Legends Classic 0.3.0 and XML2 Fix 1.8.0, whose fix reads the keys below (the
+launcher <-> XML2 Fix contract, v1.5). Online play needs XML2 Fix 1.8.0 or later in the port's folder (1.7.x has no
+rooms); Play, LAN and Connect by IP work with any fix, as before. It also brings controller and keyboard navigation
+to the whole launcher (below).
+
 ### Added
+- **Online play for X-Men Legends (Legends Classic port), without ini edits or the Connect by IP box.** An Online
+  section on the port's page:
+  - **Host a game**: one button. It deletes a stale `online-status.json`, writes `[Online] Host=broker` in the port's
+    `xml2-fix.ini` (and removes `JoinCode`) right before the game's process starts, then shows what the XML2 Fix reports:
+    *Connecting...*; once the game is up, "Open Play Online in the game – your code appears here" (the room opens when
+    the player enters Play Online); then the room's code, large, as `XXXX-XXXX`, with **Copy** and "Send this code to
+    your friends. In the game: Play Online → Host.", and the number of players as it changes (the host included; "3 of
+    4" when the fix gives the room's size); "Connected – playing together" once the session runs.
+  - **Join a game**: a code field that takes lower case, spaces and dashes (pasted from a chat), checks the 8
+    characters (no 0 O 1 I L) with an inline error, and **Join** (or Enter). It writes `JoinCode` (and removes `Host`),
+    starts the game and shows *Looking for the game...*, "Open Play Online → Join Game in the game" once it is up, then
+    "Found it. In the game: Play Online → Join Game, pick the game." and "Connected – playing together".
+  - **Public games** (contract v1.3): Host has **List my game publicly** (off by default) and an optional room name
+    (up to 32 characters), written as `Public` and `RoomName` with `Host=broker`. The room card says Public or Private
+    (and the room's name) as the XML2 Fix reports it.
+  - **The code goes on the clipboard by itself** the first time it appears, with a small "Copied to the clipboard"
+    note; Copy stays.
+  - **Browse games** under Host / Join: the public games of everyone with the launcher, from the online service
+    (`https://<broker>:10021/v1/rooms`, its self-signed certificate checked against the pinned key - `BrokerPin`, or
+    the project broker's, the trust anchor - and never read otherwise). Each row: the room's name, its host, the mode
+    and level (the name the game gives the area, sent with the room), "2 of 4", **In progress**, and **Join** - the
+    code flow with that room's code. Another game version, a full room or one that can't take a player now: no Join,
+    and the row says why; a build too old for online play greys out every row ("Rebuild to play online"). Rooms with
+    a password are not listed. Refresh, and every 10 s while the
+    page shows the list; the empty list, the service unreachable, busy or rate-limited, and a key that isn't the pinned
+    one in plain words.
+  - Every error the fix reports in plain words (the ten ids of contract v1.5): code not found, code expired, the game
+    full (`room_full`: every place taken), "That game can't take new players right now. Try again in a moment."
+    (`room_closed`: the room exists but isn't taking players - drop-in off, a level loading, the host closing), a
+    different game version, the online service unreachable or turning the version away, test mode on, the service not
+    verified, an internal error - also when the first the launcher reads is the `ended` state carrying the error;
+    an id it doesn't know yet gets a generic text with the id; also the game closing or not starting.
+  - **Joining a campaign already in progress**: wait on the game's Joined Game screen; you come in at the next level
+    change, and the party needs enough heroes for everyone. Said in How online works and when you join a public game
+    marked In progress; during a solo story segment, players without a hero stay connected and watch.
+  - **Public games connect players directly**, so they can see each other's internet address: one line says so by
+    List my game publicly, under Browse games and in How online works ("Share a private code to play only with
+    friends").
+  - **How online works**: host or join, share the code, what each message means, that nothing needs port
+    forwarding, and that LAN and Connect by IP still work.
+  - Host and Join are off, with the reason, while the game isn't built, a build or an XML2 Fix update holds its
+    folder, the folder's XML2 Fix is older than 1.8.0 or its version can't be read (**Verify Files** updates it), Test
+    mode is on (with **Turn test mode off** right there) or the game is running. The launcher reads the DLL's version
+    itself, and checks it again right before an online start's process, after the start's patch update: an update that
+    is skipped, fails or is cancelled never falls through to an online start with an older DLL (Play still starts).
+  - A start that is refused, cancelled (the update, the administrator prompt) or fails leaves none of the four
+    `[Online]` keys behind, so a later start from Steam or the exe never opens or joins a room by surprise; the
+    section says why, and says so if the keys could not be removed. A start already running is never disturbed.
+  - **Offline mode** fetches nothing (the public list says it is offline, not that there are no games); Host, Join
+    and Refresh offer to restart the launcher online first. Play works offline as before.
+  - **Close launcher after game launch** applies to Play only: Host and Join keep the launcher open, to show and copy
+    the room's code and follow the session (the setting itself is unchanged; Settings and How online works say so).
+  - Buttons and text fields in the Tab order with a focus ring (How online works' summary too); the focus follows
+    what replaces a control (Copy when the code is up, Try again after an error, the same row's Join after a refresh of
+    the list), and a slow Refresh gives the focus back only if you haven't moved it.
+  - en, fr, es.
+- Each key is written on its own (WritePrivateProfileStringW, like Display, Discord and Test mode): every other key
+  and section of the file stays byte for byte. Only `Host`, `Public`, `RoomName` and `JoinCode` are written; the
+  builder's `Broker` / `BrokerPin` / `GameVersion` / `ContentFingerprint` / `Route` never are.
 - **Controller and keyboard navigation across the whole launcher**, so a Steam Deck's D-pad and buttons (or any
   Xbox-style pad) drive every page, not only the touchscreen and trackpad:
   - The arrow keys move the focus to the nearest control that way (sidebar, Home, Library, game pages, Downloads,
@@ -24,6 +88,13 @@ generates the project, so a release only needs this entry and the tag.
   - One focus ring for every control, drawn inside it so a clipped group can't hide it, shown while the keyboard
     or a pad is in use and hidden again by the mouse or a touch.
   - (Developed as 0.3.3 in PR #11; 0.3.3 was never released on its own: this ships first in 0.4.0.)
+
+### Changed
+- **Play (and every start that isn't the Online section's: the library, `-launch`, `ultimatelegends://play`) removes
+  `[Online]` `Host`, `Public`, `RoomName` and `JoinCode`** from the port's `xml2-fix.ini` before the start, so a
+  normal start never opens a room (the XML2 Fix also removes them when the game starts). A file without them is not touched. A leftover
+  `online-status.json` is deleted before every start the launcher makes; when it can't be (another program holds it
+  open), the start is refused with a message instead of going ahead with an earlier game's room in place.
 
 ## 0.3.2 - 2026-10-18
 

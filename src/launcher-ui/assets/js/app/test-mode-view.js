@@ -196,6 +196,8 @@
             showStatus(gameId, '');
         }
         renderBadge(gameId);
+        // The Online section is off while test mode is on (online-view.js).
+        window.dispatchEvent(new CustomEvent('ul-testmode-changed', { detail: { game: gameId } }));
     }
 
     // Next to Play: shown while either switch is on.
@@ -313,6 +315,9 @@
         supports: gameId => SUPPORTED.has(backendId(gameId)),
         render,
         reload: load,
-        turnOff
+        turnOff,
+        // Either switch on, as the section shows it (a change not saved yet included); null before it has
+        // read the file.
+        isOn: gameId => (getState(gameId).data ? anyOn(getState(gameId).data) : null)
     };
 })();

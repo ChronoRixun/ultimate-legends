@@ -189,7 +189,7 @@
                 languageSpanish: 'Spanish',
                 languageRussian: 'Russian',
                 closeLauncherAfterLaunch: 'Close launcher after game launch',
-                closeLauncherAfterLaunchBody: 'When enabled, the launcher will automatically close after launching a game.',
+                closeLauncherAfterLaunchBody: 'When enabled, the launcher will automatically close after launching a game. Hosting or joining an online game keeps it open, to show and copy your code.',
                 skipClientUpdate: 'Skip patch update on launch',
                 skipClientUpdateBody: 'When enabled, patch updates will be skipped on launch. Useful when troubleshooting, but you may run an outdated patch.',
                 reduceMotion: 'Reduce motion',
@@ -368,6 +368,203 @@
                 badgeOnline: 'Online play is off',
                 turnOff: 'Turn test mode off',
                 saveFailed: 'The test mode setting could not be saved.'
+            },
+            // The X-Men Legends page's Online section (online-view.js): hosting and joining through the
+            // XML2 Fix's online service, and what each of its states and errors means.
+            online: {
+                title: 'Online',
+                intro: 'Play X-Men Legends online with friends: one player hosts, the others join with the code the host gets. No port forwarding, no settings to edit.',
+                loading: 'Loading online play…',
+                host: {
+                    title: 'Host a game',
+                    body: 'Starts the game; open Play Online in it and your room opens. You get a code to send to your friends.',
+                    button: 'Host a game',
+                    public: 'List my game publicly',
+                    publicNote: 'On: anyone with the launcher sees your game in Browse games and can join it. Off: only friends with the code.',
+                    roomName: 'Room name (optional)',
+                    roomNamePlaceholder: 'Room name, shown in the public list',
+                    roomNameError: 'Use up to {{length}} letters, digits, spaces and simple punctuation (no ; or ").'
+                },
+                join: {
+                    title: 'Join a game',
+                    body: 'Type or paste the code your host sent you, then press Join.',
+                    label: 'Join code',
+                    placeholder: 'ABCD-EFGH',
+                    button: 'Join',
+                    joining: 'Code {{code}}',
+                    lateJoin: 'Joining a campaign already in progress? Wait on Joined Game. You enter at the next level change; the party needs enough heroes for everyone.'
+                },
+                codeError: {
+                    empty: 'Type the code your host sent you first.',
+                    short: 'A code has {{length}} letters and digits; this one has {{count}}. Check it with your host.',
+                    long: 'A code has {{length}} letters and digits; this one has {{count}}. Check it with your host.',
+                    chars: 'A code has only letters and digits, never 0, O, 1, I or L: “{{chars}}” is not part of one. Check it with your host.'
+                },
+                code: {
+                    label: 'Your join code',
+                    copy: 'Copy',
+                    copied: 'Code {{code}} copied.',
+                    copyFailed: 'The code could not be copied: it is {{code}}.',
+                    autoCopied: 'Copied to the clipboard',
+                    hint: 'Send this code to your friends. In the game: Play Online → Host.'
+                },
+                players: {
+                    one: '1 player in the room (you)',
+                    many: '{{count}} players in the room',
+                    oneOf: '1 of {{max}} players in the room (you)',
+                    manyOf: '{{count}} of {{max}} players in the room'
+                },
+                offline: 'Offline mode: online play and Browse games need the internet. Host, Join and Refresh offer to restart the launcher online; Play works as usual.',
+                publicIp: 'Public games connect you directly to other players, so they can see your internet address. Share a private code to play only with friends.',
+                phase: {
+                    hostConnecting: 'Connecting…',
+                    hostOpenMenu: 'Open Play Online in the game – your code appears here.',
+                    hostRoom: 'Your room is open.',
+                    hostInGame: 'Connected – playing together.',
+                    joinConnecting: 'Looking for the game…',
+                    joinOpenMenu: 'Open Play Online → Join Game in the game.',
+                    joinJoined: 'Found it. In the game: Play Online → Join Game, pick the game.',
+                    joinInGame: 'Connected – playing together.',
+                    ended: 'The online game has ended.',
+                    closed: 'The game was closed.',
+                    notStarted: 'The game did not start. Try again; if it keeps happening, start it with Play to see why.'
+                },
+                blocked: {
+                    notSetUp: 'Set up X-Men Legends first (Set up, above) to play online.',
+                    notBuilt: 'Build the game first (Build section below) to play online.',
+                    noFix: 'Install the {{fix}} first (Verify Files on this page) to play online.',
+                    fixOld: 'Online play needs XML2 Fix {{required}} or later; this folder has {{version}}. Use Verify Files on this page to update it, then host or join.',
+                    fixUnknown: 'The version of the XML2 Fix in this folder can’t be read, and online play needs {{required}} or later. Use Verify Files on this page to reinstall it, then host or join.',
+                    building: 'A build is running: host or join when it has finished.',
+                    updating: 'The XML2 Fix is being installed or updated: host or join when it has finished.',
+                    otherUpdating: 'Another game is updating: host or join when it has finished.',
+                    testMode: 'Test mode is on, and the XML2 Fix turns online play off while it is. Turn it off to play online.',
+                    running: 'X-Men Legends is running. Close it to host or join a game.'
+                },
+                startFailed: {
+                    not_supported: 'This game has no online play here.',
+                    not_installed: 'Set up X-Men Legends first.',
+                    no_fix: 'Install the XML2 Fix first (Verify Files on this page).',
+                    not_built: 'The game has not finished building.',
+                    running: 'X-Men Legends is already running. Close it, then host or join again.',
+                    test_mode_on: 'Test mode is on: turn it off, then host or join again.',
+                    busy: 'A build is running in the game folder: host or join when it has finished.',
+                    bad_mode: 'The launcher sent the game a request it does not know: {{error}}',
+                    write_failed: 'The online settings could not be saved: {{error}}',
+                    offline: 'The launcher is in offline mode: restart it online to host or join.',
+                    already_running: 'A game is already starting or running from the launcher. Wait for it or close it, then host or join again.',
+                    status_locked: 'A file from an earlier online game (online-status.json) could not be deleted, so the game was not started: {{error}} Close any program that has it open, wait a moment, then try again.',
+                    update_failed: 'The XML2 Fix update failed, so the game was not started online: {{error}} Use Verify Files on this page, then try again.',
+                    update_cancelled: 'The XML2 Fix update was cancelled, so the game was not started.',
+                    fix_too_old: 'The XML2 Fix in the game folder is too old for online play (it needs {{required}} or later). Use Verify Files on this page, then try again.',
+                    fix_unknown: 'The version of the XML2 Fix in the game folder can’t be read (online play needs {{required}} or later). Use Verify Files on this page, then try again.',
+                    launch_cancelled: 'The game did not start: it needs administrator permission, and the prompt was declined.',
+                    launch_failed: 'The game could not be started: {{error}}',
+                    cleanup: "The online settings of this start could not be removed ({{error}}). Press Play here once before you start the game from Steam or its exe, so that it doesn't open or join that room."
+                },
+                errors: {
+                    broker_unreachable: {
+                        title: 'Can’t reach the online service',
+                        body: 'Check your internet connection and try again. If it still fails, the service may be down for a moment: try again later.'
+                    },
+                    broker_rejected: {
+                        title: 'This game version can’t go online',
+                        body: 'The online service does not take this version of the game. Rebuild it on this page (Build section; online play needs XML2 Fix {{required}} or later), then try again.'
+                    },
+                    code_not_found: {
+                        title: 'Code not found',
+                        body: 'No game is open with that code. Check the code with your host, and that their game is still running.'
+                    },
+                    code_expired: {
+                        title: 'Code expired',
+                        body: 'That room is closed. Ask your host to host again and send you the new code.'
+                    },
+                    room_full: {
+                        title: 'The game is full',
+                        body: 'That room has no free place. Ask your host when a place frees up.'
+                    },
+                    room_closed: {
+                        title: 'Can’t join right now',
+                        body: "That game can't take new players right now. Try again in a moment."
+                    },
+                    version_mismatch: {
+                        title: 'Different game version',
+                        body: 'Your game and the host’s are not the same version. Both of you: Rebuild the game on this page (Build section; online play needs XML2 Fix {{required}} or later), then try again.'
+                    },
+                    test_mode_on: {
+                        title: 'Test mode is on',
+                        body: 'The XML2 Fix turns online play off while test mode is on. Turn test mode off, then try again.'
+                    },
+                    tls_pin_mismatch: {
+                        title: 'The online service could not be verified',
+                        body: 'The game did not connect, to keep you safe: the service did not prove it is the real one. Check that nothing on your network intercepts connections, update the game, and report it if it keeps happening.'
+                    },
+                    internal: {
+                        title: 'Something went wrong',
+                        body: 'The game’s online code ran into a problem. Try again; if it keeps happening, report it with the game’s xml2-fix.log.'
+                    },
+                    unknown: {
+                        title: 'The game reported a problem ({{id}})',
+                        body: 'Try again; if it keeps happening, report it with the game’s xml2-fix.log.'
+                    }
+                },
+                visibility: {
+                    public: 'Public',
+                    private: 'Private',
+                    publicNote: 'Listed in Browse games',
+                    privateNote: 'Only friends with the code can join'
+                },
+                browse: {
+                    title: 'Browse games',
+                    refresh: 'Refresh',
+                    refreshing: 'Refreshing…',
+                    loading: 'Looking for public games…',
+                    empty: 'No public games right now – host one and turn on List my game publicly.',
+                    offline: 'Offline mode: the public game list is not loaded. Press Refresh to restart the launcher online.',
+                    unnamed: 'Unnamed game',
+                    hostsGame: '{{name}}’s game',
+                    hostedBy: 'Hosted by {{name}}',
+                    mode: {
+                        campaign: 'Campaign',
+                        danger_room: 'Danger Room'
+                    },
+                    players: '{{count}} of {{max}}',
+                    playersPlain: '{{count}} players',
+                    inProgress: 'In progress',
+                    join: 'Join',
+                    joinLabel: 'Join {{name}}',
+                    differentVersion: 'Different game version',
+                    full: 'Full',
+                    rebuild: 'Rebuild to play online',
+                    closed: 'Can’t join right now',
+                    errors: {
+                        rate_limited: 'The list was refreshed too often. It refreshes again in a moment.',
+                        busy: 'The online service is busy. The list refreshes again in a moment.',
+                        bad_response: 'The game list could not be read. It tries again in a moment; if it keeps happening, update the launcher.'
+                    }
+                },
+                errorDetail: 'Details: {{message}}',
+                again: 'Try again',
+                done: 'OK',
+                help: {
+                    title: 'How online works',
+                    steps: {
+                        host: 'One player presses Host a game. Once the game is up, open Play Online in it: the room opens then, and this page shows a code like ABCD-EFGH.',
+                        share: 'The host sends the code to the friends who play (a chat message is fine). Copy puts it on the clipboard.',
+                        join: 'Each friend types or pastes the code under Join a game and presses Join. Lower case, spaces and dashes are fine.',
+                        inGame: 'In the game, the host picks Play Online → Host, then a new or saved campaign as usual. Friends open Play Online → Join Game and select the host’s game. Once you are together, this page says Connected – playing together.'
+                    },
+                    public: 'Public games: turn on List my game publicly when you host, and your game shows in Browse games for everyone with the launcher, who can join it there. Off, only friends with the code can join.',
+                    lateJoin: 'Joining a campaign already in progress? Wait on Joined Game. You enter at the next level change; the party needs enough heroes for everyone.',
+                    soloSegment: 'During a solo story segment, players without a hero stay connected and watch the shared camera; they rejoin when the party grows again.',
+                    publicIp: 'Public games connect you directly to other players, so they can see your internet address. Share a private code to play only with friends.',
+                    keepOpen: 'Host and Join keep the launcher open while you play, even with Close launcher after game launch on: it shows and copies your code and follows the game. Play still closes it.',
+                    noPorts: 'Nothing needs port forwarding or router settings: the online service connects you.',
+                    sameVersion: 'Everyone needs the same version of the game: keep it up to date on this page (Rebuild in the Build section when it says an update is available).',
+                    lan: 'On the same network, LAN and Connect by IP still work: press Play as usual. Play never opens a room.',
+                    testMode: 'Test mode turns online play off: turn it off to host or join.',
+                    errorsTitle: 'What the messages mean'
+                }
             },
             // X-Men Legends (community port): setup wizard, Build section, builder errors.
             xml1: {
@@ -888,7 +1085,7 @@
                 languageSpanish: 'Espagnol',
                 languageRussian: 'Russe',
                 closeLauncherAfterLaunch: 'Fermer le launcher apres le lancement du jeu',
-                closeLauncherAfterLaunchBody: "Lorsqu'active, le launcher se fermera automatiquement apres le lancement d'un jeu.",
+                closeLauncherAfterLaunchBody: "Lorsqu'active, le launcher se fermera automatiquement apres le lancement d'un jeu. Heberger ou rejoindre une partie en ligne le garde ouvert, pour afficher et copier votre code.",
                 skipClientUpdate: 'Ignorer la mise a jour des patchs au lancement',
                 skipClientUpdateBody: "Lorsqu'active, les mises a jour des patchs seront ignorees au lancement. Utile pour le depannage, mais les patchs peuvent etre obsoletes.",
                 reduceMotion: 'Reduire les animations',
@@ -1060,6 +1257,200 @@
                 badgeOnline: 'Jeu en ligne desactive',
                 turnOff: 'Desactiver le mode test',
                 saveFailed: "L'option du mode test n'a pas pu etre enregistree."
+            },
+            online: {
+                title: 'En ligne',
+                intro: "Jouez a X-Men Legends en ligne avec vos amis : un joueur heberge, les autres rejoignent avec le code qu'il recoit. Pas de redirection de ports, aucun reglage a modifier.",
+                loading: 'Chargement du jeu en ligne…',
+                host: {
+                    title: 'Heberger une partie',
+                    body: 'Lance le jeu ; ouvrez Play Online et votre salle s’ouvre. Vous recevez un code a envoyer a vos amis.',
+                    button: 'Heberger une partie',
+                    public: 'Rendre ma partie publique',
+                    publicNote: "Active : tous les joueurs du lanceur voient votre partie dans Parcourir les parties et peuvent la rejoindre. Desactive : seulement les amis qui ont le code.",
+                    roomName: 'Nom de la salle (facultatif)',
+                    roomNamePlaceholder: 'Nom de la salle, affiche dans la liste publique',
+                    roomNameError: "Jusqu'a {{length}} lettres, chiffres, espaces et ponctuation simple (sans ; ni \")."
+                },
+                join: {
+                    title: 'Rejoindre une partie',
+                    body: "Tapez ou collez le code envoye par l'hote, puis appuyez sur Rejoindre.",
+                    label: 'Code de la partie',
+                    button: 'Rejoindre',
+                    joining: 'Code {{code}}',
+                    lateJoin: 'Vous rejoignez une campagne deja en cours ? Attendez sur Joined Game. Vous entrez au prochain changement de niveau ; le groupe doit avoir assez de heros pour tout le monde.'
+                },
+                codeError: {
+                    empty: "Tapez d'abord le code envoye par l'hote.",
+                    short: "Un code a {{length}} lettres et chiffres ; celui-ci en a {{count}}. Verifiez-le avec l'hote.",
+                    long: "Un code a {{length}} lettres et chiffres ; celui-ci en a {{count}}. Verifiez-le avec l'hote.",
+                    chars: "Un code n'a que des lettres et des chiffres, jamais 0, O, 1, I ou L : « {{chars}} » n'en fait pas partie. Verifiez-le avec l'hote."
+                },
+                code: {
+                    label: 'Votre code',
+                    copy: 'Copier',
+                    copied: 'Code {{code}} copie.',
+                    copyFailed: "Le code n'a pas pu etre copie : c'est {{code}}.",
+                    autoCopied: 'Copie dans le presse-papiers',
+                    hint: 'Envoyez ce code a vos amis. Dans le jeu : Play Online → Host.'
+                },
+                players: {
+                    one: '1 joueur dans la salle (vous)',
+                    many: '{{count}} joueurs dans la salle',
+                    oneOf: '1 joueur sur {{max}} dans la salle (vous)',
+                    manyOf: '{{count}} joueurs sur {{max}} dans la salle'
+                },
+                offline: "Mode hors ligne : le jeu en ligne et Parcourir les parties ont besoin d'internet. Heberger, Rejoindre et Actualiser proposent de relancer le lanceur en ligne ; Jouer fonctionne comme d'habitude.",
+                publicIp: 'Les parties publiques vous connectent directement aux autres joueurs, qui peuvent donc voir votre adresse internet. Partagez un code prive pour jouer seulement avec vos amis.',
+                phase: {
+                    hostConnecting: 'Connexion…',
+                    hostOpenMenu: 'Ouvrez Play Online dans le jeu – votre code apparaitra ici.',
+                    hostRoom: 'Votre salle est ouverte.',
+                    hostInGame: 'Connecte – vous jouez ensemble.',
+                    joinConnecting: 'Recherche de la partie…',
+                    joinOpenMenu: 'Ouvrez Play Online → Join Game dans le jeu.',
+                    joinJoined: 'Trouvee. Dans le jeu : Play Online → Join Game, choisissez la partie.',
+                    joinInGame: 'Connecte – vous jouez ensemble.',
+                    ended: 'La partie en ligne est terminee.',
+                    closed: 'Le jeu a ete ferme.',
+                    notStarted: "Le jeu n'a pas demarre. Reessayez ; si cela se repete, lancez-le avec Jouer pour voir pourquoi."
+                },
+                blocked: {
+                    notSetUp: "Configurez d'abord X-Men Legends (Configurer, plus haut) pour jouer en ligne.",
+                    notBuilt: "Construisez d'abord le jeu (section Build plus bas) pour jouer en ligne.",
+                    noFix: "Installez d'abord le {{fix}} (Verifier les fichiers sur cette page) pour jouer en ligne.",
+                    fixOld: 'Le jeu en ligne demande le XML2 Fix {{required}} ou plus recent ; ce dossier a la version {{version}}. Utilisez Verifier les fichiers sur cette page pour le mettre a jour, puis hebergez ou rejoignez.',
+                    fixUnknown: 'La version du XML2 Fix de ce dossier ne peut pas etre lue, et le jeu en ligne demande la {{required}} ou plus recente. Utilisez Verifier les fichiers sur cette page pour le reinstaller, puis hebergez ou rejoignez.',
+                    building: 'Une construction est en cours : hebergez ou rejoignez quand elle sera terminee.',
+                    updating: "Le XML2 Fix est en cours d'installation ou de mise a jour : hebergez ou rejoignez quand ce sera fini.",
+                    otherUpdating: 'Un autre jeu est en cours de mise a jour : hebergez ou rejoignez quand ce sera fini.',
+                    testMode: 'Le mode test est actif, et le XML2 Fix desactive alors le jeu en ligne. Desactivez-le pour jouer en ligne.',
+                    running: 'X-Men Legends est en cours. Fermez-le pour heberger ou rejoindre une partie.'
+                },
+                startFailed: {
+                    not_supported: "Ce jeu n'a pas de jeu en ligne ici.",
+                    not_installed: "Configurez d'abord X-Men Legends.",
+                    no_fix: "Installez d'abord le XML2 Fix (Verifier les fichiers sur cette page).",
+                    not_built: "La construction du jeu n'est pas terminee.",
+                    running: 'X-Men Legends est deja en cours. Fermez-le, puis hebergez ou rejoignez a nouveau.',
+                    test_mode_on: 'Le mode test est actif : desactivez-le, puis hebergez ou rejoignez a nouveau.',
+                    busy: 'Une construction est en cours dans le dossier du jeu : hebergez ou rejoignez quand elle sera terminee.',
+                    bad_mode: 'Le lanceur a envoye une demande inconnue : {{error}}',
+                    write_failed: "Les reglages en ligne n'ont pas pu etre enregistres : {{error}}",
+                    offline: 'Le lanceur est en mode hors ligne : relancez-le en ligne pour heberger ou rejoindre.',
+                    already_running: 'Un jeu est deja en cours de lancement ou en cours depuis le lanceur. Attendez-le ou fermez-le, puis hebergez ou rejoignez a nouveau.',
+                    status_locked: "Un fichier d'une partie en ligne precedente (online-status.json) n'a pas pu etre supprime, le jeu n'a donc pas ete lance : {{error}} Fermez tout programme qui l'a ouvert, attendez un instant, puis reessayez.",
+                    update_failed: "La mise a jour du XML2 Fix a echoue, le jeu n'a donc pas ete lance en ligne : {{error}} Utilisez Verifier les fichiers sur cette page, puis reessayez.",
+                    update_cancelled: "La mise a jour du XML2 Fix a ete annulee, le jeu n'a donc pas ete lance.",
+                    fix_too_old: 'Le XML2 Fix du dossier du jeu est trop ancien pour le jeu en ligne (il faut la {{required}} ou plus recente). Utilisez Verifier les fichiers sur cette page, puis reessayez.',
+                    fix_unknown: 'La version du XML2 Fix du dossier du jeu ne peut pas etre lue (le jeu en ligne demande la {{required}} ou plus recente). Utilisez Verifier les fichiers sur cette page, puis reessayez.',
+                    launch_cancelled: "Le jeu n'a pas demarre : il demande les droits administrateur, et la demande a ete refusee.",
+                    launch_failed: "Le jeu n'a pas pu etre lance : {{error}}",
+                    cleanup: "Les reglages en ligne de ce lancement n'ont pas pu etre retires ({{error}}). Appuyez une fois sur Jouer ici avant de lancer le jeu depuis Steam ou son exe, pour qu'il n'ouvre ni ne rejoigne cette salle."
+                },
+                errors: {
+                    broker_unreachable: {
+                        title: 'Service en ligne injoignable',
+                        body: 'Verifiez votre connexion internet et reessayez. Si cela echoue encore, le service est peut-etre indisponible un moment : reessayez plus tard.'
+                    },
+                    broker_rejected: {
+                        title: 'Cette version du jeu ne peut pas aller en ligne',
+                        body: "Le service en ligne n'accepte pas cette version du jeu. Reconstruisez-le sur cette page (Rebuild dans la section Build ; le jeu en ligne demande le XML2 Fix {{required}} ou plus recent), puis reessayez."
+                    },
+                    code_not_found: {
+                        title: 'Code introuvable',
+                        body: "Aucune partie n'est ouverte avec ce code. Verifiez le code avec l'hote, et que son jeu tourne toujours."
+                    },
+                    code_expired: {
+                        title: 'Code expire',
+                        body: "Cette salle est fermee. Demandez a l'hote d'heberger a nouveau et de vous envoyer le nouveau code."
+                    },
+                    room_full: {
+                        title: 'La partie est pleine',
+                        body: "Cette salle n'a plus de place libre. Demandez a l'hote quand une place se libere."
+                    },
+                    room_closed: {
+                        title: 'Impossible de rejoindre pour le moment',
+                        body: 'Cette partie ne peut pas accueillir de nouveaux joueurs pour le moment. Reessayez dans un instant.'
+                    },
+                    version_mismatch: {
+                        title: 'Version du jeu differente',
+                        body: "Votre jeu et celui de l'hote ne sont pas de la meme version. Tous les deux : reconstruisez le jeu sur cette page (Rebuild dans la section Build ; le jeu en ligne demande le XML2 Fix {{required}} ou plus recent), puis reessayez."
+                    },
+                    test_mode_on: {
+                        title: 'Le mode test est actif',
+                        body: 'Le XML2 Fix desactive le jeu en ligne tant que le mode test est actif. Desactivez le mode test, puis reessayez.'
+                    },
+                    tls_pin_mismatch: {
+                        title: "Le service en ligne n'a pas pu etre verifie",
+                        body: "Le jeu ne s'est pas connecte, pour votre securite : le service n'a pas prouve qu'il est le vrai. Verifiez que rien sur votre reseau n'intercepte les connexions, mettez le jeu a jour, et signalez-le si cela se repete."
+                    },
+                    internal: {
+                        title: 'Un probleme est survenu',
+                        body: 'Le code en ligne du jeu a rencontre un probleme. Reessayez ; si cela se repete, signalez-le avec le fichier xml2-fix.log du jeu.'
+                    },
+                    unknown: {
+                        title: 'Le jeu a signale un probleme ({{id}})',
+                        body: 'Reessayez ; si cela se repete, signalez-le avec le fichier xml2-fix.log du jeu.'
+                    }
+                },
+                visibility: {
+                    public: 'Publique',
+                    private: 'Privee',
+                    publicNote: 'Visible dans Parcourir les parties',
+                    privateNote: 'Seuls les amis qui ont le code peuvent rejoindre'
+                },
+                browse: {
+                    title: 'Parcourir les parties',
+                    refresh: 'Actualiser',
+                    refreshing: 'Actualisation…',
+                    loading: 'Recherche de parties publiques…',
+                    empty: 'Aucune partie publique pour le moment – hebergez-en une et activez Rendre ma partie publique.',
+                    offline: "Mode hors ligne : la liste des parties publiques n'est pas chargee. Appuyez sur Actualiser pour relancer le lanceur en ligne.",
+                    unnamed: 'Partie sans nom',
+                    hostsGame: 'Partie de {{name}}',
+                    hostedBy: 'Hebergee par {{name}}',
+                    mode: {
+                        campaign: 'Campagne',
+                        danger_room: 'Danger Room'
+                    },
+                    players: '{{count}} sur {{max}}',
+                    playersPlain: '{{count}} joueurs',
+                    inProgress: 'En cours',
+                    join: 'Rejoindre',
+                    joinLabel: 'Rejoindre {{name}}',
+                    differentVersion: 'Version du jeu differente',
+                    full: 'Pleine',
+                    rebuild: 'Reconstruisez (Rebuild) pour jouer en ligne',
+                    closed: 'Impossible de rejoindre pour le moment',
+                    errors: {
+                        rate_limited: 'La liste a ete actualisee trop souvent. Elle se met a jour dans un instant.',
+                        busy: 'Le service en ligne est occupe. La liste se met a jour dans un instant.',
+                        bad_response: "La liste des parties n'a pas pu etre lue. Nouvel essai dans un instant ; si cela se repete, mettez le lanceur a jour."
+                    }
+                },
+                errorDetail: 'Details : {{message}}',
+                again: 'Reessayer',
+                done: 'OK',
+                help: {
+                    title: 'Comment fonctionne le jeu en ligne',
+                    steps: {
+                        host: "Un joueur appuie sur Heberger une partie. Une fois le jeu lance, ouvrez Play Online : la salle s'ouvre alors, et cette page affiche un code comme ABCD-EFGH.",
+                        share: "L'hote envoie le code aux amis qui jouent (un message suffit). Copier le met dans le presse-papiers.",
+                        join: 'Chaque ami tape ou colle le code sous Rejoindre une partie et appuie sur Rejoindre. Minuscules, espaces et tirets sont acceptes.',
+                        inGame: "Dans le jeu, l'hote choisit Play Online → Host, puis une nouvelle campagne ou une sauvegarde comme d'habitude. Les amis ouvrent Play Online → Join Game et selectionnent la partie de l'hote. Une fois ensemble, cette page affiche Connecte – vous jouez ensemble."
+                    },
+                    public: "Parties publiques : activez Rendre ma partie publique quand vous hebergez, et votre partie apparait dans Parcourir les parties pour tous les joueurs du lanceur, qui peuvent la rejoindre. Desactive, seuls les amis qui ont le code peuvent rejoindre.",
+                    lateJoin: 'Vous rejoignez une campagne deja en cours ? Attendez sur Joined Game. Vous entrez au prochain changement de niveau ; le groupe doit avoir assez de heros pour tout le monde.',
+                    soloSegment: "Pendant un passage d'histoire en solo, les joueurs sans heros restent connectes et regardent la camera commune ; ils reviennent quand le groupe s'agrandit.",
+                    publicIp: 'Les parties publiques vous connectent directement aux autres joueurs, qui peuvent donc voir votre adresse internet. Partagez un code prive pour jouer seulement avec vos amis.',
+                    keepOpen: 'Heberger et Rejoindre gardent le lanceur ouvert pendant la partie, meme avec Fermer le launcher apres le lancement du jeu active : il affiche et copie votre code et suit la partie. Jouer le ferme toujours.',
+                    noPorts: 'Aucune redirection de ports ni reglage du routeur : le service en ligne vous connecte.',
+                    sameVersion: "Tout le monde doit avoir la meme version du jeu : tenez-le a jour sur cette page (Rebuild dans la section Build quand une mise a jour est disponible).",
+                    lan: "Sur le meme reseau, le LAN et Connect by IP fonctionnent toujours : appuyez sur Jouer comme d'habitude. Jouer n'ouvre jamais de salle.",
+                    testMode: 'Le mode test desactive le jeu en ligne : desactivez-le pour heberger ou rejoindre.',
+                    errorsTitle: 'Ce que veulent dire les messages'
+                }
             }
         },
         es: {
@@ -1225,7 +1616,7 @@
                 languageSpanish: 'Espanol',
                 languageRussian: 'Ruso',
                 closeLauncherAfterLaunch: 'Cerrar el launcher al iniciar el juego',
-                closeLauncherAfterLaunchBody: 'Cuando esta activado, el launcher se cerrara automaticamente despues de iniciar un juego.',
+                closeLauncherAfterLaunchBody: 'Cuando esta activado, el launcher se cerrara automaticamente despues de iniciar un juego. Alojar o unirse a una partida en linea lo mantiene abierto, para mostrar y copiar tu codigo.',
                 skipClientUpdate: 'Omitir actualizacion de parches al iniciar',
                 skipClientUpdateBody: 'Cuando esta activado, las actualizaciones de parches se omitiran al iniciar. Util para solucionar problemas, pero podrias estar usando un parche desactualizado.',
                 reduceMotion: 'Reducir movimiento',
@@ -1397,6 +1788,200 @@
                 badgeOnline: 'Juego en linea desactivado',
                 turnOff: 'Desactivar el modo de prueba',
                 saveFailed: 'No se pudo guardar la opcion del modo de prueba.'
+            },
+            online: {
+                title: 'En linea',
+                intro: 'Juega a X-Men Legends en linea con amigos: un jugador aloja la partida y los demas se unen con el codigo que recibe. Sin abrir puertos ni editar ajustes.',
+                loading: 'Cargando el juego en linea…',
+                host: {
+                    title: 'Alojar una partida',
+                    body: 'Inicia el juego; abre Play Online y tu sala se abre. Recibes un codigo para enviar a tus amigos.',
+                    button: 'Alojar una partida',
+                    public: 'Hacer publica mi partida',
+                    publicNote: 'Activado: cualquiera con el lanzador ve tu partida en Explorar partidas y puede unirse. Desactivado: solo los amigos con el codigo.',
+                    roomName: 'Nombre de la sala (opcional)',
+                    roomNamePlaceholder: 'Nombre de la sala, visible en la lista publica',
+                    roomNameError: 'Hasta {{length}} letras, cifras, espacios y signos simples (sin ; ni ").'
+                },
+                join: {
+                    title: 'Unirse a una partida',
+                    body: 'Escribe o pega el codigo que te envio el anfitrion y pulsa Unirse.',
+                    label: 'Codigo de la partida',
+                    button: 'Unirse',
+                    joining: 'Codigo {{code}}',
+                    lateJoin: '¿Te unes a una campana ya en curso? Espera en Joined Game. Entras en el proximo cambio de nivel; el grupo necesita heroes suficientes para todos.'
+                },
+                codeError: {
+                    empty: 'Primero escribe el codigo que te envio el anfitrion.',
+                    short: 'Un codigo tiene {{length}} letras y cifras; este tiene {{count}}. Compruebalo con el anfitrion.',
+                    long: 'Un codigo tiene {{length}} letras y cifras; este tiene {{count}}. Compruebalo con el anfitrion.',
+                    chars: 'Un codigo solo tiene letras y cifras, nunca 0, O, 1, I ni L: «{{chars}}» no forma parte de uno. Compruebalo con el anfitrion.'
+                },
+                code: {
+                    label: 'Tu codigo',
+                    copy: 'Copiar',
+                    copied: 'Codigo {{code}} copiado.',
+                    copyFailed: 'No se pudo copiar el codigo: es {{code}}.',
+                    autoCopied: 'Copiado al portapapeles',
+                    hint: 'Envia este codigo a tus amigos. En el juego: Play Online → Host.'
+                },
+                players: {
+                    one: '1 jugador en la sala (tu)',
+                    many: '{{count}} jugadores en la sala',
+                    oneOf: '1 de {{max}} jugadores en la sala (tu)',
+                    manyOf: '{{count}} de {{max}} jugadores en la sala'
+                },
+                offline: 'Modo sin conexion: el juego en linea y Explorar partidas necesitan internet. Alojar, Unirse y Actualizar ofrecen reiniciar el lanzador en linea; Jugar funciona como siempre.',
+                publicIp: 'Las partidas publicas te conectan directamente con los demas jugadores, asi que pueden ver tu direccion de internet. Comparte un codigo privado para jugar solo con amigos.',
+                phase: {
+                    hostConnecting: 'Conectando…',
+                    hostOpenMenu: 'Abre Play Online en el juego – tu codigo aparecera aqui.',
+                    hostRoom: 'Tu sala esta abierta.',
+                    hostInGame: 'Conectado – jugando juntos.',
+                    joinConnecting: 'Buscando la partida…',
+                    joinOpenMenu: 'Abre Play Online → Join Game en el juego.',
+                    joinJoined: 'Encontrada. En el juego: Play Online → Join Game, elige la partida.',
+                    joinInGame: 'Conectado – jugando juntos.',
+                    ended: 'La partida en linea ha terminado.',
+                    closed: 'El juego se cerro.',
+                    notStarted: 'El juego no se inicio. Vuelve a intentarlo; si se repite, inicialo con Jugar para ver por que.'
+                },
+                blocked: {
+                    notSetUp: 'Primero configura X-Men Legends (Configurar, arriba) para jugar en linea.',
+                    notBuilt: 'Primero construye el juego (seccion Build, abajo) para jugar en linea.',
+                    noFix: 'Primero instala el {{fix}} (Verificar archivos en esta pagina) para jugar en linea.',
+                    fixOld: 'El juego en linea necesita el XML2 Fix {{required}} o posterior; esta carpeta tiene la version {{version}}. Usa Verificar archivos en esta pagina para actualizarlo y luego aloja o unete.',
+                    fixUnknown: 'No se puede leer la version del XML2 Fix de esta carpeta, y el juego en linea necesita la {{required}} o posterior. Usa Verificar archivos en esta pagina para reinstalarlo y luego aloja o unete.',
+                    building: 'Hay una construccion en curso: aloja o unete cuando termine.',
+                    updating: 'Se esta instalando o actualizando el XML2 Fix: aloja o unete cuando termine.',
+                    otherUpdating: 'Otro juego se esta actualizando: aloja o unete cuando termine.',
+                    testMode: 'El modo de prueba esta activo, y el XML2 Fix desactiva el juego en linea mientras lo este. Desactivalo para jugar en linea.',
+                    running: 'X-Men Legends esta en ejecucion. Cierralo para alojar o unirte a una partida.'
+                },
+                startFailed: {
+                    not_supported: 'Este juego no tiene juego en linea aqui.',
+                    not_installed: 'Primero configura X-Men Legends.',
+                    no_fix: 'Primero instala el XML2 Fix (Verificar archivos en esta pagina).',
+                    not_built: 'La construccion del juego no ha terminado.',
+                    running: 'X-Men Legends ya esta en ejecucion. Cierralo y vuelve a alojar o unirte.',
+                    test_mode_on: 'El modo de prueba esta activo: desactivalo y vuelve a alojar o unirte.',
+                    busy: 'Hay una construccion en curso en la carpeta del juego: aloja o unete cuando termine.',
+                    bad_mode: 'El lanzador envio una peticion desconocida: {{error}}',
+                    write_failed: 'No se pudieron guardar los ajustes en linea: {{error}}',
+                    offline: 'El lanzador esta en modo sin conexion: reinicialo en linea para alojar o unirte.',
+                    already_running: 'Ya hay un juego iniciandose o en ejecucion desde el lanzador. Espera o cierralo y vuelve a alojar o unirte.',
+                    status_locked: 'No se pudo borrar un archivo de una partida en linea anterior (online-status.json), asi que el juego no se inicio: {{error}} Cierra cualquier programa que lo tenga abierto, espera un momento y vuelve a intentarlo.',
+                    update_failed: 'La actualizacion del XML2 Fix fallo, asi que el juego no se inicio en linea: {{error}} Usa Verificar archivos en esta pagina y vuelve a intentarlo.',
+                    update_cancelled: 'Se cancelo la actualizacion del XML2 Fix, asi que el juego no se inicio.',
+                    fix_too_old: 'El XML2 Fix de la carpeta del juego es demasiado antiguo para el juego en linea (necesita la {{required}} o posterior). Usa Verificar archivos en esta pagina y vuelve a intentarlo.',
+                    fix_unknown: 'No se puede leer la version del XML2 Fix de la carpeta del juego (el juego en linea necesita la {{required}} o posterior). Usa Verificar archivos en esta pagina y vuelve a intentarlo.',
+                    launch_cancelled: 'El juego no se inicio: necesita permisos de administrador y se rechazo la solicitud.',
+                    launch_failed: 'No se pudo iniciar el juego: {{error}}',
+                    cleanup: 'No se pudieron quitar los ajustes en linea de este inicio ({{error}}). Pulsa Jugar aqui una vez antes de iniciar el juego desde Steam o su exe, para que no abra ni se una a esa sala.'
+                },
+                errors: {
+                    broker_unreachable: {
+                        title: 'No se puede conectar con el servicio en linea',
+                        body: 'Comprueba tu conexion a internet y vuelve a intentarlo. Si sigue fallando, puede que el servicio no este disponible un momento: intentalo mas tarde.'
+                    },
+                    broker_rejected: {
+                        title: 'Esta version del juego no puede jugar en linea',
+                        body: 'El servicio en linea no acepta esta version del juego. Reconstruyelo en esta pagina (Rebuild en la seccion Build; el juego en linea necesita el XML2 Fix {{required}} o posterior) y vuelve a intentarlo.'
+                    },
+                    code_not_found: {
+                        title: 'Codigo no encontrado',
+                        body: 'No hay ninguna partida abierta con ese codigo. Compruebalo con el anfitrion, y que su juego siga en marcha.'
+                    },
+                    code_expired: {
+                        title: 'Codigo caducado',
+                        body: 'Esa sala esta cerrada. Pide al anfitrion que vuelva a alojar y te envie el nuevo codigo.'
+                    },
+                    room_full: {
+                        title: 'La partida esta llena',
+                        body: 'Esa sala no tiene sitio libre. Pregunta al anfitrion cuando quede uno.'
+                    },
+                    room_closed: {
+                        title: 'No se puede unir ahora mismo',
+                        body: 'Esa partida no puede aceptar jugadores nuevos ahora mismo. Intentalo de nuevo en un momento.'
+                    },
+                    version_mismatch: {
+                        title: 'Version del juego distinta',
+                        body: 'Tu juego y el del anfitrion no son de la misma version. Los dos: reconstruid el juego en esta pagina (Rebuild en la seccion Build; el juego en linea necesita el XML2 Fix {{required}} o posterior) y volved a intentarlo.'
+                    },
+                    test_mode_on: {
+                        title: 'El modo de prueba esta activo',
+                        body: 'El XML2 Fix desactiva el juego en linea mientras el modo de prueba este activo. Desactivalo y vuelve a intentarlo.'
+                    },
+                    tls_pin_mismatch: {
+                        title: 'No se pudo verificar el servicio en linea',
+                        body: 'El juego no se conecto, por tu seguridad: el servicio no demostro ser el autentico. Comprueba que nada en tu red intercepte las conexiones, actualiza el juego e informa si se repite.'
+                    },
+                    internal: {
+                        title: 'Algo salio mal',
+                        body: 'El codigo en linea del juego tuvo un problema. Vuelve a intentarlo; si se repite, informa adjuntando el xml2-fix.log del juego.'
+                    },
+                    unknown: {
+                        title: 'El juego informo de un problema ({{id}})',
+                        body: 'Vuelve a intentarlo; si se repite, informa adjuntando el xml2-fix.log del juego.'
+                    }
+                },
+                visibility: {
+                    public: 'Publica',
+                    private: 'Privada',
+                    publicNote: 'Visible en Explorar partidas',
+                    privateNote: 'Solo los amigos con el codigo pueden unirse'
+                },
+                browse: {
+                    title: 'Explorar partidas',
+                    refresh: 'Actualizar',
+                    refreshing: 'Actualizando…',
+                    loading: 'Buscando partidas publicas…',
+                    empty: 'No hay partidas publicas ahora mismo – aloja una y activa Hacer publica mi partida.',
+                    offline: 'Modo sin conexion: la lista de partidas publicas no se ha cargado. Pulsa Actualizar para reiniciar el lanzador en linea.',
+                    unnamed: 'Partida sin nombre',
+                    hostsGame: 'Partida de {{name}}',
+                    hostedBy: 'Anfitrion: {{name}}',
+                    mode: {
+                        campaign: 'Campana',
+                        danger_room: 'Danger Room'
+                    },
+                    players: '{{count}} de {{max}}',
+                    playersPlain: '{{count}} jugadores',
+                    inProgress: 'En curso',
+                    join: 'Unirse',
+                    joinLabel: 'Unirse a {{name}}',
+                    differentVersion: 'Version del juego distinta',
+                    full: 'Llena',
+                    rebuild: 'Reconstruye (Rebuild) para jugar en linea',
+                    closed: 'No se puede unir ahora mismo',
+                    errors: {
+                        rate_limited: 'La lista se actualizo demasiadas veces. Se actualiza de nuevo en un momento.',
+                        busy: 'El servicio en linea esta ocupado. La lista se actualiza de nuevo en un momento.',
+                        bad_response: 'No se pudo leer la lista de partidas. Se reintenta en un momento; si se repite, actualiza el lanzador.'
+                    }
+                },
+                errorDetail: 'Detalles: {{message}}',
+                again: 'Reintentar',
+                done: 'Aceptar',
+                help: {
+                    title: 'Como funciona el juego en linea',
+                    steps: {
+                        host: 'Un jugador pulsa Alojar una partida. Cuando el juego este en marcha, abre Play Online: la sala se abre entonces, y esta pagina muestra un codigo como ABCD-EFGH.',
+                        share: 'El anfitrion envia el codigo a los amigos que juegan (un mensaje basta). Copiar lo pone en el portapapeles.',
+                        join: 'Cada amigo escribe o pega el codigo en Unirse a una partida y pulsa Unirse. Valen minusculas, espacios y guiones.',
+                        inGame: 'En el juego, el anfitrion elige Play Online → Host y luego una campana nueva o guardada, como siempre. Los amigos abren Play Online → Join Game y seleccionan la partida del anfitrion. Cuando esteis juntos, esta pagina dice Conectado – jugando juntos.'
+                    },
+                    public: 'Partidas publicas: activa Hacer publica mi partida al alojar, y tu partida aparece en Explorar partidas para todos los que tienen el lanzador, que pueden unirse desde alli. Desactivado, solo los amigos con el codigo pueden unirse.',
+                    lateJoin: '¿Te unes a una campana ya en curso? Espera en Joined Game. Entras en el proximo cambio de nivel; el grupo necesita heroes suficientes para todos.',
+                    soloSegment: 'Durante un tramo de historia en solitario, los jugadores sin heroe siguen conectados viendo la camara compartida; vuelven cuando el grupo crece de nuevo.',
+                    publicIp: 'Las partidas publicas te conectan directamente con los demas jugadores, asi que pueden ver tu direccion de internet. Comparte un codigo privado para jugar solo con amigos.',
+                    keepOpen: 'Alojar y Unirse mantienen el lanzador abierto mientras juegas, incluso con Cerrar el launcher al iniciar el juego activado: muestra y copia tu codigo y sigue la partida. Jugar lo sigue cerrando.',
+                    noPorts: 'No hace falta abrir puertos ni tocar el router: el servicio en linea os conecta.',
+                    sameVersion: 'Todos necesitan la misma version del juego: mantenlo actualizado en esta pagina (Rebuild en la seccion Build cuando haya una actualizacion).',
+                    lan: 'En la misma red, LAN y Connect by IP siguen funcionando: pulsa Jugar como siempre. Jugar nunca abre una sala.',
+                    testMode: 'El modo de prueba desactiva el juego en linea: desactivalo para alojar o unirte.',
+                    errorsTitle: 'Que significan los mensajes'
+                }
             }
         },
         ru: {

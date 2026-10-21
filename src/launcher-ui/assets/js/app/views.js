@@ -1057,6 +1057,12 @@
                         ${descriptionSection}
                         ${actionsAside}
                     </div>
+                    ${!comingSoon && window.OnlineView && window.OnlineView.supports(config.uiId)
+                        ? `<section class="detail-online">
+                        <h3 class="detail-display-title">${escapeHtml(t('online.title'))}</h3>
+                        <div id="${escapeHtml(config.uiId)}-online-panel"></div>
+                    </section>`
+                        : ''}
                     ${!comingSoon && window.Xml1View && window.Xml1View.supports(config.uiId)
                         ? `<section class="detail-display detail-build">
                         <h3 class="detail-display-title">${escapeHtml(t('xml1.sectionTitle'))}</h3>
@@ -1120,6 +1126,12 @@
             GameUtils.getAllGameConfigs()
                 .filter(config => !config.comingSoon && window.TestModeView.supports(config.uiId))
                 .forEach(config => window.TestModeView.render(config.uiId));
+        }
+
+        if (window.OnlineView) {
+            GameUtils.getAllGameConfigs()
+                .filter(config => !config.comingSoon && window.OnlineView.supports(config.uiId))
+                .forEach(config => window.OnlineView.render(config.uiId));
         }
 
         if (window.PatchView) {

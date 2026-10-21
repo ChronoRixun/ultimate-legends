@@ -119,7 +119,14 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+        # The release's notes: docs/release/<tag>-notes.md when the release has one (written with its changelog entry),
+        # else the generic line.
         run: |
-          $notes = "Ultimate Legends $env:GITHUB_REF_NAME - portable build: unzip anywhere and run ultimate-legends.exe. " +
-                   "No game files are included; every game runs from your own install. SHA-256 in SHA256SUMS.txt."
-          gh release create $env:GITHUB_REF_NAME (Get-ChildItem dist/*.zip).FullName dist/SHA256SUMS.txt --title "Ultimate Legends $env:GITHUB_REF_NAME" --notes $notes
+          $notesFile = "docs/release/$env:GITHUB_REF_NAME-notes.md"
+          if (Test-Path $notesFile) {
+            gh release create $env:GITHUB_REF_NAME (Get-ChildItem dist/*.zip).FullName dist/SHA256SUMS.txt --title "Ultimate Legends $env:GITHUB_REF_NAME" --notes-file $notesFile
+          } else {
+            $notes = "Ultimate Legends $env:GITHUB_REF_NAME - portable build: unzip anywhere and run ultimate-legends.exe. " +
+                     "No game files are included; every game runs from your own install. SHA-256 in SHA256SUMS.txt."
+            gh release create $env:GITHUB_REF_NAME (Get-ChildItem dist/*.zip).FullName dist/SHA256SUMS.txt --title "Ultimate Legends $env:GITHUB_REF_NAME" --notes $notes
+          }

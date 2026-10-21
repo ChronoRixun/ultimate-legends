@@ -14,5 +14,10 @@ namespace patch_status
 {
     // {installed: "1.1.0" | "" (no version resource) | null (no patch file), latest: "1.2.0" | null,
     //  page: the release's page, checking: bool, updateAvailable: bool}; null for a game with no patch.
+    // The patch release the file says it is: "1.1.0" from FILEVERSION 1,1,0,0 (a fourth part only when it
+    // isn't 0); "" when the file has no version resource that can be read; nullopt when it isn't there. The
+    // X-Men Legends port's Online section checks the XML2 Fix with it (fix/online_launch.hpp).
+    std::optional<std::string> installed_version(const std::filesystem::path& file);
+
     void write_status(const game_config::game_config_t& config, rapidjson::Value& out, rapidjson::Document::AllocatorType& allocator);
 }

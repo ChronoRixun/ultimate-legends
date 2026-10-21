@@ -70,38 +70,6 @@ namespace patch_status
                    });
         }
 
-        // The patch release the file says it is: "1.1.0" from FILEVERSION 1,1,0,0 (a fourth part
-        // only when it isn't 0); "" when the file has no version resource; nullopt when it isn't there.
-        std::optional<std::string> installed_version(const std::filesystem::path& file)
-        {
-            std::error_code error;
-            if (!std::filesystem::is_regular_file(file, error))
-            {
-                return std::nullopt;
-            }
-
-            DWORD ignored = 0;
-            const auto size = GetFileVersionInfoSizeW(file.c_str(), &ignored);
-            if (!size)
-            {
-                return std::string{};
-            }
-            std::vector<std::byte> data(size);
-            VS_FIXEDFILEINFO* info = nullptr;
-            UINT length = 0;
-            if (!GetFileVersionInfoW(file.c_str(), 0, size, data.data()) ||
-                !VerQueryValueW(data.data(), L"\\", reinterpret_cast<void**>(&info), &length) || !info || length < sizeof(VS_FIXEDFILEINFO))
-            {
-                return std::string{};
-            }
-
-            const auto major = HIWORD(info->dwFileVersionMS);
-            const auto minor = LOWORD(info->dwFileVersionMS);
-            const auto patch = HIWORD(info->dwFileVersionLS);
-            const auto build = LOWORD(info->dwFileVersionLS);
-            return build ? std::format("{}.{}.{}.{}", major, minor, patch, build) : std::format("{}.{}.{}", major, minor, patch);
-        }
-
         // GitHub's latest release of the patch: its version (the tag without its "v") and page, when
         // the release carries the patch manifest.
         bool fetch_latest(const std::string& url, std::string& version, std::string& page)
@@ -189,6 +157,36 @@ namespace patch_status
                 }
             }).detach();
         }
+    }
+
+    std::optional<std::string> installed_version(const std::filesystem::path& file)
+    {
+        std::error_code error;
+        if (!std::filesystem::is_regular_file(file, error))
+        {
+            return std::nullopt;
+        }
+
+        DWORD ignored = 0;
+        const auto size = GetFileVersionInfoSizeW(file.c_str(), &ignored);
+        if (!size)
+        {
+            return std::string{};
+        }
+        std::vector<std::byte> data(size);
+        VS_FIXEDFILEINFO* info = nullptr;
+        UINT length = 0;
+        if (!GetFileVersionInfoW(file.c_str(), 0, size, data.data()) ||
+            !VerQueryValueW(data.data(), L"\\", reinterpret_cast<void**>(&info), &length) || !info || length < sizeof(VS_FIXEDFILEINFO))
+        {
+            return std::string{};
+        }
+
+        const auto major = HIWORD(info->dwFileVersionMS);
+        const auto minor = LOWORD(info->dwFileVersionMS);
+        const auto patch = HIWORD(info->dwFileVersionLS);
+        const auto build = LOWORD(info->dwFileVersionLS);
+        return build ? std::format("{}.{}.{}.{}", major, minor, patch, build) : std::format("{}.{}.{}", major, minor, patch);
     }
 
     void write_status(const game_config::game_config_t& config, rapidjson::Value& out, rapidjson::Document::AllocatorType& allocator)

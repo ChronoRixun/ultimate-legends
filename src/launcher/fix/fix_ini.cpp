@@ -26,11 +26,13 @@ namespace fix_ini
         };
 
         // The same fix in the X-Men Legends port's folder, where the launcher also offers the fix's
-        // [TestMode] switches to testers (the port's page only; X-Men Legends II's has none).
+        // [TestMode] switches to testers and online play through the broker ([Online] Host / JoinCode):
+        // the port's page only; X-Men Legends II's has neither.
         const fix xml1_fix = []
         {
             auto port = xml2_fix;
             port.test_mode = true;
+            port.online = true;
             return port;
         }();
 
@@ -234,6 +236,24 @@ namespace fix_ini
             }
         }
         return values;
+    }
+
+    std::vector<std::string> present(const std::filesystem::path& ini, const std::wstring& section, const std::vector<std::string>& keys)
+    {
+        std::vector<std::string> found;
+        if (!utils::io::file_exists(ini))
+        {
+            return found;
+        }
+        const auto file = ini.wstring();
+        for (const auto& key : keys)
+        {
+            if (raw_value(file, section, utils::string::convert(key)))
+            {
+                found.push_back(key);
+            }
+        }
+        return found;
     }
 
     bool write(const std::filesystem::path& ini, const std::wstring& section, const changes& changes, std::string& error,

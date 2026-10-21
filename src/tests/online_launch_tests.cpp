@@ -3,6 +3,8 @@
 
 #include "fix/online_launch.hpp"
 #include "fix/online_status.hpp"
+#include "updater/progress_tracker.hpp"
+#include "updater/update_cancelled.hpp"
 
 #include <fstream>
 #include <map>
@@ -43,6 +45,7 @@ namespace
         update_result update = update_result::done;
         online_launch::process_result process{true, false, {}};
         bool process_throws = false;
+        bool cancelled = false; // the player's cancel, as the progress tracker holds it
         std::vector<std::string> log;
 
         online_launch::steps steps()
@@ -129,6 +132,7 @@ namespace
                 }
                 return update;
             };
+            s.cancelled = [this] { return cancelled; };
             s.start_process = [this]
             {
                 log.push_back("process");
@@ -559,3 +563,201 @@ TEST(a_status_file_held_without_delete_sharing_is_reported_not_ignored)
     std::filesystem::remove_all(folder);
 }
 #endif
+
+// ---- N1: a cancelled patch update, through the real launch adapter (run_update + the progress tracker) ----
+
+namespace
+{
+    updater::progress_tracker& tracker()
+    {
+        return updater::progress_tracker::instance();
+    }
+
+    // What client_updater::run does when the player cancels during the download: the verify phase, the download
+    // phase (each begins its own progress), the transfer aborted by the progress callback - which returns normally
+    // (CURLE_ABORTED_BY_CALLBACK is not an error) - and true: the manifest was fetched.
+    bool cancelled_download(int& runs)
+    {
+        ++runs;
+        tracker().begin_update(3, 300, updater::progress_mode::verifying);
+        tracker().begin_update(1, 100, updater::progress_mode::downloading);
+        tracker().cancel_update(); // the page's Cancel (cancel-update), mid-transfer
+        // The next phase starting must not forget it (it used to clear the flag).
+        tracker().begin_update(1, 100, updater::progress_mode::downloading);
+        return true;
+    }
+
+    // game_commands.cpp's worker: the fake's launcher steps, with the update and the cancel check going through
+    // online_launch::run_update and the real tracker, as there.
+    online_launch::steps real_adapter(fake& f, const std::function<bool()>& updater_run, int& finished)
+    {
+        auto steps = f.steps();
+        steps.update = [updater_run, &finished, &f](std::string& error)
+        {
+            f.log.push_back("update");
+            online_launch::update_steps update{};
+            update.run = updater_run;
+            update.cancelled = [] { return tracker().is_cancelled(); };
+            update.finished = [&finished](const bool was_cancelled)
+            {
+                ++finished;
+                if (was_cancelled)
+                {
+                    tracker().cancel_update();
+                }
+                tracker().end_update();
+            };
+            return online_launch::run_update(update, error);
+        };
+        steps.cancelled = [] { return tracker().is_cancelled(); };
+        return steps;
+    }
+
+    std::size_t count(const fake& f, const std::string& entry)
+    {
+        return static_cast<std::size_t>(std::count(f.log.begin(), f.log.end(), entry));
+    }
+}
+
+TEST(the_progress_tracker_keeps_a_cancel_across_the_updates_phases_until_the_next_operation)
+{
+    tracker().reset(true);
+    tracker().begin_update(2, 10, updater::progress_mode::verifying);
+    CHECK(!tracker().is_cancelled());
+    tracker().cancel_update();
+    tracker().begin_update(1, 5, updater::progress_mode::downloading);
+    CHECK(tracker().is_cancelled());
+    tracker().end_update();
+    CHECK(tracker().is_cancelled());
+    CHECK(tracker().get_progress().status_message == "Update cancelled");
+    tracker().reset(true); // the next operation (launch-game, Verify Files, Uninstall)
+    CHECK(!tracker().is_cancelled());
+    tracker().reset(false);
+}
+
+TEST(a_cancelled_download_that_returns_normally_never_arms_or_starts_an_online_game)
+{
+    for (const auto& request : {host_request(true, "Saturday"), join_request()})
+    {
+        fake f; // a compatible DLL (1.8.0) in the folder
+        stale_keys(f);
+        tracker().reset(true); // launch-game, before it answers
+        CHECK(online_launch::accept(request, f.steps()).ok);
+        int runs = 0;
+        int finished = 0;
+        const auto result = online_launch::finish(request, real_adapter(f, [&runs] { return cancelled_download(runs); }, finished));
+        CHECK(runs == 1);
+        CHECK(!result.ok && result.reason == "update_cancelled");
+        CHECK(count(f, "arm") == 0);
+        CHECK(count(f, "process") == 0);
+        CHECK(!f.armed() && f.builder_keys_kept());
+        CHECK(!f.barrier_held);
+        CHECK(finished == 1 && !tracker().is_active() && tracker().get_progress().status_message == "Update cancelled");
+    }
+    tracker().reset(false);
+}
+
+TEST(a_cancelled_download_that_returns_normally_never_starts_play_either)
+{
+    fake f;
+    tracker().reset(true);
+    CHECK(online_launch::accept({}, f.steps()).ok);
+    int runs = 0;
+    int finished = 0;
+    const auto result = online_launch::finish({}, real_adapter(f, [&runs] { return cancelled_download(runs); }, finished));
+    CHECK(!result.ok && result.reason == "update_cancelled");
+    CHECK(count(f, "process") == 0);
+    CHECK(!f.barrier_held);
+    tracker().reset(false);
+}
+
+TEST(a_cancel_after_the_update_returned_still_stops_the_start)
+{
+    // The update ran to its end; the cancel lands before the keys and the process.
+    fake f;
+    tracker().reset(true);
+    CHECK(online_launch::accept(join_request(), f.steps()).ok);
+    int finished = 0;
+    const auto result = online_launch::finish(join_request(), real_adapter(f, []
+    {
+        tracker().begin_update(1, 1, updater::progress_mode::verifying);
+        tracker().cancel_update();
+        return true;
+    }, finished));
+    CHECK(!result.ok && result.reason == "update_cancelled");
+    CHECK(count(f, "arm") == 0 && count(f, "process") == 0 && !f.barrier_held);
+    tracker().reset(false);
+}
+
+TEST(an_uncancelled_update_through_the_adapter_starts_as_before)
+{
+    // Done, unreachable, skipped: the start goes on (online: the DLL checked, then armed); a failure stops an
+    // online start but not Play; a thrown update_cancelled is a cancel.
+    for (const auto start_mode : {mode::normal, mode::join})
+    {
+        fake f;
+        tracker().reset(true);
+        online_launch::request request{};
+        request.mode = start_mode;
+        request.code = "ABCD2345";
+        CHECK(online_launch::accept(request, f.steps()).ok);
+        int finished = 0;
+        const auto result = online_launch::finish(request, real_adapter(f, []
+        {
+            tracker().begin_update(1, 1, updater::progress_mode::verifying);
+            return true;
+        }, finished));
+        CHECK(result.ok);
+        CHECK(count(f, "process") == 1);
+        CHECK(count(f, "arm") == (start_mode == mode::join ? 1u : 0u));
+    }
+    for (const auto start_mode : {mode::normal, mode::host})
+    {
+        fake f;
+        tracker().reset(true);
+        online_launch::request request{};
+        request.mode = start_mode;
+        CHECK(online_launch::accept(request, f.steps()).ok);
+        int finished = 0;
+        const auto result = online_launch::finish(request, real_adapter(f, []() -> bool { throw std::runtime_error("hash mismatch"); }, finished));
+        CHECK(result.ok == (start_mode == mode::normal));
+        CHECK(count(f, "process") == (start_mode == mode::normal ? 1u : 0u));
+        CHECK(!tracker().is_cancelled()); // a failure is not a cancel
+    }
+    {
+        fake f;
+        tracker().reset(true);
+        CHECK(online_launch::accept({}, f.steps()).ok);
+        int finished = 0;
+        const auto result = online_launch::finish({}, real_adapter(f, []() -> bool { throw updater::update_cancelled(); }, finished));
+        CHECK(!result.ok && result.reason == "update_cancelled" && count(f, "process") == 0);
+    }
+    tracker().reset(false);
+}
+
+TEST(run_update_reads_the_cancel_after_every_way_the_updater_returns)
+{
+    std::string error;
+    online_launch::update_steps steps{};
+    auto cancelled = false;
+    auto finished_as = -1;
+    steps.cancelled = [&cancelled] { return cancelled; };
+    steps.finished = [&finished_as](const bool was_cancelled) { finished_as = was_cancelled ? 1 : 0; };
+
+    steps.run = [] { return true; };
+    CHECK(online_launch::run_update(steps, error) == online_launch::update_result::done && finished_as == 0);
+    steps.run = [] { return false; };
+    CHECK(online_launch::run_update(steps, error) == online_launch::update_result::unreachable);
+    cancelled = true;
+    steps.run = [] { return true; };
+    CHECK(online_launch::run_update(steps, error) == online_launch::update_result::cancelled && finished_as == 1);
+    steps.run = []() -> bool { throw std::runtime_error("disk full"); };
+    CHECK(online_launch::run_update(steps, error) == online_launch::update_result::cancelled);
+    steps.skip = true;
+    CHECK(online_launch::run_update(steps, error) == online_launch::update_result::cancelled);
+    cancelled = false;
+    CHECK(online_launch::run_update(steps, error) == online_launch::update_result::skipped && finished_as == 0);
+    steps.skip = false;
+    error.clear();
+    CHECK(online_launch::run_update(steps, error) == online_launch::update_result::failed && error == "disk full");
+}

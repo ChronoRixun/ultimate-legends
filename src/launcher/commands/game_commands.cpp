@@ -315,6 +315,11 @@ namespace commands::game_commands
             {
                 return utils::flags::has_flag("offline");
             };
+            // (The worker asks the progress tracker; accept() runs before the update and never asks.)
+            steps.cancelled = []
+            {
+                return false;
+            };
             steps.take_barrier = []
             {
                 return try_lock_launch_barrier();
@@ -386,60 +391,59 @@ namespace commands::game_commands
         // but a started game.
         void run_launch_worker(game_config::game_config_t config, cef::cef_ui& cef_ui, const uint64_t generation, const online_launch::request request)
         {
+            // (The progress tracker was reset for this start by launch-game itself, before it answered: a cancel the
+            // player sends from then on is this start's, and the tracker keeps it across the update's phases.)
             updater::ui_progress_listener progress_listener;
-            progress_listener.reset(true);
             const auto online = request.mode != online_rules::mode::normal;
 
             auto steps = launch_steps(config);
             steps.update = [&](std::string& error)
             {
-                try
+                const auto skip_client_update_prop = utils::properties::load(property_keys::SKIP_CLIENT_UPDATE);
+                online_launch::update_steps update{};
+                update.skip = (skip_client_update_prop && *skip_client_update_prop == "true") || utils::flags::has_flag("offline");
+                if (update.skip)
                 {
-                    const auto skip_client_update_prop = utils::properties::load(property_keys::SKIP_CLIENT_UPDATE);
-                    const bool skip_client_update = (skip_client_update_prop && *skip_client_update_prop == "true")
-                        || utils::flags::has_flag("offline");
+                    printf("Skip client update enabled - skipping client update check\n");
+                }
+                update.run = [&]
+                {
+                    return client_updater::run(config, &progress_listener);
+                };
+                // A cancelled download returns normally: the tracker's flag says it was cancelled.
+                update.cancelled = [&]
+                {
+                    return progress_listener.is_update_cancelled();
+                };
+                update.finished = [&](const bool cancelled)
+                {
+                    if (cancelled)
+                    {
+                        progress_listener.cancel_update();
+                    }
+                    progress_listener.done_update();
+                };
 
-                    auto updated = online_launch::update_result::skipped;
-                    if (skip_client_update)
-                    {
-                        printf("Skip client update enabled - skipping client update check\n");
-                    }
-                    else
-                    {
-                        updated = client_updater::run(config, &progress_listener) ? online_launch::update_result::done
-                                                                                 : online_launch::update_result::unreachable;
-                    }
-                    progress_listener.done_update();
-                    return updated;
-                }
-                catch (const updater::update_cancelled&)
+                const auto updated = online_launch::run_update(update, error);
+                if (updated == online_launch::update_result::cancelled)
                 {
-                    progress_listener.cancel_update();
-                    progress_listener.done_update();
                     printf("Update cancelled by user\n");
-                    return online_launch::update_result::cancelled;
                 }
-                catch (const std::exception& e)
+                else if (updated == online_launch::update_result::failed)
                 {
-                    progress_listener.cancel_update();
-                    progress_listener.done_update();
-                    printf("Launch error: %s\n", e.what());
-                    error = e.what();
+                    printf("Launch error: %s\n", error.data());
+                    // A normal start goes on after telling the player (the game may still run); an online one
+                    // stops here (online_launch::finish), and the Online section says why.
+                    if (!online)
+                    {
+                        cef_ui.show_message_box("Game Launch Error", error);
+                    }
                 }
-                catch (...)
-                {
-                    progress_listener.cancel_update();
-                    progress_listener.done_update();
-                    printf("Unknown launch error\n");
-                    error = "An unknown error occurred during game launch";
-                }
-                // A normal start goes on after telling the player (the game may still run); an online one
-                // stops here (online_launch::finish), and the Online section says why.
-                if (!online)
-                {
-                    cef_ui.show_message_box("Game Launch Error", error);
-                }
-                return online_launch::update_result::failed;
+                return updated;
+            };
+            steps.cancelled = [&]
+            {
+                return progress_listener.is_update_cancelled();
             };
             steps.start_process = [&]
             {
@@ -640,7 +644,10 @@ namespace commands::game_commands
                 return;
             }
 
-            // Run update and launch in a separate thread with progress tracking
+            // Run update and launch in a separate thread with progress tracking. The tracker starts this
+            // operation here, before the answer: the page's Cancel can only come after it, so the worker never
+            // clears a cancel it hasn't read (online_launch::run_update reads it after the update returns).
+            updater::ui_progress_listener{}.reset(true);
             const auto generation = reserve_launch_generation();
             record_outcome(generation, true, {});
             answer(response, accepted, generation);

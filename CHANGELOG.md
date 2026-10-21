@@ -55,7 +55,8 @@ rooms); Play, LAN and Connect by IP work with any fix, as before.
     mode is on (with **Turn test mode off** right there) or the game is running. The launcher reads the DLL's version
     itself, and checks it again right before an online start's process, after the start's patch update: an update that
     is skipped, fails or is cancelled never falls through to an online start with an older DLL (Play still starts).
-  - A start that is refused, cancelled (the update, the administrator prompt) or fails leaves none of the four
+  - A start that is refused, cancelled (the patch update - also mid-download, which used to look like a finished
+    update -, the administrator prompt) or fails starts nothing and leaves none of the four
     `[Online]` keys behind, so a later start from Steam or the exe never opens or joins a room by surprise; the
     section says why, and says so if the keys could not be removed. A start already running is never disturbed.
   - **Offline mode** fetches nothing (the public list says it is offline, not that there are no games); Host, Join

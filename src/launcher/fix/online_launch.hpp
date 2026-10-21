@@ -65,6 +65,19 @@ namespace online_launch
         failed,      // it threw
     };
 
+    // The patch update as a start sees it (game_commands.cpp gives it client_updater and the progress tracker).
+    // The updater returns normally from a cancelled transfer (an aborted download is not an error), so whether the
+    // player cancelled is read from `cancelled` - the tracker's flag, kept across the update's phases - after
+    // `run` returns, throws or is skipped: a cancel always wins.
+    struct update_steps
+    {
+        bool skip{};                       // the launcher's setting, or -offline
+        std::function<bool()> run;         // the updater: true when its manifest was fetched; may throw
+        std::function<bool()> cancelled;   // the player cancelled this operation
+        std::function<void(bool cancelled)> finished; // the progress bar ends, as cancelled or not
+    };
+    update_result run_update(const update_steps& steps, std::string& error);
+
     struct process_result
     {
         bool started{};
@@ -86,6 +99,8 @@ namespace online_launch
         std::function<std::vector<std::string>()> present;
         std::function<bool(const std::vector<online_rules::change>& changes, std::string& error)> write;
         std::function<update_result(std::string& error)> update;
+        // The player cancelled the start (asked again right before the keys are written and the process starts).
+        std::function<bool()> cancelled;
         std::function<process_result()> start_process;
     };
 

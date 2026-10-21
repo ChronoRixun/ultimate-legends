@@ -3,17 +3,10 @@
 #include "fix_ini.hpp"
 #include "test_mode_settings.hpp"
 
-#include <utils/io.hpp>
 #include <utils/string.hpp>
 
 namespace online_settings
 {
-    namespace
-    {
-        // The fix writes a small object; anything much larger is not its file.
-        constexpr std::uintmax_t max_status_bytes = 64 * 1024;
-    }
-
     std::map<std::string, std::string> read(const std::filesystem::path& ini, const fix_ini::fix& fix)
     {
         return fix_ini::read(ini, section, online_rules::keys(), fix.comment_chars);
@@ -90,8 +83,7 @@ namespace online_settings
             }
             normalised = *valid;
         }
-        const auto present = fix_ini::present(ini, section, online_rules::keys());
-        return write(ini, fix, online_rules::changes_for(mode, normalised, present, options), error);
+        return write(ini, fix, online_rules::changes_for(mode, normalised, present(ini), options), error);
     }
 
     browse_target target(const std::optional<std::filesystem::path>& ini, const fix_ini::fix* fix)
@@ -122,38 +114,8 @@ namespace online_settings
         return false;
     }
 
-    std::filesystem::path status_path(const std::filesystem::path& game_dir)
+    std::vector<std::string> present(const std::filesystem::path& ini)
     {
-        return game_dir / status_file;
-    }
-
-    bool clear_status(const std::filesystem::path& game_dir, std::string& error)
-    {
-        const auto file = status_path(game_dir);
-        std::error_code ec;
-        std::filesystem::remove(file, ec);
-        if (ec && std::filesystem::exists(file))
-        {
-            error = utils::string::path_to_utf8(file.filename()) + " could not be deleted (" + ec.message() + ").";
-            return false;
-        }
-        return true;
-    }
-
-    std::optional<std::string> read_status(const std::filesystem::path& game_dir)
-    {
-        const auto file = status_path(game_dir);
-        std::error_code ec;
-        const auto size = std::filesystem::file_size(file, ec);
-        if (ec || size > max_status_bytes)
-        {
-            return std::nullopt;
-        }
-        std::string text;
-        if (!utils::io::read_file(file, &text))
-        {
-            return std::nullopt;
-        }
-        return text;
+        return fix_ini::present(ini, section, online_rules::keys());
     }
 }

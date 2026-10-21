@@ -16,15 +16,14 @@
 //   start, written key by key
 //   through fix_ini (WritePrivateProfileStringW, like [Display], [Discord] and [TestMode]): every other
 //   key and section, the builder's Broker / BrokerPin among them, stays byte for byte.
-// - online-status.json next to the game's exe: written by the fix (atomically, on every state change),
-//   read by the launcher. The launcher deletes a leftover one before every start it makes (v1.1):
-//   prepare-online-start for a Host or Join start, launch-game for every other.
-// - The fix treats Host / JoinCode as one-shot (v1.1: it removes them at game start); the launcher still
-//   removes them for a normal start.
+// - online-status.json next to the game's exe (fix/online_status.hpp): written by the fix, read by the
+//   launcher, deleted by launch-game before every start it makes.
+// - The fix treats Host / Public / RoomName / JoinCode as one-shot (it removes them at game start); the
+//   launcher writes them only right before an online start's process (fix/online_launch.hpp) and removes them
+//   for every other start, and after an online start that didn't happen.
 namespace online_settings
 {
     constexpr auto section = L"Online";
-    constexpr auto status_file = L"online-status.json";
 
     // The Host / Public / RoomName / JoinCode values present in the ini (as written, without an inline
     // comment, trimmed).
@@ -56,11 +55,6 @@ namespace online_settings
     // The fix's test mode is on (either [TestMode] switch reads as on): the fix then refuses online play.
     bool test_mode_on(const std::filesystem::path& ini, const fix_ini::fix& fix);
 
-    std::filesystem::path status_path(const std::filesystem::path& game_dir);
-
-    // Deletes online-status.json in `game_dir`; true when none is left.
-    bool clear_status(const std::filesystem::path& game_dir, std::string& error);
-
-    // The status file's text, or nullopt when there is none (or it is unreasonably large).
-    std::optional<std::string> read_status(const std::filesystem::path& game_dir);
+    // Which of online_rules::keys() the [Online] section has (empty values included).
+    std::vector<std::string> present(const std::filesystem::path& ini);
 }

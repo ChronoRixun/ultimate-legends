@@ -20,7 +20,9 @@
 #include "updater/ui_progress_listener.hpp"
 #include "xml1/xml1_port.hpp"
 #include "fix/fix_ini.hpp"
+#include "fix/online_launch.hpp"
 #include "fix/online_settings.hpp"
+#include "fix/online_status.hpp"
 
 namespace commands::game_commands
 {
@@ -181,77 +183,77 @@ namespace commands::game_commands
             return s.substr(first, last - first + 1);
         }
 
-        // Assumes the caller already holds the launch barrier and reserved `generation`.
-        bool launch_game(const game_config::game_config_t& config, cef::cef_ui& cef_ui, const uint64_t generation)
+        // Starts the game's exe; assumes the caller holds the launch barrier and reserved `generation`. Says
+        // nothing itself: the caller tells the player (a message box for Play, the Online section's own
+        // words for Host / Join). Close on launch closes the launcher after a normal start only
+        // (online_launch::close_after_start): an online one needs it to show the room's code.
+        online_launch::process_result start_game_process(const game_config::game_config_t& config, cef::cef_ui& cef_ui, const uint64_t generation,
+                                                         const online_rules::mode mode)
         {
             // Get game installation path
             const auto game_install = config.get_install_path();
             if (!game_install)
             {
-                cef_ui.show_message_box("Game Launch Error", "Failed to get game install path.");
-                return false;
+                return {false, false, "Failed to get game install path."};
             }
 
             const auto game_directory = *game_install;
 
             const auto& exe_name = config.exe_name;
             const auto game_exe = game_directory / exe_name;
-            if (utils::io::file_exists(game_exe))
+            if (!utils::io::file_exists(game_exe))
             {
-                // Record mods copied into <game>\mods by hand in its load order (enabled), so the
-                // game's mod loader and the Mods section agree.
-                if (utils::io::directory_exists(game_mods::mods_folder(game_directory)))
-                {
-                    game_mods::list(game_directory);
-                }
-
-                const auto launch_args = trim_ws(config.get_launch_options().value_or(""));
-
-                printf("Launching %s with args: %s\n", exe_name.data(), launch_args.data());
-
-                // The non-elevated path still ends up at a UAC prompt when the exe itself demands elevation (740).
-                auto elevate = config.launch_elevated() && !utils::nt::is_elevated();
-                const auto pid = elevate
-                    ? utils::nt::launch_process_elevated(game_exe, launch_args, game_directory)
-                    : utils::nt::launch_process_maybe_elevated(game_exe, launch_args, game_directory, &elevate);
-
-                if (pid == 0)
-                {
-                    const auto error = GetLastError();
-                    if (elevate && error == ERROR_CANCELLED)
-                    {
-                        cef_ui.show_message_box("Game Launch Cancelled", config.display_name + " requires administrator permission to launch.");
-                        return false;
-                    }
-
-                    auto error_msg = std::format("Failed to launch {}. Error code: {}", exe_name, error);
-                    if (error == ERROR_ACCESS_DENIED)
-                    {
-                        error_msg += "\n\nIf this keeps happening, try running the launcher as administrator or check that your antivirus isn't blocking the game.";
-                    }
-                    printf("Launch failed: %s\n", error_msg.data());
-                    cef_ui.show_message_box("Game Launch Error", error_msg);
-                    return false;
-                }
-
-                set_tracked_launch(pid, config.id, generation, elevate);
-
-                // Check if launcher should close after game starts
-                const auto close_on_launch = utils::properties::load(property_keys::CLOSE_ON_LAUNCH);
-                if (close_on_launch && *close_on_launch == "true")
-                {
-                    printf("Close on launch enabled - closing launcher\n");
-                    // Close the launcher browser window
-                    cef_ui.close_browser();
-                    return true;
-                }
-
-                spawn_exit_watchdog(pid, config, generation);
-                return true;
+                return {false, false, "Could not find: " + exe_name};
             }
 
-            cef_ui.show_message_box("Game Launch Error", "Could not find: " + exe_name);
-            return false;
+            // Record mods copied into <game>\mods by hand in its load order (enabled), so the
+            // game's mod loader and the Mods section agree.
+            if (utils::io::directory_exists(game_mods::mods_folder(game_directory)))
+            {
+                game_mods::list(game_directory);
+            }
+
+            const auto launch_args = trim_ws(config.get_launch_options().value_or(""));
+
+            printf("Launching %s with args: %s\n", exe_name.data(), launch_args.data());
+
+            // The non-elevated path still ends up at a UAC prompt when the exe itself demands elevation (740).
+            auto elevate = config.launch_elevated() && !utils::nt::is_elevated();
+            const auto pid = elevate
+                ? utils::nt::launch_process_elevated(game_exe, launch_args, game_directory)
+                : utils::nt::launch_process_maybe_elevated(game_exe, launch_args, game_directory, &elevate);
+
+            if (pid == 0)
+            {
+                const auto error = GetLastError();
+                if (elevate && error == ERROR_CANCELLED)
+                {
+                    return {false, true, config.display_name + " requires administrator permission to launch."};
+                }
+
+                auto error_msg = std::format("Failed to launch {}. Error code: {}", exe_name, error);
+                if (error == ERROR_ACCESS_DENIED)
+                {
+                    error_msg += "\n\nIf this keeps happening, try running the launcher as administrator or check that your antivirus isn't blocking the game.";
+                }
+                printf("Launch failed: %s\n", error_msg.data());
+                return {false, false, error_msg};
+            }
+
+            set_tracked_launch(pid, config.id, generation, elevate);
+
+            // Check if launcher should close after game starts
+            const auto close_on_launch = utils::properties::load(property_keys::CLOSE_ON_LAUNCH);
+            if (online_launch::close_after_start(close_on_launch && *close_on_launch == "true", mode))
+            {
+                printf("Close on launch enabled - closing launcher\n");
+                // Close the launcher browser window
+                cef_ui.close_browser();
+                return {true, false, {}};
+            }
+
+            spawn_exit_watchdog(pid, config, generation);
+            return {true, false, {}};
         }
 
         // Takes the game's folder for the patch work a command is about to start there
@@ -277,95 +279,322 @@ namespace commands::game_commands
                                 : "X-Men Legends is being built in the folder of " + config.display_name + ". " + then;
         }
 
-        // A normal start never opens a room: the [Online] Host / JoinCode keys of a game with launcher-led
-        // online play (the X-Men Legends port, fix/online_settings.hpp) are removed before it, unless the
-        // Online section starts the game itself (it wrote them a moment ago). Nothing is written when
-        // neither key is there. (The fix also removes them at game start, contract v1.1: this is the
-        // other half.) A status file left by an earlier online game goes too - before every start the
-        // launcher makes, v1.1; the Online section's own starts delete it in prepare-online-start - so
-        // the page never takes a normal game for a room. Called with the folder held for patch work.
-        bool clear_online_keys(const game_config::game_config_t& config, std::string& error)
+        // The last start's outcome, for the Online section (get-launch-outcome): pending until the worker has
+        // started the game or given up. One at a time, like the barrier.
+        struct launch_outcome
         {
+            uint64_t id{0};
+            bool pending{false};
+            online_launch::result result{};
+        };
+
+        utils::concurrency::container<launch_outcome>& get_launch_outcome()
+        {
+            static utils::concurrency::container<launch_outcome> outcome{};
+            return outcome;
+        }
+
+        void record_outcome(const uint64_t id, const bool pending, const online_launch::result& result)
+        {
+            get_launch_outcome().access([&](launch_outcome& o)
+            {
+                o.id = id;
+                o.pending = pending;
+                o.result = result;
+            });
+        }
+
+        // What a start of `config` does, for online_launch (fix/online_launch.hpp): the barrier, the game's
+        // [Online] keys and online-status.json - for the game with launcher-led online play (the X-Men Legends
+        // port, fix_ini's table); every other game has neither, so those steps do nothing. The worker adds
+        // the update and the process.
+        online_launch::steps launch_steps(const game_config::game_config_t& config)
+        {
+            online_launch::steps steps{};
+            steps.offline = []
+            {
+                return utils::flags::has_flag("offline");
+            };
+            steps.take_barrier = []
+            {
+                return try_lock_launch_barrier();
+            };
+            steps.release_barrier = []
+            {
+                unlock_launch_barrier();
+            };
+            steps.game_running = [id = config.id]
+            {
+                return game_config::is_game_process_running(id);
+            };
+
             const auto where = fix_ini::locate(config);
             if (!where.info || !where.info->online || !where.game_dir)
             {
-                return true;
+                steps.test_mode_on = []
+                {
+                    return false;
+                };
+                steps.fix_version = []
+                {
+                    return std::optional<std::string>{};
+                };
+                steps.clear_status = [](std::string&)
+                {
+                    return true;
+                };
+                steps.present = []
+                {
+                    return std::vector<std::string>{};
+                };
+                steps.write = [](const std::vector<online_rules::change>&, std::string&)
+                {
+                    return true;
+                };
+                return steps;
             }
-            if (!online_settings::prepare(*where.ini(), *where.info, online_rules::mode::normal, {}, error))
+
+            const auto* fix = where.info;
+            const auto folder = *where.game_dir;
+            const auto ini = *where.ini();
+            steps.test_mode_on = [ini, fix]
             {
-                return false;
-            }
-            std::string ignored;
-            online_settings::clear_status(*where.game_dir, ignored);
-            return true;
+                return online_settings::test_mode_on(ini, *fix);
+            };
+            steps.fix_version = [dll = folder / fix->dll]
+            {
+                return patch_status::installed_version(dll);
+            };
+            steps.clear_status = [folder](std::string& error)
+            {
+                return online_status::clear(folder, error);
+            };
+            steps.present = [ini]
+            {
+                return online_settings::present(ini);
+            };
+            steps.write = [ini, fix](const std::vector<online_rules::change>& changes, std::string& error)
+            {
+                return online_settings::write(ini, *fix, changes, error);
+            };
+            return steps;
         }
 
-        // Patch-update-then-launch sequence; assumes the caller holds the barrier and reserved `generation`.
-        void run_launch_worker(game_config::game_config_t config, cef::cef_ui& cef_ui, const uint64_t generation)
+        // Patch-update-then-launch sequence (online_launch::finish); assumes accept() took the barrier and the
+        // caller reserved `generation`. finish() releases the barrier unless the game started (then the exit
+        // watchdog or stop-game owns it) and, for Host / Join, removes the [Online] keys again on every way out
+        // but a started game.
+        void run_launch_worker(game_config::game_config_t config, cef::cef_ui& cef_ui, const uint64_t generation, const online_launch::request request)
         {
             updater::ui_progress_listener progress_listener;
             progress_listener.reset(true);
+            const auto online = request.mode != online_rules::mode::normal;
 
-            bool launched = false;
-            try
+            auto steps = launch_steps(config);
+            steps.update = [&](std::string& error)
             {
-                const auto skip_client_update_prop = utils::properties::load(property_keys::SKIP_CLIENT_UPDATE);
-                const bool skip_client_update = (skip_client_update_prop && *skip_client_update_prop == "true")
-                    || utils::flags::has_flag("offline");
-
-                if (skip_client_update)
+                try
                 {
-                    printf("Skip client update enabled - skipping client update check\n");
+                    const auto skip_client_update_prop = utils::properties::load(property_keys::SKIP_CLIENT_UPDATE);
+                    const bool skip_client_update = (skip_client_update_prop && *skip_client_update_prop == "true")
+                        || utils::flags::has_flag("offline");
+
+                    auto updated = online_launch::update_result::skipped;
+                    if (skip_client_update)
+                    {
+                        printf("Skip client update enabled - skipping client update check\n");
+                    }
+                    else
+                    {
+                        updated = client_updater::run(config, &progress_listener) ? online_launch::update_result::done
+                                                                                 : online_launch::update_result::unreachable;
+                    }
+                    progress_listener.done_update();
+                    return updated;
                 }
-                else
+                catch (const updater::update_cancelled&)
                 {
-                    client_updater::run(config, &progress_listener);
+                    progress_listener.cancel_update();
+                    progress_listener.done_update();
+                    printf("Update cancelled by user\n");
+                    return online_launch::update_result::cancelled;
                 }
-                progress_listener.done_update();
-
-                launched = launch_game(config, cef_ui, generation);
-            }
-            catch (const updater::update_cancelled&)
+                catch (const std::exception& e)
+                {
+                    progress_listener.cancel_update();
+                    progress_listener.done_update();
+                    printf("Launch error: %s\n", e.what());
+                    error = e.what();
+                }
+                catch (...)
+                {
+                    progress_listener.cancel_update();
+                    progress_listener.done_update();
+                    printf("Unknown launch error\n");
+                    error = "An unknown error occurred during game launch";
+                }
+                // A normal start goes on after telling the player (the game may still run); an online one
+                // stops here (online_launch::finish), and the Online section says why.
+                if (!online)
+                {
+                    cef_ui.show_message_box("Game Launch Error", error);
+                }
+                return online_launch::update_result::failed;
+            };
+            steps.start_process = [&]
             {
-                progress_listener.cancel_update();
-                progress_listener.done_update();
-                printf("Update cancelled by user\n");
-            }
-            catch (const std::exception& e)
-            {
-                progress_listener.cancel_update();
-                progress_listener.done_update();
-                printf("Launch error: %s\n", e.what());
-                cef_ui.show_message_box("Game Launch Error", e.what());
+                return start_game_process(config, cef_ui, generation, request.mode);
+            };
 
-                launched = launch_game(config, cef_ui, generation); //Attempt to launch game even if error in update
-            }
-            catch (...)
+            const auto result = online_launch::finish(request, steps);
+            record_outcome(generation, false, result);
+            if (!result.cleanup_error.empty())
             {
-                progress_listener.cancel_update();
-                progress_listener.done_update();
-                printf("Unknown launch error\n");
-                cef_ui.show_message_box("Game Launch Error", "An unknown error occurred during game launch");
-
-                launched = launch_game(config, cef_ui, generation); //Attempt to launch game even if error in update
+                printf("Online settings not removed after a failed start: %s\n", result.cleanup_error.data());
             }
-
-            // Release the barrier unless a game process is now running (the exit watchdog or stop-game owns it).
-            if (!launched)
+            if (!result.ok && !online && (result.reason == "launch_cancelled" || result.reason == "launch_failed"))
             {
-                unlock_launch_barrier();
+                cef_ui.show_message_box(result.reason == "launch_cancelled" ? "Game Launch Cancelled" : "Game Launch Error", result.error);
             }
+        }
+
+        // Why the barrier is taken, as Play has always said it.
+        std::string already_running_message(const game_config::game_config_t& config)
+        {
+            const auto running_id = tracked_game_id();
+            const auto running_config = running_id.empty()
+                ? std::nullopt
+                : game_config::get_game_config_by_id(running_id);
+
+            if (running_id == config.id)
+            {
+                return "This game is already launching or running. Please wait for it to finish, or close it before launching again.";
+            }
+            if (running_config)
+            {
+                return running_config->display_name + " is already launching or running. Only one game can run at a time, close it before launching another.";
+            }
+            return "Another game is already launching or running. Only one game can run at a time, please wait for it to finish or close it before launching another.";
+        }
+
+        rapidjson::Value make_string(const std::string& text, rapidjson::Document::AllocatorType& allocator)
+        {
+            rapidjson::Value value{};
+            value.SetString(text.data(), static_cast<rapidjson::SizeType>(text.size()), allocator);
+            return value;
+        }
+
+        // launch-game's answer: { accepted, launch } or { accepted: false, reason, error, cleanupError }.
+        void answer(rapidjson::Document& response, const online_launch::result& result, const uint64_t launch = 0)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+            response.AddMember("accepted", result.ok, allocator);
+            if (result.ok)
+            {
+                response.AddMember("launch", launch, allocator);
+                return;
+            }
+            response.AddMember("reason", make_string(result.reason, allocator), allocator);
+            response.AddMember("error", make_string(result.error, allocator), allocator);
+            response.AddMember("cleanupError", make_string(result.cleanup_error, allocator), allocator);
+        }
+
+        online_launch::result refusal(const std::string& reason, const std::string& error)
+        {
+            return {false, reason, error, {}};
+        }
+
+        // launch-game's { online: { mode, code, public, roomName } }: Host or Join from the Online section.
+        // Without it (Play, the library, -launch, ultimatelegends://play), a normal start.
+        std::optional<online_launch::result> read_request(const rapidjson::Value& value, online_launch::request& request)
+        {
+            if (!value.IsObject() || !value.HasMember("online") || !value["online"].IsObject())
+            {
+                return std::nullopt;
+            }
+            const auto& online = value["online"];
+            const auto text = [&online](const char* key)
+            {
+                return online.HasMember(key) && online[key].IsString() ? std::string(online[key].GetString()) : std::string{};
+            };
+            const auto mode = online_rules::parse_mode(text("mode"));
+            if (!mode || *mode == online_rules::mode::normal)
+            {
+                return refusal("bad_mode", "Unknown online mode: " + text("mode"));
+            }
+            request.mode = *mode;
+            if (*mode == online_rules::mode::join)
+            {
+                const auto code = online_rules::normalise_code(text("code"));
+                if (!code)
+                {
+                    return refusal("bad_code", "That is not a join code.");
+                }
+                request.code = *code;
+                return std::nullopt;
+            }
+            request.host.is_public = online.HasMember("public") && online["public"].IsBool() && online["public"].GetBool();
+            const auto name = online_rules::normalise_room_name(text("roomName"));
+            if (!name)
+            {
+                return refusal("bad_room_name", "That room name can't be used.");
+            }
+            request.host.room_name = *name;
+            return std::nullopt;
         }
     }
 
     void register_commands(cef::cef_ui& cef_ui, command_context& ctx)
     {
-        cef_ui.add_command("launch-game", [&cef_ui, &ctx](const rapidjson::Value& value, auto&)
+        // { game, online?: { mode: "host" | "join", code, public, roomName } } -> { accepted, launch } or
+        // { accepted: false, reason, error, cleanupError }. Every start goes through online_launch (fix/online_launch.hpp):
+        // accept() here, finish() on the worker. Play's refusals are also shown as before (a message box);
+        // the Online section words its own (online-view.js), and follows an accepted start with
+        // get-launch-outcome { launch } until the game started or the start gave up.
+        cef_ui.add_command("launch-game", [&cef_ui, &ctx](const rapidjson::Value& value, rapidjson::Document& response)
         {
             const auto config = ctx.get_game_config_from_request(value);
             if (!config)
             {
+                answer(response, refusal("not_supported", "Unknown game."));
                 return;
+            }
+
+            online_launch::request request{};
+            if (const auto bad = read_request(value, request))
+            {
+                answer(response, *bad);
+                return;
+            }
+            const auto online = request.mode != online_rules::mode::normal;
+            const auto refuse = [&](const online_launch::result& result, const std::string& message)
+            {
+                if (!online)
+                {
+                    cef_ui.show_message_box("Game Launch Error", message);
+                }
+                answer(response, result);
+            };
+
+            if (online)
+            {
+                const auto where = fix_ini::locate(config);
+                if (!where.info || !where.info->online)
+                {
+                    answer(response, refusal("not_supported", "This game has no online play through the launcher."));
+                    return;
+                }
+                if (!where.game_dir)
+                {
+                    answer(response, refusal("not_installed", "Set up the game first."));
+                    return;
+                }
+                if (!where.fix_installed)
+                {
+                    answer(response, refusal("no_fix", "Install the " + where.info->name + " first."));
+                    return;
+                }
             }
 
             // A built game starts only from a finished build, and never while its builder writes the
@@ -373,7 +602,8 @@ namespace commands::game_commands
             std::shared_ptr<updater::folder_work> work;
             if (!begin_patch_work(*config, work))
             {
-                cef_ui.show_message_box("Game Launch Error", folder_held(*config, "Wait for the build to finish, or cancel it, before playing."));
+                const auto message = folder_held(*config, "Wait for the build to finish, or cancel it, before playing.");
+                refuse(refusal("busy", message), message);
                 return;
             }
             if (config->built)
@@ -381,52 +611,63 @@ namespace commands::game_commands
                 const auto folder = config->get_install_path();
                 if (!folder || !xml1_port::is_playable(*folder))
                 {
-                    cef_ui.show_message_box("Game Launch Error", config->display_name + " has not finished building. Resume the build on its page first.");
+                    const auto message = config->display_name + " has not finished building. Resume the build on its page first.";
+                    refuse(refusal("not_built", message), message);
                     return;
                 }
             }
 
-            if (!try_lock_launch_barrier())
+            // The barrier, then (online) the game not running, test mode off; the stale status deleted; for a
+            // normal start the [Online] keys removed. Nothing of a room is written here.
+            const auto accepted = online_launch::accept(request, launch_steps(*config));
+            if (!accepted.ok)
             {
-                const auto running_id = tracked_game_id();
-                const auto running_config = running_id.empty()
-                    ? std::nullopt
-                    : game_config::get_game_config_by_id(running_id);
-
-                std::string message;
-                if (running_id == config->id)
+                std::string message = accepted.error;
+                if (accepted.reason == "already_running")
                 {
-                    message = "This game is already launching or running. Please wait for it to finish, or close it before launching again.";
+                    message = already_running_message(*config);
                 }
-                else if (running_config)
+                else if (accepted.reason == "write_failed")
                 {
-                    message = running_config->display_name + " is already launching or running. Only one game can run at a time, close it before launching another.";
+                    message = "The online settings could not be reset for a normal start: " + accepted.error;
                 }
-                else
+                else if (accepted.reason == "status_locked")
                 {
-                    message = "Another game is already launching or running. Only one game can run at a time, please wait for it to finish or close it before launching another.";
+                    message = "A file an earlier online game left (online-status.json) could not be deleted: " + accepted.error +
+                              "\n\nClose any program that has it open (or wait a moment), then try again.";
                 }
-
-                cef_ui.show_message_box("Game Launch Error", message);
-                return;
-            }
-
-            // { online: true }: the Online section's Host / Join start, whose [Online] keys stay.
-            const auto online_start = value.HasMember("online") && value["online"].IsBool() && value["online"].GetBool();
-            std::string online_error;
-            if (!online_start && !clear_online_keys(*config, online_error))
-            {
-                unlock_launch_barrier();
-                cef_ui.show_message_box("Game Launch Error", "The online settings could not be reset for a normal start: " + online_error);
+                refuse(accepted, message);
                 return;
             }
 
             // Run update and launch in a separate thread with progress tracking
             const auto generation = reserve_launch_generation();
-            std::thread([config = *config, &cef_ui, generation, work = std::move(work)]()
+            record_outcome(generation, true, {});
+            answer(response, accepted, generation);
+            std::thread([config = *config, &cef_ui, generation, request, work = std::move(work)]()
             {
-                run_launch_worker(config, cef_ui, generation);
+                run_launch_worker(config, cef_ui, generation, request);
             }).detach();
+        });
+
+        // { launch } -> { launch, state: pending | launched | failed | unknown, reason, error, cleanupError }:
+        // what became of the start launch-game accepted (unknown: not the last one).
+        cef_ui.add_command("get-launch-outcome", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            const auto wanted = value.IsObject() && value.HasMember("launch") && value["launch"].IsUint64() ? value["launch"].GetUint64() : 0;
+            const auto outcome = get_launch_outcome().access<launch_outcome>([](const launch_outcome& o)
+            {
+                return o;
+            });
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+            response.AddMember("launch", wanted, allocator);
+            const auto known = wanted != 0 && outcome.id == wanted;
+            const char* state = !known ? "unknown" : outcome.pending ? "pending" : outcome.result.ok ? "launched" : "failed";
+            response.AddMember("state", rapidjson::StringRef(state), allocator);
+            response.AddMember("reason", make_string(known ? outcome.result.reason : std::string{}, allocator), allocator);
+            response.AddMember("error", make_string(known ? outcome.result.error : std::string{}, allocator), allocator);
+            response.AddMember("cleanupError", make_string(known ? outcome.result.cleanup_error : std::string{}, allocator), allocator);
         });
 
         cef_ui.add_command("is-game-running", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)

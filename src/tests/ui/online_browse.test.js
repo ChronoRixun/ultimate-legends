@@ -43,7 +43,7 @@ test('public: List my game publicly is off by default; Host writes Public=0 and 
     assert.equal(toggle('0').getAttribute('aria-pressed'), 'true', 'off');
     assert.equal(t.$('.ul-online-room-name-input').disabled, true, 'no name for a private game');
     await host(t);
-    assert.deepEqual(t.backend.prepares, [{ game: 'xml1', mode: 'host', code: '', public: false, roomName: '' }]);
+    assert.deepEqual(t.backend.starts, [{ mode: 'host', public: false, roomName: '' }]);
     assert.equal(t.backend.online.Public, '0');
     assert.equal(t.backend.online.RoomName, undefined, 'an old RoomName goes');
 });
@@ -58,7 +58,7 @@ test('public: on, with a room name: Public=1 and RoomName (trimmed) written with
     name.value = '  Saturday run  ';
     name.dispatchEvent(new t.window.Event('input', { bubbles: true }));
     await host(t);
-    assert.deepEqual(t.backend.prepares, [{ game: 'xml1', mode: 'host', code: '', public: true, roomName: 'Saturday run' }]);
+    assert.deepEqual(t.backend.starts, [{ mode: 'host', public: true, roomName: 'Saturday run' }]);
     assert.equal(t.backend.online.Host, 'broker');
     assert.equal(t.backend.online.Public, '1');
     assert.equal(t.backend.online.RoomName, 'Saturday run');
@@ -79,8 +79,7 @@ test('public: a room name the ini can\'t hold shows an inline error and starts n
     }
     t.$('.ul-online-host-button').click();
     await t.clock.advance(1500);
-    assert.deepEqual(t.backend.prepares, [], 'nothing written');
-    assert.deepEqual(t.backend.launches, [], 'nothing started');
+    assert.deepEqual(t.backend.launches, [], 'nothing started or written');
     assert.ok(t.document.activeElement === name, 'the focus goes to the name');
     name.value = 'X-Men: 4 heroes & co. #1!';
     name.dispatchEvent(new t.window.Event('input', { bubbles: true }));
@@ -90,7 +89,7 @@ test('public: a room name the ini can\'t hold shows an inline error and starts n
     t.$('.ul-online-public-toggle .toggle-btn[data-value="0"]').click();
     assert.equal(error(), null);
     await host(t);
-    assert.deepEqual(t.backend.prepares.map(p => [p.public, p.roomName]), [[false, '']]);
+    assert.deepEqual(t.backend.starts.map(p => [p.public, p.roomName]), [[false, '']]);
 });
 
 test('public: Join and Play remove Public and RoomName too (one-shot, like Host / JoinCode)', async () => {
@@ -98,14 +97,14 @@ test('public: Join and Play remove Public and RoomName too (one-shot, like Host 
     t.type('ABCD-2345');
     t.$('.ul-online-join-button').click();
     await t.clock.advance(1500);
-    assert.deepEqual(Object.keys(t.backend.online).sort(), ['Broker', 'BrokerPin', 'JoinCode']);
+    assert.deepEqual(Object.keys(t.backend.online).sort(), ['Broker', 'BrokerPin', 'GameVersion', 'JoinCode']);
 
     t = await open({ online: { Host: 'broker', Public: '1', RoomName: 'Saturday run', JoinCode: 'ABCD2345' } });
     const started = t.window.GameUtils.launchGame('xml1', 'xml1');
     await t.clock.advance(1500);
-    assert.equal(await started, true);
+    assert.equal((await started).accepted, true);
     assert.deepEqual(t.backend.launches, [{ game: 'xml1' }]);
-    assert.deepEqual(Object.keys(t.backend.online).sort(), ['Broker', 'BrokerPin'], 'Play: all four gone');
+    assert.deepEqual(Object.keys(t.backend.online).sort(), ['Broker', 'BrokerPin', 'GameVersion'], 'Play: all four gone');
 });
 
 test('public: the room card says Public or Private, with the room name, from online-status.json', async () => {
@@ -271,8 +270,7 @@ test('browse: Join on a row is the code flow with the row\'s code', async () => 
     const t = await browse({ rooms: [room({ code: 'WXYZ6789' })], online: { Host: 'broker', Public: '1' } });
     t.join('WXYZ6789').click();
     await t.clock.advance(1500);
-    assert.deepEqual(t.backend.prepares, [{ game: 'xml1', mode: 'join', code: 'WXYZ6789' }]);
-    assert.deepEqual(t.backend.launches, [{ game: 'xml1', online: true }]);
+    assert.deepEqual(t.backend.launches, [{ game: 'xml1', online: { mode: 'join', code: 'WXYZ6789' } }], 'exactly the code join');
     assert.equal(t.backend.online.JoinCode, 'WXYZ6789');
     assert.equal(t.backend.online.Host, undefined);
     assert.equal(t.backend.online.Public, undefined);

@@ -12,10 +12,15 @@
 // and on every row while the Online section's own reason (a build, test mode, the game running...)
 // holds. Rooms with a password are not listed: no launcher sends one in 0.3.0. The list refreshes
 // every 10 s while the page is visible, and on Refresh. What the broker sends is shown as text only,
-// and a row without a valid code is left out.
+// and a row without a valid code is left out. A line under the title says that a public game connects
+// its players directly, so they see each other's internet address (the owner's choice, 2026-10-20).
+//
+// Offline mode (-offline, or the setting): nothing is fetched, not even by the backend; the list says
+// so instead of "no games", and Refresh asks to restart the launcher online (guardOnline).
 //
 // Keyboard and controller: Refresh and each row's Join are buttons in the Tab order; a refresh keeps the
-// focus on the same row's Join (or on Refresh when that row is gone).
+// focus on the same row's Join (or on Refresh when that row is gone), and a Refresh pressed by hand gets
+// the focus back when it is done - unless the player moved it meanwhile.
 (function () {
     'use strict';
 
@@ -102,6 +107,7 @@
                 <h4 class="ul-online-card-title" id="${escapeHtml(gameId)}-online-browse-title">${escapeHtml(t('online.browse.title'))}</h4>
                 <button type="button" class="secondary-action xml1-small ul-online-browse-refresh">${escapeHtml(t('online.browse.refresh'))}</button>
             </div>
+            <p class="ul-online-ip-note">${escapeHtml(t('online.publicIp'))}</p>
             <p class="ul-online-browse-status" role="status" aria-live="polite"></p>
             <ul class="ul-online-rooms" aria-labelledby="${escapeHtml(gameId)}-online-browse-title"></ul>`;
         host.querySelector('.ul-online-browse-refresh').addEventListener('click', () => refresh(gameId, true));
@@ -109,7 +115,8 @@
             const button = event.target.closest && event.target.closest('.ul-online-room-join');
             if (!button || button.disabled) return;
             const row = button.closest('.ul-online-room');
-            if (row && s.options && s.options.join) s.options.join(row.dataset.code);
+            const room = row && (s.rooms || []).find(item => item.code === row.dataset.code);
+            if (room && s.options && s.options.join) s.options.join(room);
         });
         show(gameId);
     }
@@ -148,7 +155,10 @@
 
         let status = '';
         let kind = '';
-        if (s.error) {
+        if (isOffline(s)) {
+            // Not "no games": nothing was looked for.
+            status = t('online.browse.offline');
+        } else if (s.error) {
             kind = 'error';
             status = s.error === 'unreachable'
                 ? `${t('online.errors.broker_unreachable.title')}. ${t('online.errors.broker_unreachable.body')}`
@@ -190,13 +200,22 @@
 
     // ---- fetching ----
 
+    function isOffline(s) {
+        return !!(s.options && typeof s.options.offline === 'function' ? s.options.offline() : window.IS_OFFLINE);
+    }
+
     async function refresh(gameId, byHand) {
         const s = getState(gameId);
         if (s.fetching) return;
+        if (isOffline(s)) {
+            if (byHand && typeof window.guardOnline === 'function') await window.guardOnline();
+            show(gameId);
+            return;
+        }
         s.fetching = true;
         s.lastFetch = Date.now();
-        const focusRefresh = byHand && document.activeElement && document.activeElement.classList
-            && document.activeElement.classList.contains('ul-online-browse-refresh');
+        const refreshButton = s.host ? s.host.querySelector('.ul-online-browse-refresh') : null;
+        const focusRefresh = byHand && !!refreshButton && document.activeElement === refreshButton;
         show(gameId);
         let answer = null;
         try {
@@ -223,10 +242,21 @@
             s.wait = s.error === 'rate_limited' || s.error === 'busy' ? BACKOFF_MS : REFRESH_MS;
         }
         show(gameId);
+        // Back on Refresh when the focus is still there or was lost (a disabled button drops it), not when
+        // the player went on to another control meanwhile.
         if (focusRefresh && s.host) {
             const button = s.host.querySelector('.ul-online-browse-refresh');
-            if (button && !button.disabled) button.focus();
+            const now = document.activeElement;
+            const moved = !!now && now !== button && now !== document.body && now !== document.documentElement && connected(now);
+            if (button && !button.disabled && !moved) button.focus();
         }
+    }
+
+    function connected(element) {
+        for (let node = element; node; node = node.parentNode) {
+            if (node === document) return true;
+        }
+        return false;
     }
 
     // From the Online section's 500 ms tick: refresh when the list is on screen and its time has come.
@@ -234,6 +264,10 @@
         const s = getState(gameId);
         if (!s.host) return;
         const shown = visible && (!document.visibilityState || document.visibilityState === 'visible');
+        if (isOffline(s)) {
+            show(gameId);
+            return;
+        }
         if (shown && !s.fetching && (s.rooms === null && !s.error ? true : Date.now() - s.lastFetch >= s.wait)) {
             refresh(gameId, false);
         }

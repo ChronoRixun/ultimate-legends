@@ -1,27 +1,32 @@
-// Online section of the X-Men Legends page (launcher 0.4.0, with Legends Classic 0.3.0): online play
-// without ini edits or the Connect by IP box. One PC hosts (Host a game), the others join with the
-// code it gets (Join a game); the launcher <-> XML2 Fix contract (v1.1) is the binding part:
+// Online section of the X-Men Legends page (launcher 0.4.0, with Legends Classic 0.3.0 and XML2 Fix 1.8.0):
+// online play without ini edits or the Connect by IP box. One PC hosts (Host a game), the others join with the
+// code it gets (Join a game); the launcher <-> XML2 Fix contract (v1.5) is the binding part:
 //
-// - Host writes [Online] Host=broker and removes JoinCode, Join writes JoinCode=<code> and removes Host
-//   (prepare-online-start, key by key through fix_ini like the other sections); a normal Play removes
-//   both (launch-game, for every start that isn't this section's own), so a normal start never opens
-//   a room. Broker / BrokerPin are the builder's: never written.
-// - Before every start the backend deletes a leftover online-status.json; while the game runs the
-//   section reads it (get-online-status, every 500 ms) and shows its state: Connecting..., then (the game
-//   up, the room not open until Play Online in the game) where to go, the room's
-//   code (XXXX-XXXX, Copy) and its players ("N of 4" with max_players) for a host; Looking for the game..., Found it for a joiner;
-//   and every error id of the contract in plain words.
+// - Host and Join are launch-game { online: { mode, code, public, roomName } }: the backend owns the start from
+//   there (fix/online_launch.hpp) - the barrier, the stale online-status.json deleted, the patch update, the
+//   XML2 Fix checked again (at least the requiredFix get-online-status sends), and only then [Online]
+//   Host=broker (with Public / RoomName) or JoinCode written, right before the process; a start that is
+//   refused, cancelled or fails removes them again. The page follows it with get-launch-outcome. A normal
+//   Play removes all four, so a normal start never opens a room. Broker / BrokerPin are the builder's.
+// - While the game runs the section reads online-status.json (get-online-status, every 500 ms) and shows
+//   its state: Connecting..., then (the game up, the room not open until Play Online in the game) where to
+//   go, the room's code (XXXX-XXXX, Copy) and its players ("N of 4" with max_players) for a host; Looking
+//   for the game..., Found it for a joiner; and every error id of the contract in plain words - also when
+//   the first the page reads of it is `ended` carrying the error.
 // - Host can list the game publicly (contract v1.3: Public=1 and an optional RoomName, written with
 //   Host=broker); the room card says Public or Private, and the code goes on the clipboard by itself
 //   when it first appears. Browse games (online-browse.js) lists the public rooms; its Join is the
 //   code flow with the row's code.
 // - Host and Join are off, with the reason, while the port is not built, a build or an XML2 Fix update
-//   holds the folder (Xml1Port, as for Display / Discord / Test mode), Test mode is on (the fix refuses
-//   online play then; Turn test mode off is right there), or the game is already running.
+//   holds the folder (Xml1Port, as for Display / Discord / Test mode), the folder's XML2 Fix is older than
+//   1.8.0 or its version can't be read (Verify Files), Test mode is on (the fix refuses online play then;
+//   Turn test mode off is right there), or the game is already running. In offline mode they stay on, with
+//   a note, and ask to restart the launcher online (guardOnline) before anything is written or fetched.
 //
-// Like the rest of the page it has no controller navigation of its own: buttons and one text field in
-// the Tab order, Enter in the field joins, a focus ring shows where the keyboard is (main.css), and the
-// focus moves to what replaced a control that went away (the code's Copy, Try again, Host / the field).
+// Like the rest of the page it has no controller navigation of its own (core/focus-nav.js drives it when
+// present): buttons, one text field and the help's summary in the Tab order, Enter in the field joins, a
+// focus ring shows where the keyboard is (main.css), and the focus moves to what replaced a control that
+// went away (the code's Copy, Try again, Host / the field). Notes are plain text, never focus stops.
 (function () {
     'use strict';
 
@@ -30,11 +35,10 @@
     const CODE_LENGTH = 8;
     const ROOM_NAME_LENGTH = 32;
     const STATES = ['connecting', 'room', 'joined', 'in_game', 'ended', 'error'];
-    const ERRORS = ['broker_unreachable', 'broker_rejected', 'code_not_found', 'code_expired', 'room_full',
+    // The status error ids of contract v1.5 (room_closed: the room exists but takes nobody right now; room_full:
+    // all its places taken). Any other id gets the generic text with the id.
+    const ERRORS = ['broker_unreachable', 'broker_rejected', 'code_not_found', 'code_expired', 'room_full', 'room_closed',
         'version_mismatch', 'test_mode_on', 'tls_pin_mismatch', 'internal'];
-    // The first XML2 Fix with online rooms (Legends Classic 0.3.0's; 1.7.0, 0.2.4's, has none: contract
-    // v1.4). Named in the update hints and in the note for an older fix in the folder.
-    const REQUIRED_FIX = '1.8.0';
     const POLL_MS = 500;
     // While nothing of this section runs, the page still follows the game starting or closing, a build
     // and the file (less often).
@@ -68,7 +72,7 @@
     function getState(gameId) {
         if (!state[gameId]) {
             state[gameId] = { data: null, session: null, timer: null, loading: null, lastIdleRefresh: 0, codeTried: false, shown: '',
-                lastRole: null, dismissed: null, loads: 0, isPublic: false };
+                lastRole: null, dismissed: null, loads: 0, isPublic: false, outcomeAsked: false };
         }
         return state[gameId];
     }
@@ -135,19 +139,15 @@
         return window.Xml1Port || null;
     }
 
-    // The folder's XML2 Fix when it is older than REQUIRED_FIX ("1.7.0" < "1.8.0"), else null (also when
-    // it has no version to compare).
-    function fixTooOld() {
-        const p = port();
-        const version = p && p.status && p.status.fix && p.status.fix.installed ? p.status.fix.version : null;
-        if (!version) return null;
-        const parts = text => String(text).split('.').map(part => parseInt(part, 10) || 0);
-        const have = parts(version);
-        const need = parts(REQUIRED_FIX);
-        for (let i = 0; i < need.length; i++) {
-            if ((have[i] || 0) !== need[i]) return (have[i] || 0) < need[i] ? version : null;
-        }
-        return null;
+    // The XML2 Fix online play needs, as the backend says (online_launch::required_fix: the one number, also
+    // the one launch-game checks the DLL against right before the process).
+    function requiredFix(gameId) {
+        const data = getState(gameId).data;
+        return (data && typeof data.requiredFix === 'string' && data.requiredFix) || '';
+    }
+
+    function offline() {
+        return !!window.IS_OFFLINE;
     }
 
     // "3 players in the room", or "3 of 4 players in the room" when the fix says how many fit.
@@ -182,7 +182,10 @@
         }
         if (!data.installed) return { key: 'online.blocked.notSetUp' };
         if (!data.playable) return { key: 'online.blocked.notBuilt' };
-        if (!data.fixInstalled) return { key: 'online.blocked.noFix', variables: { fix: data.fix || 'XML2 Fix' } };
+        if (!data.fixInstalled || data.fixState === 'missing') return { key: 'online.blocked.noFix', variables: { fix: data.fix || 'XML2 Fix' } };
+        // The DLL in the folder, read by the backend: too old for rooms, or no version to tell.
+        if (data.fixState === 'old') return { key: 'online.blocked.fixOld', variables: { required: requiredFix(gameId), version: data.fixVersion || '' } };
+        if (data.fixState !== 'ok') return { key: 'online.blocked.fixUnknown', variables: { required: requiredFix(gameId) } };
         if (queue && typeof queue.isAnyBlockingActive === 'function' && queue.isAnyBlockingActive()) {
             return { key: 'online.blocked.otherUpdating' };
         }
@@ -193,23 +196,33 @@
 
     // ---- markup ----
 
-    function helpHTML() {
+    // The help's notes, in order: joining a campaign under way, a solo story segment, public games and what
+    // they show of you, then the rest.
+    const HELP_NOTES = ['lateJoin', 'soloSegment', 'public', 'publicIp', 'noPorts', 'sameVersion', 'keepOpen', 'lan', 'testMode'];
+
+    // The help's body: drawn again when the number of the XML2 Fix it names arrives (the first status).
+    function helpBodyHTML(gameId) {
         const steps = ['host', 'share', 'join', 'inGame'].map(step => `<li>${escapeHtml(t(`online.help.steps.${step}`))}</li>`).join('');
-        const notes = ['public', 'noPorts', 'sameVersion', 'lan', 'testMode'].map(note => `<li>${escapeHtml(t(`online.help.${note}`))}</li>`).join('');
+        const notes = HELP_NOTES.map(note => `<li data-note="${escapeHtml(note)}">${escapeHtml(t(`online.help.${note}`, { required: requiredFix(gameId) }))}</li>`).join('');
         const errors = ERRORS.map(id => `
             <div class="ul-online-help-error" data-error="${escapeHtml(id)}">
                 <dt>${escapeHtml(t(`online.errors.${id}.title`))}</dt>
-                <dd>${escapeHtml(t(`online.errors.${id}.body`, { required: REQUIRED_FIX }))}</dd>
+                <dd>${escapeHtml(t(`online.errors.${id}.body`, { required: requiredFix(gameId) }))}</dd>
             </div>`).join('');
         return `
-            <details class="ul-online-help">
-                <summary>${escapeHtml(t('online.help.title'))}</summary>
-                <div class="ul-online-help-body">
                     <ol class="ul-online-help-steps">${steps}</ol>
                     <ul class="ul-online-help-notes">${notes}</ul>
                     <h4 class="ul-online-help-heading">${escapeHtml(t('online.help.errorsTitle'))}</h4>
-                    <dl class="ul-online-help-errors">${errors}</dl>
-                </div>
+                    <dl class="ul-online-help-errors">${errors}</dl>`;
+    }
+
+    function helpHTML(gameId) {
+        // (tabindex: a summary is focusable by itself in Chromium, but core/focus-nav.js only moves to the
+        // controls it knows; Enter / Space / a pad's A open and close it.)
+        return `
+            <details class="ul-online-help">
+                <summary tabindex="0">${escapeHtml(t('online.help.title'))}</summary>
+                <div class="ul-online-help-body" data-required="${escapeHtml(requiredFix(gameId))}">${helpBodyHTML(gameId)}</div>
             </details>`;
     }
 
@@ -226,7 +239,7 @@
                     <span class="ul-online-blocked-text"></span>
                     <button type="button" class="secondary-action xml1-small ul-online-testmode-off" hidden>${escapeHtml(t('testMode.turnOff'))}</button>
                 </div>
-                <div class="xml1-note is-warn ul-online-fix" hidden></div>
+                <p class="xml1-note ul-online-offline" hidden>${escapeHtml(t('online.offline'))}</p>
                 <div class="ul-online-idle">
                     <div class="ul-online-card ul-online-host">
                         <h4 class="ul-online-card-title">${escapeHtml(t('online.host.title'))}</h4>
@@ -239,6 +252,7 @@
                             </div>
                         </div>
                         <p class="ul-online-public-note">${escapeHtml(t('online.host.publicNote'))}</p>
+                        <p class="ul-online-ip-note">${escapeHtml(t('online.publicIp'))}</p>
                         <input type="text" class="xml1-input ul-online-room-name-input" id="${escapeHtml(gameId)}-online-room-name"
                             aria-label="${escapeHtml(t('online.host.roomName'))}" aria-describedby="${escapeHtml(gameId)}-online-room-name-error"
                             placeholder="${escapeHtml(t('online.host.roomNamePlaceholder'))}" maxlength="${ROOM_NAME_LENGTH}"
@@ -263,7 +277,7 @@
                 </div>
                 <section class="ul-online-browse"></section>
                 <div class="ul-online-session" tabindex="-1" hidden></div>
-                ${helpHTML()}
+                ${helpHTML(gameId)}
             </div>`;
 
         host.querySelector('.ul-online-host-button').addEventListener('click', () => start(gameId, 'host'));
@@ -297,8 +311,9 @@
         });
         if (window.OnlineBrowse) {
             window.OnlineBrowse.render(gameId, host.querySelector('.ul-online-browse'), {
-                join: code => joinCode(gameId, code),
-                blocked: () => !!getState(gameId).session || !!blocked(gameId)
+                join: room => joinCode(gameId, room.code, { inProgress: room.inProgress }),
+                blocked: () => !!getState(gameId).session || !!blocked(gameId),
+                offline
             });
         }
         host.querySelector('.ul-online-session').addEventListener('click', event => onSessionClick(gameId, event));
@@ -361,6 +376,7 @@
             }
             s.data = data;
             s.lastIdleRefresh = Date.now();
+            await followLaunch(gameId);
             follow(gameId, sequence);
             sync(gameId);
         })().finally(() => {
@@ -380,6 +396,35 @@
         } else {
             sync(gameId);
         }
+    }
+
+    // An accepted start, until the backend has started the game or given up (get-launch-outcome): started,
+    // the session follows the game and its status; given up, it says why (the keys are already removed). A
+    // cancelled update is the player's own choice: back to Host / Join, unless the keys could not be removed.
+    async function followLaunch(gameId) {
+        const s = getState(gameId);
+        const session = s.session;
+        if (!session || session.launched || session.outcome || !session.launch) return;
+        let answer = null;
+        try {
+            answer = await run('get-launch-outcome', { launch: session.launch });
+        } catch (error) {
+            console.error('online: launch outcome failed', error);
+            return;
+        }
+        if (s.session !== session || !answer || answer.state === 'pending') return;
+        if (answer.state === 'failed') {
+            if (answer.reason === 'update_cancelled' && !answer.cleanupError) {
+                s.lastRole = session.role;
+                s.session = null;
+                return;
+            }
+            session.outcome = { kind: 'start_failed', reason: answer.reason || 'launch_failed', message: answer.error || '', cleanup: answer.cleanupError || '' };
+            return;
+        }
+        // launched (or a later start replaced it: the game and its status say the rest).
+        session.launched = true;
+        session.launchedAt = Date.now();
     }
 
     // What the latest status means for the session: the fix's state, the game starting, closing, or
@@ -409,8 +454,13 @@
                 session.maxPlayers = status.maxPlayers;
             }
             session.status = status;
-            if (status.state === 'error') session.outcome = { kind: 'error', error: status.error || 'internal', message: status.message };
-            else if (status.state === 'ended') session.outcome = { kind: 'ended' };
+            // `ended` keeps the first error of the session (contract v1.5): the page may have missed the
+            // `error` state between two reads, and the explanation must not be lost with it.
+            if (status.state === 'error' || (status.state === 'ended' && status.error)) {
+                session.outcome = { kind: 'error', error: status.error || 'internal', message: status.message };
+            } else if (status.state === 'ended') {
+                session.outcome = { kind: 'ended' };
+            }
         }
         if (session.outcome || !session.launched) return;
 
@@ -460,13 +510,13 @@
         host.querySelectorAll('.ul-online-card').forEach(card => card.classList.toggle('is-disabled', !!reason));
         host.dataset.blocked = reason ? reason.key.split('.').pop() : '';
 
-        // An XML2 Fix too old for online play: said, not blocked (the version is the release's, the
-        // folder's may be read before an update lands).
-        const old = fixTooOld();
-        const fixNote = host.querySelector('.ul-online-fix');
-        const fixText = old ? t('online.fixOld', { required: REQUIRED_FIX, version: old }) : '';
-        fixNote.hidden = !old || live;
-        if (fixNote.textContent !== fixText) fixNote.textContent = fixText;
+        // Offline mode: Host, Join and Refresh stay, and ask to restart the launcher online first.
+        host.querySelector('.ul-online-offline').hidden = !offline() || live;
+        const helpBody = host.querySelector('.ul-online-help-body');
+        if (helpBody && helpBody.dataset.required !== requiredFix(gameId)) {
+            helpBody.innerHTML = helpBodyHTML(gameId);
+            helpBody.dataset.required = requiredFix(gameId);
+        }
 
         const focused = document.activeElement;
         const hadFocus = !!focused && !!focused.closest && !!focused.closest(`#${gameId}-online-panel`);
@@ -532,7 +582,9 @@
                 }
             });
         }
-        const signature = JSON.stringify([current, code, session.seenRunning, session.players, session.maxPlayers, isPublic, roomName, !!session.copiedNote, session.outcome && session.outcome.error, session.outcome && session.outcome.reason]);
+        const signature = JSON.stringify([current, code, session.seenRunning, session.players, session.maxPlayers, isPublic, roomName, !!session.copiedNote,
+            session.outcome && session.outcome.error, session.outcome && session.outcome.reason, session.outcome && session.outcome.message,
+            session.outcome && session.outcome.cleanup]);
         if (signature === s.shown) return;
         const focusedInside = !!document.activeElement && !!document.activeElement.closest && document.activeElement.closest('.ul-online-session') === box;
         const keepCopy = focusedInside && document.activeElement.classList.contains('ul-online-copy');
@@ -548,16 +600,26 @@
             line = id ? t(`online.errors.${id}.title`) : t('online.errors.unknown.title', { id: outcome.error });
             body = `
                 <div class="xml1-note is-error ul-online-error" data-error="${escapeHtml(outcome.error)}">
-                    ${escapeHtml(id ? t(`online.errors.${id}.body`, { required: REQUIRED_FIX }) : t('online.errors.unknown.body'))}
+                    ${escapeHtml(id ? t(`online.errors.${id}.body`, { required: requiredFix(gameId) }) : t('online.errors.unknown.body'))}
                     ${outcome.message ? `<div class="ul-online-error-detail">${escapeHtml(t('online.errorDetail', { message: outcome.message }))}</div>` : ''}
                 </div>
                 ${id === 'test_mode_on' ? `<button type="button" class="secondary-action xml1-small ul-online-testmode-off">${escapeHtml(t('testMode.turnOff'))}</button>` : ''}`;
         } else if (outcome && outcome.kind === 'start_failed') {
             kind = 'error';
             const key = `online.startFailed.${outcome.reason}`;
-            line = has(key) ? t(key, { error: outcome.message || '' }) : t('online.startFailed.write_failed', { error: outcome.message || outcome.reason || '' });
+            const variables = { error: outcome.message || '', required: requiredFix(gameId) };
+            line = has(key) ? t(key, variables) : t('online.startFailed.launch_failed', { error: outcome.message || outcome.reason || '' });
+            // (The details line when the text doesn't already carry the backend's error.)
+            if (outcome.message && has(key) && !t(key, { error: '\u0001' }).includes('\u0001')) {
+                body += `<div class="ul-online-error-detail">${escapeHtml(t('online.errorDetail', { message: outcome.message }))}</div>`;
+            }
+            // The [Online] keys could not be removed after the start gave up: a later start from Steam or the
+            // exe would still open (or join) that room.
+            if (outcome.cleanup) {
+                body += `<div class="xml1-note is-error ul-online-cleanup">${escapeHtml(t('online.startFailed.cleanup', { error: outcome.cleanup }))}</div>`;
+            }
             if (outcome.reason === 'test_mode_on') {
-                body = `<button type="button" class="secondary-action xml1-small ul-online-testmode-off">${escapeHtml(t('testMode.turnOff'))}</button>`;
+                body += `<button type="button" class="secondary-action xml1-small ul-online-testmode-off">${escapeHtml(t('testMode.turnOff'))}</button>`;
             }
         } else if (outcome) {
             kind = outcome.kind === 'not_started' ? 'error' : 'info';
@@ -595,6 +657,11 @@
                 </div>`;
         } else if (session.role === 'join' && session.code && !outcome) {
             codeHTML = `<p class="ul-online-join-code">${escapeHtml(t('online.join.joining', { code: displayCode(session.code) }))}</p>`;
+            // A public game already under way (its row said In progress): the game takes the joiner in at the
+            // next level change, from its Joined Game screen.
+            if (session.inProgress && (!session.status || session.status.state !== 'in_game')) {
+                codeHTML += `<p class="xml1-note ul-online-late-join">${escapeHtml(t('online.join.lateJoin'))}</p>`;
+            }
         }
 
         const busy = !outcome && (!session.status || ['connecting'].includes(session.status.state));
@@ -707,24 +774,32 @@
     }
 
     // Join from Browse games: the code flow with the row's code (it goes in the code field too, so Try
-    // again has it).
-    function joinCode(gameId, code) {
+    // again has it). `inProgress`: the row said the game is under way (the session then says when the
+    // game takes the player in).
+    function joinCode(gameId, code, extra = {}) {
         const host = panel(gameId);
         const checked = checkCode(code);
         if (!host || !checked.code) return;
         host.querySelector('.ul-online-code-input').value = displayCode(checked.code);
         getState(gameId).codeTried = false;
         showCodeError(gameId);
-        start(gameId, 'join', checked.code);
+        start(gameId, 'join', checked.code, extra);
     }
 
-    // Host or Join: the [Online] key written (and a stale status deleted) right before the start, after
-    // the launch's own checks and prompts, then the game started as this section's (launch-game
-    // { online: true }) and its status followed.
-    async function start(gameId, role, code) {
+    // Host or Join: the game started as this section's (launch-game { online }), after the launch's own
+    // checks and prompts. The backend writes the [Online] keys right before the process and removes them
+    // when the start doesn't happen; the page shows what it answered, then what became of the start
+    // (followLaunch) and the game's status (follow).
+    async function start(gameId, role, code, extra = {}) {
         const s = getState(gameId);
         if (s.session && !s.session.outcome) return;
         if (blocked(gameId)) {
+            sync(gameId);
+            return;
+        }
+        // Offline mode: nothing is written or fetched; the player may restart the launcher online.
+        if (offline()) {
+            if (typeof window.guardOnline === 'function') await window.guardOnline();
             sync(gameId);
             return;
         }
@@ -741,58 +816,48 @@
             roomName = checked.name;
         }
 
-        const session = { role, code: role === 'join' ? code : null, launched: false, launchedAt: 0, seenRunning: false,
+        const session = { role, code: role === 'join' ? code : null, launch: null, launched: false, launchedAt: 0, seenRunning: false,
             status: null, players: null, maxPlayers: null, playersChanged: false, outcome: null, readsFrom: Infinity,
-            isPublic: role === 'host' && !!s.isPublic, roomName, autoCopied: null, copiedNote: false };
+            isPublic: role === 'host' && !!s.isPublic, roomName, autoCopied: null, copiedNote: false, inProgress: role === 'join' && !!extra.inProgress };
         s.session = session;
         s.lastRole = role;
         sync(gameId);
 
-        let refused = null;
-        let started = false;
+        const online = role === 'host' ? { mode: 'host', public: session.isPublic, roomName: session.roomName } : { mode: 'join', code };
+        let answer = null;
         try {
-            started = await GameUtils.launchGame(backendId(gameId), gameId, {
-                online: true,
-                beforeLaunch: async () => {
-                    const request = { game: backendId(gameId), mode: role, code: code || '' };
-                    if (role === 'host') Object.assign(request, { public: session.isPublic, roomName: session.roomName });
-                    const result = await run('prepare-online-start', request);
-                    if (!result || !result.success) {
-                        refused = result || { reason: 'write_failed', error: '' };
-                        return false;
-                    }
-                    session.launched = true;
-                    session.readsFrom = s.loads + 1;
-                    return true;
-                }
-            });
+            answer = await GameUtils.launchGame(backendId(gameId), gameId, { online });
         } catch (error) {
             // GameUtils has told the player why (another game updating, no folder set...).
             console.error('online: start failed', error);
         }
         if (s.session !== session) return;
 
-        if (refused) {
-            if (refused.reason === 'bad_code' || refused.reason === 'bad_room_name') {
+        if (!answer || answer.accepted !== true) {
+            const reason = answer && answer.reason;
+            if (reason === 'bad_code' || reason === 'bad_room_name') {
                 s.session = null;
                 sync(gameId);
-                if (refused.reason === 'bad_code') showCodeError(gameId);
+                if (reason === 'bad_code') showCodeError(gameId);
                 else showRoomNameError(gameId);
                 return;
             }
-            session.outcome = { kind: 'start_failed', reason: refused.reason, message: refused.error };
+            if (!reason || reason === 'cancelled') {
+                // Stopped before the start (the redist prompt, a launch already queued): back to Host / Join.
+                s.session = null;
+                sync(gameId);
+                load(gameId);
+                return;
+            }
+            session.outcome = { kind: 'start_failed', reason, message: answer.error || '', cleanup: answer.cleanupError || '' };
             sync(gameId);
             load(gameId);
             return;
         }
-        if (!started || !session.launched) {
-            // Cancelled before the start (the redist prompt) or refused before it: back to Host / Join.
-            s.session = null;
-            sync(gameId);
-            load(gameId);
-            return;
-        }
-        session.launchedAt = Date.now();
+        // Accepted: the stale status is gone (only what is read from now on counts); the worker updates,
+        // checks the XML2 Fix, writes the keys and starts the game - followLaunch hears how that went.
+        session.launch = answer.launch;
+        session.readsFrom = s.loads + 1;
         load(gameId);
     }
 
@@ -826,7 +891,8 @@
         supports: gameId => SUPPORTED.has(backendId(gameId)),
         render,
         reload: load,
-        REQUIRED_FIX,
+        requiredFix,
+        ERRORS,
         normaliseCode,
         checkCode,
         checkRoomName,

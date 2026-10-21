@@ -977,8 +977,9 @@ def main():
                 check(refused.get("success") is False and "being built" in (refused.get("error") or "")
                       and (out / "xml2-fix.ini").read_bytes() == before, "Discord: no write while the builder holds the folder")
                 for mode in ("host", "join"):
-                    refused = cmd("prepare-online-start", {"game": "xml1", "mode": mode, "code": "ABCD-2345"})
-                    check(refused.get("success") is False and refused.get("reason") == "busy"
+                    online = {"mode": mode, "code": "ABCD-2345"} if mode == "join" else {"mode": mode, "public": False, "roomName": ""}
+                    refused = cmd("launch-game", {"game": "xml1", "online": online})
+                    check(refused.get("accepted") is False and refused.get("reason") == "busy"
                           and (out / "xml2-fix.ini").read_bytes() == before, f"Online ({mode}): no write while the builder holds the folder")
                 check(js("window.OnlineView.reload('xml1').then(() => { const all = [...document.querySelectorAll("
                          "'#xml1-online-panel .ul-online-host-button, #xml1-online-panel .ul-online-join-button, #xml1-online-panel .ul-online-code-input')]; "

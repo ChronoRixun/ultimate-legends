@@ -338,6 +338,9 @@ class GameUtils {
         const runFn = (registerCancel) => new Promise((resolve, reject) => {
             let pollIntervalId;
             let cancelRequested = false;
+            // The command's own answer, what the promise resolves with (launch-game: { accepted, launch } or
+            // { accepted: false, reason }).
+            let answer;
             let lastBytes = 0, lastTime = 0, emaSpeed = 0; // bytes, ms, bytes/sec
             let startTime = 0, startBytes = 0;             // ms, bytes (download-start baseline)
 
@@ -364,7 +367,7 @@ class GameUtils {
                     } catch (_) { break; }
                     await new Promise(r => setTimeout(r, 100));
                 }
-                resolve();
+                resolve(answer);
             };
 
             registerCancel(cancelOperation);
@@ -372,9 +375,17 @@ class GameUtils {
             window.ProgressManager.show(gameId, initialMessage, cancelOperation);
 
             window.executeCommand(command, commandArgs)
-                .then(() => {
+                .then(result => {
+                    answer = result;
                     console.log(`${command} command handler completed, starting polling`);
                     if (cancelRequested) return;
+                    // Refused before anything started (launch-game: the barrier, a build, a stale status file):
+                    // nothing to follow, and no "complete".
+                    if (result && typeof result === 'object' && result.accepted === false) {
+                        window.ProgressManager.hide();
+                        resolve(result);
+                        return;
+                    }
 
                     pollIntervalId = setInterval(async () => {
                         if (cancelRequested) {
@@ -401,7 +412,7 @@ class GameUtils {
 
                                 setTimeout(() => {
                                     window.ProgressManager.hide();
-                                    resolve();
+                                    resolve(answer);
                                 }, 1000);
                                 return;
                             }
@@ -571,10 +582,13 @@ class GameUtils {
      * @param {string} uiGameId - UI game ID (mua, xml2, etc.) for progress bar
      * @returns {Promise} Promise that resolves when launch completes
      */
-    // `options` (the X-Men Legends page's Online section): `online` starts the game with the [Online] keys
-    // it wrote (every other start removes them, launch-game in game_commands.cpp), and `beforeLaunch`
-    // runs right before the start, after the checks and the redist prompt, and stops it by answering
-    // false. Resolves true once the game was handed to launch-game.
+    // `options.online` (the X-Men Legends page's Online section): { mode: 'host' | 'join', code, public,
+    // roomName } - the backend writes the [Online] keys for it right before the process, and removes them
+    // again if the start doesn't happen (launch-game, fix/online_launch.hpp); every other start removes them.
+    // Resolves with what launch-game answered: { accepted: true, launch } (the worker then updates and
+    // starts the game: get-launch-outcome { launch } says how that went) or { accepted: false, reason, error }
+    // - also { accepted: false, reason: 'cancelled' } when the player stopped it here (the redist prompt) or
+    // the same launch was already queued.
     static async launchGame(backendGame, uiGameId, options = {}) {
         const gameConfig = this.getGameConfig(backendGame);
         if (!gameConfig) {
@@ -635,7 +649,7 @@ class GameUtils {
                 const result = window.LaunchRedistModal
                     ? await window.LaunchRedistModal.show(missing, gameConfig.displayName)
                     : { action: 'cancel' };
-                if (!result || result.action === 'cancel') return;
+                if (!result || result.action === 'cancel') return { accepted: false, reason: 'cancelled' };
 
                 if (result.action === 'skip') {
                     if (result.dontAskAgain) {
@@ -652,30 +666,31 @@ class GameUtils {
                         if (typeof window.showToast === 'function') {
                             window.showToast(i18n ? i18n.t('installer.redistInstallFailed') : 'Failed to install required components.', 'error', 6000);
                         }
-                        return;
+                        return { accepted: false, reason: 'cancelled' };
                     }
                 }
             }
         }
 
-        if (options.beforeLaunch && (await options.beforeLaunch()) === false) return false;
-
         // Track launch progress
-        await this.trackCommandProgress({
+        const answer = await this.trackCommandProgress({
             gameId: uiGameId,
             command: 'launch-game',
-            commandArgs: options.online ? { game: backendGame, online: true } : { game: backendGame },
+            commandArgs: options.online ? { game: backendGame, online: options.online } : { game: backendGame },
             initialMessage: window.LauncherI18n
                 ? window.LauncherI18n.t('progress.launching', { game: gameConfig.displayName })
                 : `Launching ${gameConfig.displayName}...`,
             completeMessage: window.LauncherI18n ? window.LauncherI18n.t('progress.launchComplete') : 'Launch complete!'
         });
 
+        if (!answer || answer.accepted !== true) {
+            return answer && typeof answer === 'object' ? answer : { accepted: false, reason: 'cancelled' };
+        }
         if (window.GameStateManager && typeof window.GameStateManager.markGameLaunched === 'function') {
             window.GameStateManager.markGameLaunched(uiGameId);
         }
 
-        return true;
+        return answer;
     }
 }
 

@@ -2,11 +2,14 @@
 #include "online_commands.hpp"
 #include "cef/cef_ui.hpp"
 #include "fix/fix_ini.hpp"
+#include "fix/online_launch.hpp"
 #include "fix/online_settings.hpp"
+#include "fix/online_status.hpp"
 #include "online/public_rooms.hpp"
-#include "updater/folder_work.hpp"
+#include "updater/patch_status.hpp"
 #include "xml1/xml1_port.hpp"
 
+#include <utils/flags.hpp>
 #include <utils/string.hpp>
 
 namespace commands::online_commands
@@ -45,17 +48,6 @@ namespace commands::online_commands
             return object;
         }
 
-        // { success: false, reason, error }: `reason` is what the page words (online-view.js), `error`
-        // the English text for logs.
-        void fail(rapidjson::Document& response, const std::string& reason, const std::string& error)
-        {
-            response.SetObject();
-            auto& allocator = response.GetAllocator();
-            response.AddMember("success", false, allocator);
-            response.AddMember("reason", make_string(reason, allocator), allocator);
-            response.AddMember("error", make_string(error, allocator), allocator);
-        }
-
         bool playable(const fix_ini::location& where)
         {
             return where.game_dir && xml1_port::is_playable(*where.game_dir);
@@ -64,9 +56,14 @@ namespace commands::online_commands
 
     void register_commands(cef::cef_ui& cef_ui, command_context& ctx)
     {
-        // { supported, installed, fixInstalled, playable, running, testMode, fix, file, ini,
-        //   values: { Host, JoinCode }, status: <online-status.json's object> | null, statusUnreadable }.
-        // The Online section polls it (about every 500 ms) while the game it started runs.
+        // { supported, installed, fixInstalled, fixVersion, fixState, requiredFix, playable, running, testMode,
+        //   offline, fix, file, ini, values: { Host, Public, RoomName, JoinCode },
+        //   status: <online-status.json's object> | null, statusUnreadable }.
+        // fixVersion: the XML2 Fix DLL's file version ("" when it has none that reads, null without the DLL);
+        // fixState: ok | old | unknown | missing against requiredFix (online_launch::required_fix, the one number
+        // the page shows; launch-game checks the DLL again right before an online start's process).
+        // The Online section polls it (about every 500 ms) while the game it started runs. Host and Join start
+        // with launch-game { online: { mode, code, public, roomName } } (game_commands.cpp).
         cef_ui.add_command("get-online-status", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
         {
             response.SetObject();
@@ -81,6 +78,15 @@ namespace commands::online_commands
             response.AddMember("supported", is_supported, allocator);
             response.AddMember("installed", installed, allocator);
             response.AddMember("fixInstalled", fix_installed, allocator);
+            std::optional<std::string> fix_version;
+            if (installed)
+            {
+                fix_version = patch_status::installed_version(*where.game_dir / where.info->dll);
+            }
+            response.AddMember("fixVersion", fix_version ? make_string(*fix_version, allocator) : rapidjson::Value(rapidjson::kNullType), allocator);
+            response.AddMember("fixState", rapidjson::StringRef(online_launch::fix_state_name(online_launch::check_fix(fix_version))), allocator);
+            response.AddMember("requiredFix", make_string(std::string(online_launch::required_fix), allocator), allocator);
+            response.AddMember("offline", utils::flags::has_flag("offline"), allocator);
             response.AddMember("playable", installed && playable(where), allocator);
             response.AddMember("running", is_supported && game_config::is_game_process_running(config->id, 1000), allocator);
             if (is_supported)
@@ -107,7 +113,7 @@ namespace commands::online_commands
             rapidjson::Value status(rapidjson::kNullType);
             if (installed)
             {
-                if (const auto text = online_settings::read_status(*where.game_dir))
+                if (const auto text = online_status::read(*where.game_dir))
                 {
                     rapidjson::Document parsed;
                     parsed.Parse(text->data(), text->size());
@@ -125,123 +131,10 @@ namespace commands::online_commands
             response.AddMember("statusUnreadable", unreadable, allocator);
         });
 
-        // { game, mode: "host" | "join" | "normal", code }: the [Online] keys for the next game start
-        // (Host=broker or JoinCode=<code>, the other removed; both removed for "normal") and, for host and
-        // join, a stale online-status.json deleted. The page then starts the game with launch-game
-        // { online: true }. Answers { success, values, code } or { success: false, reason, error } with
-        // reason one of not_supported, not_installed, no_fix, not_built, running, test_mode_on, bad_code,
-        // bad_room_name, bad_mode, busy, write_failed. Nothing is written while the builder holds the folder.
-        // A host start also takes { public, roomName } (Public=1|0, RoomName for a public room).
-        cef_ui.add_command("prepare-online-start", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
-        {
-            const auto config = ctx.get_game_config_from_request(value);
-            const auto where = fix_ini::locate(config);
-            if (!supported(where))
-            {
-                fail(response, "not_supported", "This game has no online play through the launcher.");
-                return;
-            }
-            if (!where.game_dir)
-            {
-                fail(response, "not_installed", "Set up the game first.");
-                return;
-            }
-            if (!where.fix_installed)
-            {
-                fail(response, "no_fix", "Install the " + where.info->name + " first.");
-                return;
-            }
-
-            // Writing the fix's settings is patch work in the folder, for as long as the write takes (and a
-            // build in it is the reason first: its building.json makes the folder unplayable meanwhile).
-            const auto hold = updater::reserve(*where.game_dir, updater::folder_use::patch);
-            if (!hold)
-            {
-                fail(response, "busy", "X-Men Legends is being built in this folder. Host or join when the build has finished.");
-                return;
-            }
-            if (!playable(where))
-            {
-                fail(response, "not_built", config->display_name + " has not finished building.");
-                return;
-            }
-
-            const auto mode_text = value.HasMember("mode") && value["mode"].IsString() ? std::string(value["mode"].GetString()) : std::string{};
-            const auto mode = online_rules::parse_mode(mode_text);
-            if (!mode)
-            {
-                fail(response, "bad_mode", "Unknown online mode: " + mode_text);
-                return;
-            }
-            const auto code_text = value.HasMember("code") && value["code"].IsString() ? std::string(value["code"].GetString()) : std::string{};
-            std::optional<std::string> code;
-            if (*mode == online_rules::mode::join)
-            {
-                code = online_rules::normalise_code(code_text);
-                if (!code)
-                {
-                    fail(response, "bad_code", "That is not a join code.");
-                    return;
-                }
-            }
-            // { public: true, roomName: "..." } for a host start (contract v1.3); the name is only written for
-            // a public room.
-            online_rules::host_options options{};
-            if (*mode == online_rules::mode::host)
-            {
-                options.is_public = value.HasMember("public") && value["public"].IsBool() && value["public"].GetBool();
-                const auto name_text = value.HasMember("roomName") && value["roomName"].IsString() ? std::string(value["roomName"].GetString())
-                                                                                                    : std::string{};
-                const auto name = online_rules::normalise_room_name(name_text);
-                if (!name)
-                {
-                    fail(response, "bad_room_name", "That room name can't be used.");
-                    return;
-                }
-                options.room_name = *name;
-            }
-
-            const auto ini = *where.ini();
-            const auto& fix = *where.info;
-            if (*mode != online_rules::mode::normal)
-            {
-                if (game_config::is_game_process_running(config->id))
-                {
-                    fail(response, "running", config->display_name + " is running. Close it to host or join a game.");
-                    return;
-                }
-                if (online_settings::test_mode_on(ini, fix))
-                {
-                    fail(response, "test_mode_on", "Test mode is on: the " + fix.name + " refuses online play. Turn test mode off first.");
-                    return;
-                }
-            }
-
-            std::string error;
-            if (!online_settings::prepare(ini, fix, *mode, code.value_or(""), error, options))
-            {
-                fail(response, "write_failed", error);
-                return;
-            }
-            if (*mode != online_rules::mode::normal && !online_settings::clear_status(*where.game_dir, error))
-            {
-                fail(response, "write_failed", error);
-                return;
-            }
-
-            response.SetObject();
-            auto& allocator = response.GetAllocator();
-            response.AddMember("success", true, allocator);
-            response.AddMember("values", values_json(online_settings::read(ini, fix), allocator), allocator);
-            if (code)
-            {
-                response.AddMember("code", make_string(*code, allocator), allocator);
-            }
-        });
-
         // { game, refresh }: the public game browser (contract v1.3). With refresh, a fetch of the broker's
-        // room list starts on a worker (unless one runs); the page polls without it until `fetching` is false.
-        // Answers { supported, fetching, host, versionToken, result: { ok, error, status, rooms, ts, age } | null }:
+        // room list starts on a worker (unless one runs, or the launcher is in offline mode: then nothing is
+        // fetched at all); the page polls without it until `fetching` is false.
+        // Answers { supported, offline, fetching, host, versionToken, result: { ok, error, status, rooms, ts, age } | null }:
         // `rooms` as the broker sent them (at most 50; the page checks each), `age` ms since that fetch ended,
         // `versionToken` the port's [Online] GameVersion ("" when the ini has none).
         cef_ui.add_command("get-public-rooms", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
@@ -258,7 +151,9 @@ namespace commands::online_commands
             }
 
             const auto target = online_settings::target(where.fix_installed ? where.ini() : std::nullopt, where.info);
-            if (value.HasMember("refresh") && value["refresh"].IsBool() && value["refresh"].GetBool())
+            const auto offline = utils::flags::has_flag("offline");
+            response.AddMember("offline", offline, allocator);
+            if (!offline && value.HasMember("refresh") && value["refresh"].IsBool() && value["refresh"].GetBool())
             {
                 public_rooms::refresh(target.host, target.pin);
             }

@@ -4435,6 +4435,10 @@ html[data-reduce-motion] .ul-online-spinner { animation: none; }
 .ul-online-public { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .ul-online-public-label { font-size: 12.5px; font-weight: 600; }
 .ul-online-public-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--text-muted); }
+/* Public games connect players directly (their internet addresses show): one calm line, by the Public toggle and
+   under Browse games. Text only, never a focus stop. */
+.ul-online-ip-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--text-muted); }
+.ul-online-late-join { margin: 0; }
 .ul-online-public-toggle .toggle-btn:focus-visible { outline: 2px solid var(--warn); outline-offset: -2px; }
 .ul-online-room-name-input:disabled { opacity: 0.45; }
 .ul-online-room-name-input.is-invalid { border-color: var(--danger); }
@@ -4464,7 +4468,7 @@ html[data-reduce-motion] .ul-online-spinner { animation: none; }
 
 /* The view hides parts with the hidden attribute; the display rules above would win over it. */
 .ul-online-blocked[hidden],
-.ul-online-fix[hidden],
+.ul-online-offline[hidden],
 .ul-online-public[hidden],
 .ul-online-room-name-error[hidden],
 .ul-online-room-line[hidden],

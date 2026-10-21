@@ -1,11 +1,13 @@
 'use strict';
 // The X-Men Legends page's Online section (launcher 0.4.0): Host a game / Join a game against the
-// launcher <-> XML2 Fix contract. The real online-view.js and GameUtils.launchGame (utils.js) run against
-// online_fixture.js's fake backend, which keeps the port's [Online] keys and online-status.json the way
-// the C++ does. A test writes the status file as the fix would: every state and error id must render.
+// launcher <-> XML2 Fix contract (v1.5). The real online-view.js and GameUtils.launchGame (utils.js) run
+// against online_fixture.js's fake backend, which keeps the port's [Online] keys and online-status.json the
+// way the C++ does. A test writes the status file as the fix would: every state and error id must render.
 // That the rest of the ini stays byte for byte is the real WritePrivateProfileString's job:
-// tools/dev/online_cdp.py checks it, and src/tests/online_rules_tests.cpp the keys each start writes.
-// The public games (v1.3) are online_browse.test.js's.
+// tools/dev/online_cdp.py checks it; src/tests/online_rules_tests.cpp the keys each start writes and
+// src/tests/online_launch_tests.cpp the order of a start (armed last, disarmed on every failure).
+// The public games (v1.3) are online_browse.test.js's; the release fixes of 0.4.0 (B1, S1-S5, S7-S9)
+// online_release.test.js's.
 
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -13,7 +15,7 @@ const path = require('path');
 const vm = require('vm');
 const { test } = require('./harness');
 
-const { ALPHABET, ERRORS, open, host, joinWith } = require('./online_fixture');
+const { ALPHABET, ERRORS, REQUIRED_FIX, open, host, joinWith } = require('./online_fixture');
 
 test('online: Host a game and Join a game, with the help, on a built game', async () => {
     const t = await open();
@@ -27,30 +29,30 @@ test('online: Host a game and Join a game, with the help, on a built game', asyn
     assert.match(help, /LAN and Connect by IP still work/);
     assert.match(help, /Play Online → Host/);
     assert.match(help, /Play Online → Join Game/);
+    assert.equal(ERRORS.length, 10, 'contract v1.5: ten ids');
     for (const id of ERRORS) assert.ok(t.$(`.ul-online-help-error[data-error="${id}"] dt`), `the help explains ${id}`);
-    assert.deepEqual(t.backend.prepares, [], 'opening the page writes nothing');
-    assert.deepEqual(t.backend.launches, []);
+    assert.deepEqual(t.backend.launches, [], 'opening the page starts and writes nothing');
 });
 
-test('online: Host writes Host (prepare-online-start host), then starts the game as an online start', async () => {
+test('online: Host is one launch-game { online: host }; the backend arms Host once it has started the game', async () => {
     const t = await open({ online: { JoinCode: 'ZZZZ9999' }, status: { v: 1, role: 'host', state: 'room', code: 'OLDC0DE0', players: 1 } });
     t.$('.ul-online-host-button').click();
     assert.equal(t.phase(), 'Connecting…', 'Connecting… at the click');
     await t.clock.advance(1500);
-    assert.deepEqual(t.backend.prepares, [{ game: 'xml1', mode: 'host', code: '', public: false, roomName: '' }], 'private by default');
-    assert.deepEqual(t.backend.launches, [{ game: 'xml1', online: true }], 'launch-game keeps the keys it was given');
+    assert.deepEqual(t.backend.launches, [{ game: 'xml1', online: { mode: 'host', public: false, roomName: '' } }], 'private by default');
     assert.equal(t.backend.online.Host, 'broker');
     assert.equal(t.backend.online.JoinCode, undefined, 'JoinCode removed');
     assert.equal(t.backend.online.Broker, 'broker.example:7777', 'the builder\'s Broker kept');
     assert.equal(t.backend.online.BrokerPin, 'ab'.repeat(32), 'and its BrokerPin');
-    const order = t.backend.calls.filter(c => c === 'prepare-online-start' || c === 'launch-game');
-    assert.deepEqual(order, ['prepare-online-start', 'launch-game'], 'the key (and the stale status) before the start');
+    assert.equal(t.backend.online.GameVersion, 'LC33', 'and its GameVersion');
+    const order = t.backend.calls.filter(c => c === 'launch-game' || c === 'get-launch-outcome');
+    assert.deepEqual(order.slice(0, 2), ['launch-game', 'get-launch-outcome'], 'the start, then what became of it');
     assert.equal(t.phase(), 'Connecting…', 'the stale status of an earlier room is gone: still connecting');
 });
 
 test('online: a stale room is never shown, even when a poll lands between Host and the start', async () => {
     const t = await open({ status: { v: 1, role: 'host', state: 'room', code: 'PQRS2345', players: 1 } });
-    // The redist check takes a while: the 500 ms polls run before prepare-online-start deletes the file.
+    // The redist check takes a while: the 500 ms polls run before launch-game deletes the file.
     const handle = t.backend.handle.bind(t.backend);
     t.backend.handle = (command, data) => (command === 'get-missing-redists-for-game'
         ? new Promise(resolve => t.clock.setTimeout(() => resolve(handle(command, data)), 1200))
@@ -61,7 +63,7 @@ test('online: a stale room is never shown, even when a poll lands between Host a
     assert.ok(!t.$('.ul-online-code'), 'the old code is not shown');
     assert.equal(t.phase(), 'Connecting…');
     await t.clock.advance(1500);
-    assert.deepEqual(t.backend.prepares.map(p => p.mode), ['host']);
+    assert.deepEqual(t.backend.starts.map(p => p.mode), ['host']);
     t.backend.running = true;
     await t.clock.advance(600);
     assert.ok(!t.$('.ul-online-code'), 'still nothing until the fix writes the new room');
@@ -134,10 +136,11 @@ test('online: players count the host; "N of M" when the fix gives max_players (c
     assert.equal(view.readStatus({ v: 1, role: 'host', state: 'room', players: 2, max_players: 0 }).maxPlayers, null);
 });
 
-test('online: the XML2 Fix online play needs is one constant, named in the update hints and for an older fix', async () => {
-    let t = await open();
-    const required = t.window.OnlineView.REQUIRED_FIX;
-    assert.equal(required, '1.8.0', 'Legends Classic 0.3.0\'s XML2 Fix (contract v1.4; 1.7.0 has no online rooms)');
+test('online: the XML2 Fix online play needs is the backend\'s one number, named in the update hints', async () => {
+    const t = await open();
+    const required = t.window.OnlineView.requiredFix('xml1');
+    assert.equal(required, REQUIRED_FIX, 'get-online-status\'s requiredFix (online_launch::required_fix)');
+    assert.equal(required, '1.8.0', 'Legends Classic 0.3.0\'s XML2 Fix (1.7.x has no online rooms)');
     for (const id of ['broker_rejected', 'version_mismatch']) {
         const help = t.text(`.ul-online-help-error[data-error="${id}"] dd`);
         assert.ok(help.includes(`XML2 Fix ${required} or later`), `${id}: the help names ${required}`);
@@ -147,19 +150,7 @@ test('online: the XML2 Fix online play needs is one constant, named in the updat
     t.backend.write({ role: 'host', state: 'error', error: 'version_mismatch' });
     await t.clock.advance(600);
     assert.ok(t.text('.ul-online-error').includes(`XML2 Fix ${required} or later`), 'and so does the error itself');
-
-    const older = required.split('.').map(Number);
-    const below = older[2] > 0 ? `${older[0]}.${older[1]}.${older[2] - 1}` : older[1] > 0 ? `${older[0]}.${older[1] - 1}.9` : `${older[0] - 1}.9.9`;
-    t = await open({}, { status: { fix: { installed: true, version: below } } });
-    assert.equal(t.visible('.ul-online-fix'), true, `${below} in the folder: said`);
-    assert.ok(t.text('.ul-online-fix').includes(`needs XML2 Fix ${required} or later; this folder has ${below}`));
-    t.controls().forEach(control => assert.equal(control.disabled, false, 'said, not blocked'));
-    for (const version of [required, `${older[0]}.${older[1] + 1}.0`, `${older[0] + 1}.0`]) {
-        t = await open({}, { status: { fix: { installed: true, version } } });
-        assert.equal(t.visible('.ul-online-fix'), false, `${version} is new enough`);
-    }
-    t = await open({}, { status: { fix: { installed: true } } });
-    assert.equal(t.visible('.ul-online-fix'), false, 'no version to compare: nothing said');
+    // (Old, unreadable, missing and newer DLLs: online_release.test.js, B1.)
 });
 
 test('online: Copy puts XXXX-XXXX on the clipboard', async () => {
@@ -217,6 +208,7 @@ test('online: every error id renders in plain words, for a host and a joiner', a
         code_not_found: /Code not found/,
         code_expired: /Code expired/,
         room_full: /The game is full/,
+        room_closed: /Can’t join right now/,
         version_mismatch: /Different game version/,
         test_mode_on: /Test mode is on/,
         tls_pin_mismatch: /could not be verified/,
@@ -267,14 +259,13 @@ test('online: Try again goes back to Host / Join, with the joiner\'s code still 
     assert.ok(t.document.activeElement === t.input(), 'the focus goes back to the code field');
     t.$('.ul-online-join-button').click();
     await t.clock.advance(1500);
-    assert.deepEqual(t.backend.prepares.map(p => p.code), ['ABCD2345', 'ABCD2345'], 'a second try with the same code');
+    assert.deepEqual(t.backend.starts.map(p => p.code), ['ABCD2345', 'ABCD2345'], 'a second try with the same code');
 });
 
 test('online: Join takes lower case, spaces and dashes; writes JoinCode and removes Host', async () => {
     const t = await open({ online: { Host: 'broker' } });
     await joinWith(t, '  abcd – efgh ');
-    assert.deepEqual(t.backend.prepares, [{ game: 'xml1', mode: 'join', code: 'ABCDEFGH' }], 'normalised before it is sent');
-    assert.deepEqual(t.backend.launches, [{ game: 'xml1', online: true }]);
+    assert.deepEqual(t.backend.launches, [{ game: 'xml1', online: { mode: 'join', code: 'ABCDEFGH' } }], 'normalised before it is sent');
     assert.equal(t.backend.online.JoinCode, 'ABCDEFGH');
     assert.equal(t.backend.online.Host, undefined, 'Host removed');
     assert.equal(t.backend.online.Broker, 'broker.example:7777');
@@ -285,7 +276,7 @@ test('online: Enter in the code field joins', async () => {
     t.type('wxyz-6789');
     t.key('Enter');
     await t.clock.advance(1500);
-    assert.deepEqual(t.backend.prepares, [{ game: 'xml1', mode: 'join', code: 'WXYZ6789' }]);
+    assert.deepEqual(t.backend.starts, [{ mode: 'join', code: 'WXYZ6789' }]);
 });
 
 test('online: a malformed code shows an inline error and starts nothing', async () => {
@@ -315,8 +306,7 @@ test('online: a malformed code shows an inline error and starts nothing', async 
     t.type('abcd-2345');
     assert.equal(error(), null, 'fixed: the error goes');
     assert.equal(t.input().getAttribute('aria-invalid'), 'false');
-    assert.deepEqual(t.backend.prepares, [], 'nothing was written for a bad code');
-    assert.deepEqual(t.backend.launches, [], 'and nothing started');
+    assert.deepEqual(t.backend.launches, [], 'nothing was started or written for a bad code');
 });
 
 test('online: the code rules (normalise, check, display, status)', async () => {
@@ -344,9 +334,9 @@ test('online: Play (a normal start) sends no online flag: launch-game removes Ho
     const t = await open({ online: { Host: 'broker', JoinCode: 'ABCD2345' }, status: { v: 1, role: 'host', state: 'room', code: 'ABCD2345' } });
     const started = t.window.GameUtils.launchGame('xml1', 'xml1');
     await t.clock.advance(1500);
-    assert.equal(await started, true);
+    const answer = await started;
+    assert.equal(answer.accepted, true, 'launch-game answers { accepted, launch }');
     assert.deepEqual(t.backend.launches, [{ game: 'xml1' }], 'no `online`: a normal start');
-    assert.deepEqual(t.backend.prepares, [], 'the Online section writes nothing for Play');
     assert.equal(t.backend.online.Host, undefined);
     assert.equal(t.backend.online.JoinCode, undefined);
     assert.equal(t.backend.online.Broker, 'broker.example:7777', 'Broker / BrokerPin stay');
@@ -372,7 +362,7 @@ test('online: off with a reason while not built, the folder is held, test mode i
         t.controls().forEach(control => assert.equal(control.disabled, true, `${id}: Host, Join and the field are off`));
         t.$('.ul-online-host-button').click();
         await t.clock.advance(1500);
-        assert.deepEqual(t.backend.prepares, [], `${id}: nothing written`);
+        assert.deepEqual(t.backend.launches, [], `${id}: nothing started or written`);
         assert.equal(!t.$('.ul-online-testmode-off').hidden, id === 'testMode', `${id}: Turn test mode off only for test mode`);
     }
 });
@@ -401,11 +391,12 @@ test('online: Turn test mode off from the Online section, and back on when it is
 });
 
 test('online: a start the backend refuses says why (test mode on in the file, a build that just started)', async () => {
-    let t = await open();
+    let t = await open({ online: { JoinCode: 'ZZZZ9999' } });
     t.backend.refuse = 'test_mode_on';
     t.$('.ul-online-host-button').click();
     await t.clock.advance(1500);
-    assert.deepEqual(t.backend.launches, [], 'refused before the start: nothing started');
+    assert.equal(t.backend.outcomes[1], undefined, 'refused at acceptance: nothing started');
+    assert.deepEqual(t.backend.armed(), [], 'and no key left armed (the stale JoinCode removed too)');
     assert.match(t.phase(), /Test mode is on: turn it off/);
     assert.ok(t.$('.ul-online-session .ul-online-testmode-off'), 'with Turn test mode off');
 
@@ -450,9 +441,10 @@ test('online: a room already open when the page loads (the launcher restarted) i
 
 test('online: the keyboard (or a controller mapped to it) reaches every control, and the focus follows', async () => {
     const t = await open();
-    for (const control of [...t.controls(), t.$('.ul-online-help summary')]) {
+    for (const control of t.controls()) {
         assert.equal(control.hasAttribute('tabindex'), false, 'in the Tab order where it stands');
     }
+    assert.equal(t.$('.ul-online-help summary').getAttribute('tabindex'), '0', 'the help\'s summary too, for core/focus-nav.js');
     for (const button of [t.$('.ul-online-host-button'), t.$('.ul-online-join-button')]) {
         assert.equal(button.tagName, 'BUTTON');
         assert.equal(button.getAttribute('type'), 'button');

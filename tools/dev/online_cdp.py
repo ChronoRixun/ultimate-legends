@@ -6,11 +6,13 @@ finished build (a dummy XMen2.exe that only waits - tools/dev/native/dummy_game.
 dinput.dll, _build/stamp.json) and an xml2-fix.ini with what a build leaves there, the builder's
 [Online] Broker / BrokerPin included. Then:
 
-- prepare-online-start and launch-game write exactly their key: Host=broker or JoinCode=<code>, the
-  other removed, both removed by a normal Play; every other key, section, comment and byte of the file
-  stays; Broker / BrokerPin are never written; bad codes, test mode on, the game running, no fix and an
-  unfinished build are refused before a write; a stale online-status.json is deleted before a Host or
-  Join start (and by a normal start);
+- launch-game { online: { mode, ... } } (launcher 0.4.0's one Host / Join start, fix/online_launch.hpp)
+  writes exactly its keys, right before the process: Host=broker (with Public / RoomName) or JoinCode=<code>,
+  the others removed; a normal Play removes all four; every other key, section, comment and byte of the
+  file stays; Broker / BrokerPin / GameVersion are never written; bad codes, test mode on, the game running,
+  no fix, an XML2 Fix older than 1.8.0 or without a version, a status file held open without delete sharing
+  and an unfinished build are refused with nothing left armed; a stale online-status.json is deleted before
+  every start (a held one refuses Play too); Close on launch keeps the launcher for an online start;
 - the page's Host / Join buttons start the dummy game as an online start, and every state and error id
   the test writes into online-status.json (as the XML2 Fix would: temp file + rename) renders;
 - code input normalisation and the inline error, the disabled states and their reasons, the keyboard
@@ -77,8 +79,10 @@ INI_TEMPLATE = (
     "Enabled=0\r\n"
 )
 STAMP = {"builder": {"version": "0.3.0", "content_version": 3}, "profile": {"movies": True}, "finished": "2026-10-19T10:00:00Z"}
-ERRORS = ["broker_unreachable", "broker_rejected", "code_not_found", "code_expired", "room_full",
+# Contract v1.5's ten status error ids (room_closed: the broker's room_not_joinable).
+ERRORS = ["broker_unreachable", "broker_rejected", "code_not_found", "code_expired", "room_full", "room_closed",
           "version_mismatch", "test_mode_on", "tls_pin_mismatch", "internal"]
+ROOM_CLOSED_TEXT = "That game can't take new players right now. Try again in a moment."
 
 
 def sections(text):
@@ -189,8 +193,13 @@ def main():
     def status(game="xml1"):
         return cmd("get-online-status", {"game": game})
 
-    def prepare(mode, code="", game="xml1", **extra):
-        return cmd("prepare-online-start", dict({"game": game, "mode": mode, "code": code}, **extra))
+    def outcome(answer, seconds=30):
+        """get-launch-outcome of an accepted launch-game, once the worker has started the game or given up."""
+        if not (answer or {}).get("accepted"):
+            return None
+        launch = answer["launch"]
+        wait_for(lambda: cmd("get-launch-outcome", {"launch": launch})["state"] != "pending", seconds)
+        return cmd("get-launch-outcome", {"launch": launch})
 
     def ui(expression):
         return js(f"(() => {{ const panel = document.getElementById('xml1-online-panel'); "
@@ -259,14 +268,17 @@ def main():
         print(f"  screenshot: {path}")
 
     dummy = native.dummy_game()
+    fix_current = native.fix_dll("1.8.0")
+    fix_old = native.fix_dll("1.7.1")
     saved = {suffix: cmd("get-game-property", {"game": "xml1", "suffix": suffix}) for suffix in ("install", "is-installed")}
-    saved_props = {key: cmd("get-property", key) for key in ("launcher-skip-client-update", "launcher-skip-redist-check")}
+    saved_props = {key: cmd("get-property", key) for key in ("launcher-skip-client-update", "launcher-skip-redist-check", "launcher-close-on-launch")}
 
     with tempfile.TemporaryDirectory(prefix="ul-fake-online-") as folder:
         game = pathlib.Path(folder)
         exe = game / "XMen2.exe"
         shutil.copy2(dummy, exe)
-        (game / "dinput.dll").write_bytes(b"placeholder - not the real fix")
+        # A stand-in with the XML2 Fix's version resource (1.8.0: online play); never loaded.
+        shutil.copy2(fix_current, game / "dinput.dll")
         (game / "_build").mkdir()
         (game / "_build" / "stamp.json").write_text(json.dumps(STAMP))
         ini = game / "xml2-fix.ini"
@@ -317,8 +329,37 @@ def main():
             cmd("set-property", {"launcher-skip-client-update": "true", "launcher-skip-redist-check": "true"})
             check(cmd("get-game-property", {"game": "xml1", "suffix": "install"}) == str(game), "X-Men Legends pointed at the fake folder")
 
+            def start(mode, code="", game="xml1", keep=False, **extra):
+                """Host / Join as the page starts them: launch-game { online }. Answers launch-game's answer plus
+                `outcome` (get-launch-outcome, settled) and `values` (get-online-status's [Online] keys then); the
+                dummy game it started is stopped again unless `keep`."""
+                online = {"mode": mode}
+                if mode == "join":
+                    online["code"] = code
+                elif mode == "host":
+                    online.update({"public": extra.pop("public", False), "roomName": extra.pop("roomName", "")})
+                online.update(extra)  # fields the backend doesn't know: never written
+                answer = dict(cmd("launch-game", {"game": game, "online": online}) or {})
+                answer["outcome"] = outcome(answer)
+                if game == "xml1":
+                    answer["values"] = status()["values"]
+                if not keep:
+                    stop()
+                return answer
+
+            def launched(answer):
+                return bool(answer.get("accepted")) and (answer.get("outcome") or {}).get("state") == "launched"
+
+            def play(keep=False):
+                """A normal start (Play): launch-game without `online`."""
+                answer = dict(cmd("launch-game", {"game": "xml1"}) or {})
+                answer["outcome"] = outcome(answer)
+                if not keep:
+                    stop()
+                return answer
+
             print("which games have it")
-            check(status("xml2")["supported"] is False and prepare("host", game="xml2").get("reason") == "not_supported",
+            check(status("xml2")["supported"] is False and start("host", game="xml2").get("reason") == "not_supported",
                   "X-Men Legends II: no online section (the port's page only)")
             check(status("mua")["supported"] is False, "MUA: none")
 
@@ -326,6 +367,8 @@ def main():
             reset()
             state = status()
             check(state["supported"] and state["installed"] and state["fixInstalled"] and state["playable"], "a finished build with its fix")
+            check(state["fixVersion"] == "1.8.0" and state["fixState"] == "ok" and state["requiredFix"] == "1.8.0",
+                  f"the DLL's version, read by the backend: {state.get('fixVersion')} {state.get('fixState')} (needs {state.get('requiredFix')})")
             check(state["values"] == {"Host": None, "Public": None, "RoomName": None, "JoinCode": None} and state["testMode"] is False and state["running"] is False,
                   f"no Host / JoinCode yet, test mode off, not running: {state['values']}")
             check(state["status"] is None and state["statusUnreadable"] is False, "no status file")
@@ -337,95 +380,129 @@ def main():
             check(status()["status"] is None and status()["statusUnreadable"] is True, "a file that isn't one object: unreadable, not a state")
             check(raw() == INI_TEMPLATE.encode("utf-8"), "reading wrote nothing")
 
-            print("Host: Host=broker, nothing else; a stale status deleted")
+            print("Host: Host=broker, nothing else, right before the process; a stale status deleted")
             write_status(role="host", state="room", code="OLDC0DE0", players=1)
-            result = prepare("host")
-            check(result.get("success") is True and result["values"] == {"Host": "broker", "Public": "0", "RoomName": None, "JoinCode": None},
+            result = start("host", keep=True)
+            check(launched(result) and result["values"] == {"Host": "broker", "Public": "0", "RoomName": None, "JoinCode": None},
                   f"host {result}")
+            check(running(), "the (dummy) game runs")
             only_online_changed(["Host=broker", "Public=0"], "host (private by default)")
             check(not status_file.exists(), "the stale online-status.json is gone")
             check(text().count("Broker=") == 1 and text().count(f"BrokerPin={PIN}") == 1, "Broker / BrokerPin written once, by the builder")
+            stop()
 
             print("Join: JoinCode, Host removed")
             write_status(role="host", state="ended")
-            result = prepare("join", " abcd-efgh ")
-            check(result.get("success") is True and result.get("code") == "ABCDEFGH" and result["values"] == {"Host": None, "Public": None, "RoomName": None, "JoinCode": "ABCDEFGH"},
+            result = start("join", " abcd-efgh ")
+            check(launched(result) and result["values"] == {"Host": None, "Public": None, "RoomName": None, "JoinCode": "ABCDEFGH"},
                   f"join, normalised {result}")
             only_online_changed(["JoinCode=ABCDEFGH"], "join after host")
             check(not status_file.exists(), "the stale status is gone")
-            result = prepare("host")
+            start("host")
             only_online_changed(["Host=broker", "Public=0"], "host after join (JoinCode's line gone)")
 
             print("a JoinCode written by hand with a comment: its line goes")
             ini.write_bytes(INI_TEMPLATE.replace("Domain=openspy.net\r\n", "Domain=openspy.net\r\nJoinCode = ZZZZ9999   ; from a friend\r\n").encode("utf-8"))
-            prepare("host")
+            start("host")
             only_online_changed(["Host=broker", "Public=0"], "host over a hand-written JoinCode")
 
-            print("refused before a write")
+            print("refused: nothing armed, nothing started")
             reset()
             before = raw()
             for code in ["", "ABCD", "ABCD234O", "ABCD2341", "abcd234l", "ABCD23456", "ABCD_234", "ÄBCD2345"]:
-                result = prepare("join", code)
-                check(result.get("success") is False and result.get("reason") == "bad_code", f"code {code!r}: bad_code")
-            for mode in ["relay", "Host", ""]:
-                check(prepare(mode).get("reason") == "bad_mode", f"mode {mode!r}: bad_mode")
-            check(raw() == before, "the refused writes left the ini byte for byte")
-            result = prepare("host", Broker="evil.example:1", BrokerPin="00" * 32, Route="relay")
-            check(result.get("success") is True and "evil" not in text() and "Route" not in text() and text().count("BrokerPin=") == 1,
-                  "extra fields (Broker, BrokerPin, Route) are never written")
+                result = start("join", code)
+                check(result.get("accepted") is False and result.get("reason") == "bad_code" and not running(), f"code {code!r}: bad_code")
+            for mode in ["relay", "Host", "", "normal"]:
+                check(start(mode).get("reason") == "bad_mode", f"mode {mode!r}: bad_mode")
+            check(raw() == before, "the refused starts left the ini byte for byte")
+            result = start("host", Broker="evil.example:1", BrokerPin="00" * 32, Route="relay", GameVersion="LC99")
+            check(launched(result) and "evil" not in text() and "Route" not in text() and "LC99" not in text() and text().count("BrokerPin=") == 1,
+                  "extra fields (Broker, BrokerPin, Route, GameVersion) are never written")
             reset()
             check(cmd("set-test-mode-settings", {"game": "xml1", "values": {"Hotkeys": True}})["success"], "test mode on (Hotkeys)")
             with_test_mode = raw()
             for mode in ["host", "join"]:
-                result = prepare(mode, "ABCD2345")
-                check(result.get("reason") == "test_mode_on" and raw() == with_test_mode, f"{mode} with test mode on: refused, nothing written")
+                result = start(mode, "ABCD2345")
+                check(result.get("reason") == "test_mode_on" and raw() == with_test_mode and not running(), f"{mode} with test mode on: refused, nothing written")
             check(status()["testMode"] is True, "the status says test mode is on")
             check(cmd("set-test-mode-settings", {"game": "xml1", "values": {"Hotkeys": None}})["success"] and status()["testMode"] is False, "test mode off again")
             reset()
             process = subprocess.Popen([str(exe)])
             try:
                 check(wait_for(running, 5), "the game running")
-                check(prepare("host").get("reason") == "running" and raw() == before, "host while it runs: refused")
+                check(start("host").get("reason") in ("running", "already_running") and raw() == before, "host while it runs: refused")
                 check(status()["running"] is True, "the status says it runs")
             finally:
                 process.kill()
                 wait_for(lambda: not running(), 5)
             (game / "_build" / "building.json").write_text("{}")
-            check(prepare("host").get("reason") == "not_built" and status()["playable"] is False and raw() == before, "an unfinished build: not_built")
+            check(start("host").get("reason") == "not_built" and status()["playable"] is False and raw() == before, "an unfinished build: not_built")
             (game / "_build" / "building.json").unlink()
             (game / "dinput.dll").rename(game / "dinput.dll.off")
-            check(prepare("host").get("reason") == "no_fix" and raw() == before, "no fix: no_fix")
+            check(start("host").get("reason") == "no_fix" and raw() == before, "no fix: no_fix")
             (game / "dinput.dll.off").rename(game / "dinput.dll")
 
-            print("normal: both removed; a file without them is not touched")
-            prepare("host")
-            check(prepare("normal").get("success") is True and raw() == INI_TEMPLATE.encode("utf-8"), "host, then normal: the template again, byte for byte")
+            print("XML2 Fix 1.8.0 enforced (B1): an older or unversioned DLL refuses Host / Join; Play still starts")
+            ini.write_bytes(INI_TEMPLATE.replace("Domain=openspy.net\r\n", "Domain=openspy.net\r\nJoinCode=ZZZZ9999\r\n").encode("utf-8"))
+            shutil.copy2(fix_old, game / "dinput.dll")
+            check(status()["fixVersion"] == "1.7.1" and status()["fixState"] == "old", "1.7.1 read as old")
+            result = start("host")
+            check(result.get("accepted") is True and (result.get("outcome") or {}).get("reason") == "fix_too_old" and not running(),
+                  f"host with 1.7.1 (update skipped): refused after the update, not started {result.get('outcome')}")
+            check(raw() == INI_TEMPLATE.encode("utf-8"), "no Host written, the stale JoinCode removed: the template byte for byte")
+            check(play().get("accepted") is True, "Play with 1.7.1: starts (normal play needs no rooms)")
+            (game / "dinput.dll").write_bytes(b"placeholder - no version resource")
+            check(status()["fixState"] == "unknown", "a DLL without a version: unknown")
+            result = start("join", "ABCD2345")
+            check((result.get("outcome") or {}).get("reason") == "fix_unknown" and raw() == INI_TEMPLATE.encode("utf-8"), "join with it: fix_unknown, nothing armed")
+            shutil.copy2(fix_current, game / "dinput.dll")
+            check(status()["fixState"] == "ok", "1.8.0 again")
+
+            print("a status file held without delete sharing (S2): every start refused, the old room never taken up")
+            import ctypes
+            from ctypes import wintypes
+            create_file = ctypes.windll.kernel32.CreateFileW
+            create_file.restype = wintypes.HANDLE
+            write_status(role="host", state="room", code="PQRS2345", players=2)
+            handle = create_file(str(status_file), 0x80000000, 0x1, None, 3, 0x80, None)  # GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING
+            try:
+                check(handle not in (None, wintypes.HANDLE(-1).value), "the status file held open (read sharing only)")
+                check(play().get("reason") == "status_locked" and not running() and status_file.exists(), "Play: status_locked, not started")
+                result = start("host")
+                check(result.get("reason") == "status_locked" and not running() and raw() == INI_TEMPLATE.encode("utf-8"), "Host: status_locked, nothing armed")
+            finally:
+                ctypes.windll.kernel32.CloseHandle(handle)
+            check(play().get("accepted") is True and not status_file.exists(), "closed: Play deletes it and starts")
+
+            print("normal: all four removed; a file without them is not touched")
+            start("host")
+            check(play().get("accepted") is True and raw() == INI_TEMPLATE.encode("utf-8"), "host, then Play: the template again, byte for byte")
             ini.unlink()
-            check(prepare("normal").get("success") is True and not ini.exists(), "normal on no ini: none created")
+            check(play().get("accepted") is True and not ini.exists(), "Play on no ini: none created")
             reset()
 
             print("v1.3: Public and RoomName go with Host; Join and a normal start remove them")
-            result = prepare("host", public=True, roomName="  Saturday run ")
-            check(result.get("success") is True and result["values"] == {"Host": "broker", "Public": "1", "RoomName": "Saturday run", "JoinCode": None},
+            result = start("host", public=True, roomName="  Saturday run ")
+            check(launched(result) and result["values"] == {"Host": "broker", "Public": "1", "RoomName": "Saturday run", "JoinCode": None},
                   f"public host {result.get('values')}")
             only_online_changed(["Host=broker", "Public=1", "RoomName=Saturday run"], "public host, the name trimmed")
             before = raw()
             for bad in ["run; Host=evil", '"quoted"', "x" * 33, "café", "tab\there"]:
-                result = prepare("host", public=True, roomName=bad)
+                result = start("host", public=True, roomName=bad)
                 check(result.get("reason") == "bad_room_name" and raw() == before, f"room name {bad!r}: refused, nothing written")
-            check(prepare("host", public=True, roomName="x" * 32).get("success") is True, "32 characters: fine")
-            prepare("host", public=False, roomName="not written")
+            check(launched(start("host", public=True, roomName="x" * 32)), "32 characters: fine")
+            start("host", public=False, roomName="not written")
             only_online_changed(["Host=broker", "Public=0"], "private host: the old RoomName goes, the new one isn't written")
-            prepare("host", public=True, roomName="Saturday run")
-            prepare("join", "ABCD2345")
+            start("host", public=True, roomName="Saturday run")
+            start("join", "ABCD2345")
             only_online_changed(["JoinCode=ABCD2345"], "join after a public host: Host, Public and RoomName gone")
-            prepare("host", public=True, roomName="Saturday run")
-            check(prepare("normal").get("success") is True and raw() == INI_TEMPLATE.encode("utf-8"), "normal: all four gone, the template byte for byte")
+            start("host", public=True, roomName="Saturday run")
+            check(play().get("accepted") is True and raw() == INI_TEMPLATE.encode("utf-8"), "Play: all four gone, the template byte for byte")
             check("GameVersion" not in text(), "GameVersion is never written (the builder's)")
 
             print("Play: a normal start removes Host and JoinCode (and an old status)")
             open_page()
-            prepare("host")
+            start("host")
             write_status(role="host", state="room", code="ABCD2345", players=1)
             js("launchGame('xml1')")
             check(wait_for(running, 20), "Play: the game runs")
@@ -443,6 +520,14 @@ def main():
             check(wait_for(running, 20) and raw() == INI_TEMPLATE.encode("utf-8") and ini.stat().st_mtime_ns == mtime,
                   "Play on a file without them: not even rewritten")
             stop()
+
+            print("Close on launch (S5): an online start keeps the launcher (checked last: Play would close it)")
+            cmd("set-property", {"launcher-close-on-launch": "true"})
+            result = start("host", keep=True)
+            check(launched(result) and cmd("get-online-status", {"game": "xml1"})["running"] is True,
+                  "Host with Close on launch on: the launcher still answers while the game runs")
+            stop()
+            cmd("set-property", {"launcher-close-on-launch": saved_props.get("launcher-close-on-launch") or "false"})
 
             print("page: the section")
             open_page()
@@ -541,10 +626,23 @@ def main():
                 wait_for(running, 20)
                 write_status(role="join", state="error", error=error_id, message="from the fake fix")
                 check(wait_for(lambda: ui(f"return !!$('.ul-online-error[data-error=\"{error_id}\"]');"), 3), f"error {error_id}: {phase()}")
+                if error_id == "room_closed":
+                    check(ui("return $('.ul-online-error').firstChild.textContent.trim();") == ROOM_CLOSED_TEXT, "room_closed: exactly the agreed text")
                 if error_id == "code_not_found":
                     shot("join-error")
                 stop()
                 ui("$('.ul-online-again').click(); return true;")
+
+            print("page: an `ended` that carries the error (S1): the error, not just 'ended'")
+            reset()
+            wait_for(lambda: blocked() is None, 5)
+            ui("$('.ul-online-host-button').click(); return true;")
+            wait_for(running, 20)
+            write_status(role="host", state="ended", error="broker_unreachable", message="no route to broker")
+            check(wait_for(lambda: ui("return !!$('.ul-online-error[data-error=\"broker_unreachable\"]');"), 3)
+                  and "no route to broker" in (ui("return text('.ul-online-error-detail');") or ""), f"ended + error: {phase()}")
+            stop()
+            ui("$('.ul-online-again').click(); return true;")
 
             print("page: host publicly (v1.3)")
             reset()

@@ -4342,7 +4342,6 @@ html:not([data-color-uninstalled]) .library-card:not(.is-installed):not(.is-comi
 .ul-mod-switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform 0.15s; }
 .ul-mod-toggle input:checked + .ul-mod-switch { background: var(--accent-color, #ffc23d); }
 .ul-mod-toggle input:checked + .ul-mod-switch::after { transform: translateX(16px); }
-.ul-mod-toggle input:focus-visible + .ul-mod-switch { outline: 2px solid var(--accent-color, #ffc23d); outline-offset: 2px; }
 
 /* ---- Display section of a game's page (display-view.js) ---- */
 .detail-display { margin-top: 24px; }
@@ -4378,16 +4377,12 @@ html:not([data-color-uninstalled]) .library-card:not(.is-installed):not(.is-comi
 .detail-testmode { margin-top: 24px; }
 .ul-testmode .ul-testmode-online { margin-bottom: 2px; }
 .ul-testmode-row.is-disabled .ul-display-control { opacity: 0.55; }
-/* Keyboard and controller focus (Tab, Steam Input's desktop layout): drawn inside the button, where the
-   toggle group's rounded clip can't cut it off. */
-.ul-testmode .toggle-btn:focus-visible { outline: 2px solid var(--warn); outline-offset: -2px; }
 .ul-testmode-badge-host { margin: -8px 0 18px; }
 .ul-testmode-badge { display: inline-flex; align-items: center; gap: 12px; padding: 8px 10px 8px 14px; border-radius: 12px; background: rgba(255, 178, 63, 0.12); border: 1px solid rgba(255, 178, 63, 0.45); }
 .ul-testmode-badge-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 8px var(--warn); flex-shrink: 0; }
 .ul-testmode-badge-text { display: flex; flex-direction: column; min-width: 0; }
 .ul-testmode-badge-title { color: var(--warn); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
 .ul-testmode-badge-note { color: var(--text-muted); font-size: 12px; }
-.ul-testmode-off:focus-visible { outline: 2px solid var(--warn); outline-offset: 2px; }
 
 /* ---- X-Men Legends (community port): Build section (xml1-view.js) and setup wizard (xml1-setup.js) ---- */
 .detail-build { margin-top: 24px; }
@@ -4568,3 +4563,30 @@ html:not([data-color-uninstalled]) .library-card:not(.is-installed):not(.is-comi
 
 .footer-update-check { font-size: 12px; color: var(--accent); }
 .footer-update-check:disabled { opacity: 0.5; cursor: default; }
+
+/* ---- Keyboard and controller focus (focus-nav.js) ----
+   One ring for every control, drawn inside it so that a clipping parent (a toggle group's rounded clip,
+   a card row, a popup's scroller) can't cut it off. html[data-nav="keys"] is set while the keyboard or a
+   pad is in use and cleared by the mouse or a touch; :focus-visible covers a Tab before focus-nav.js runs. */
+:root { --focus-ring: #ffffff; }
+:root[data-nav="keys"] :focus,
+:root :is(button, a, select, [tabindex]):focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
+}
+/* Cards, sidebar items, chips and Downloads rows also look as they do under the mouse. */
+:root[data-nav="keys"] .library-card:focus { transform: translateY(-5px); border-color: var(--card-hover-border); }
+:root[data-nav="keys"] .library-card:focus .library-card-art { transform: scale(1.06); filter: brightness(1.2) contrast(1.08); }
+:root[data-nav="keys"] .client-card:focus { transform: translateY(-4px); border-color: var(--accent-soft); }
+:root[data-nav="keys"] .client-card:focus .client-card-art { transform: scale(1.05); filter: brightness(1.16) contrast(1.06); }
+:root[data-nav="keys"] .client-card.has-overlay:focus .client-card-play { opacity: 1; }
+:root[data-nav="keys"] .nav-item:focus:not(.active),
+:root[data-nav="keys"] .game-item:focus:not(.active) { background: var(--surface-hi); color: #fff; }
+:root[data-nav="keys"] .chip:focus { border-color: var(--border-hi); color: #fff; }
+:root[data-nav="keys"] .download-row:focus { background: var(--surface-hi); border-color: var(--border-hi); }
+/* The mods' switches: the input is invisible, its switch shows the focus. */
+:root .ul-mod-toggle input:focus { outline: none; }
+:root[data-nav="keys"] .ul-mod-toggle input:focus + .ul-mod-switch,
+.ul-mod-toggle input:focus-visible + .ul-mod-switch { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+/* A <select> being picked (Enter, then Up / Down, Enter keeps it, Escape puts it back). */
+:root select.is-picking:focus { outline: 2px solid var(--accent); outline-offset: -2px; box-shadow: 0 0 0 4px var(--accent-soft); }

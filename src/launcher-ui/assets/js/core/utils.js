@@ -688,7 +688,7 @@ window.guardOnline = async function guardOnline() {
     const choice = await window.showMessageBox(
         t('offline.blockTitle'),
         t('offline.blockBody'),
-        [t('offline.relaunchOnline'), t('common.cancel')]
+        [t('offline.relaunchOnline'), { label: t('common.cancel'), cancel: true }]
     );
 
     if (choice === 0) {

@@ -9,6 +9,7 @@
 //   options, Enter keeps the choice (one change event) and Escape puts the old one back. Chromium 113's
 //   own dropdown can't be opened from script, and a pad's keys could not drive it anyway.
 // - In a text field Left / Right move the caret (and leave the field at either end), Backspace deletes.
+// - A <details>' summary is a control: the arrows reach it, Enter / Space / A open and close it.
 // - A popup (the message box, the setup flow, the X-Men Legends wizard and uninstall dialog, the card
 //   menu...) keeps the focus while it is open: the arrows and Tab stay inside it, it gets the focus when
 //   it opens, and the control that opened it gets it back when it closes.
@@ -26,7 +27,7 @@
     const CLOSE_CONTROLS = ['[data-escape]', '.popup-close', '[data-act="cancel"]', '.btn-cancel', '.btn-setup-cancel', '.launch-redist-cancel-btn', '.redist-popup-close-btn'];
     // Not the first thing a layer focuses: closing it, or something that can't be undone.
     const NOT_FIRST = '.popup-close, .is-danger, .btn-uninstall, .reset-btn';
-    const CANDIDATES = 'a, button, input, select, textarea, [tabindex]';
+    const CANDIDATES = 'a, button, input, select, textarea, summary, [tabindex]';
     const TEXT_TYPES = new Set(['', 'text', 'search', 'email', 'url', 'tel', 'password', 'number']);
     const DIRECTIONS = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
     // The same action from the keyboard and from a pad this close together is one press seen twice
@@ -83,11 +84,19 @@
         return true;
     }
 
+    // A <details>' own summary (its first one) opens and closes it: the browser focuses it without a tabindex.
+    function isDetailsSummary(element) {
+        const parent = element.parentNode;
+        if (element.tagName !== 'SUMMARY' || !parent || parent.tagName !== 'DETAILS') return false;
+        return Array.from(parent.childNodes).find(node => node.nodeType === 1 && node.tagName === 'SUMMARY') === element;
+    }
+
     function isFocusable(element) {
         if (!element || element.nodeType !== 1 || element.disabled) return false;
         const tabindex = element.getAttribute('tabindex');
         if (tabindex !== null && parseInt(tabindex, 10) < 0) return false;
         const tag = element.tagName;
+        if (isDetailsSummary(element)) return isVisible(element);
         if (tag === 'A' && !element.hasAttribute('href') && tabindex === null) return false;
         if (tag === 'INPUT' && (element.getAttribute('type') || '').toLowerCase() === 'hidden') return false;
         if (!['A', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA'].includes(tag) && tabindex === null) return false;

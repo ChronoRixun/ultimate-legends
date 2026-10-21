@@ -4675,7 +4675,7 @@ html[data-reduce-motion] .ul-online-spinner { animation: none; }
    pad is in use and cleared by the mouse or a touch; :focus-visible covers a Tab before focus-nav.js runs. */
 :root { --focus-ring: #ffffff; }
 :root[data-nav="keys"] :focus,
-:root :is(button, a, select, [tabindex]):focus-visible {
+:root :is(button, a, select, summary, [tabindex]):focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: -2px;
 }

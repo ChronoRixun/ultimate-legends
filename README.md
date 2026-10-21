@@ -50,7 +50,10 @@ press Join; in the game, the host picks Play Online → Host and the friends Pla
 turn on **List my game publicly**: the game then shows in **Browse games** for everyone with the launcher, who can join
 it from there. There is no port forwarding and nothing to edit: the launcher writes the XML2 Fix's `[Online]` keys for
 that start, and **Play** removes them, so a normal start never opens a room (LAN and Connect by IP work as before).
-**How online works** on the page explains each message.
+**How online works** on the page explains each message. Online play needs XML2 Fix 1.8.0 or later in the port's
+folder (Verify Files installs it); Play does not. Public games connect players directly, so they can see each other's
+internet address: share a private code to play only with friends. Joining a campaign already in progress, you wait on
+the game's Joined Game screen and come in at the next level change.
 
 For testers, a **Test mode** section switches the XML2 Fix's (1.6.0 or later) `[TestMode]` keys in the port's
 `xml2-fix.ini`: the Forge at every Xtraction point, and the F8/F9/F10 test hotkeys. While either is on, the fix turns

@@ -3,6 +3,7 @@
 #include "progress_tracker.hpp"
 
 #include <utils/string.hpp>
+
 #include <algorithm>
 
 namespace updater
@@ -17,7 +18,9 @@ namespace updater
     {
         std::lock_guard lock(this->mutex_);
         this->state_.is_active = true;
-        this->state_.is_cancelled = false; // Reset cancellation flag for new update
+        // A phase of the operation reset(true) started (verifying, then downloading, deleting): a cancel the
+        // player asked for in an earlier phase stays - the updater returns normally from a cancelled transfer,
+        // and the launch reads this flag to know it was cancelled. Only reset(true) clears it.
         this->state_.is_paused = false;    // Fresh op never starts paused
         this->state_.total_files = total_files;
         this->state_.total_bytes = total_bytes;
@@ -27,7 +30,7 @@ namespace updater
 
         const char* action = (mode == progress_mode::verifying) ? "verification"
             : (mode == progress_mode::deleting) ? "deletion" : "download";
-        this->state_.status_message = utils::string::va("Starting %s...", action);
+        this->state_.status_message = this->state_.is_cancelled ? "Cancelling..." : std::string("Starting ") + action + "...";
 
         this->state_.progress_percent = 0.0f;
         this->state_.mode = mode;

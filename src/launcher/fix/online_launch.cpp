@@ -2,6 +2,7 @@
 #include "online_launch.hpp"
 
 #include "tools/tool_install.hpp"
+#include "updater/update_cancelled.hpp"
 
 #include <exception>
 
@@ -119,6 +120,39 @@ namespace online_launch
         return "unknown";
     }
 
+    update_result run_update(const update_steps& steps, std::string& error)
+    {
+        auto result = update_result::skipped;
+        if (!steps.skip)
+        {
+            try
+            {
+                result = steps.run() ? update_result::done : update_result::unreachable;
+            }
+            catch (const updater::update_cancelled&)
+            {
+                result = update_result::cancelled;
+            }
+            catch (const std::exception& e)
+            {
+                error = e.what();
+                result = update_result::failed;
+            }
+            catch (...)
+            {
+                error = "An unknown error occurred during the patch update.";
+                result = update_result::failed;
+            }
+        }
+        // Also after a normal return: a cancelled download returns quietly.
+        if (steps.cancelled())
+        {
+            result = update_result::cancelled;
+        }
+        steps.finished(result == update_result::cancelled);
+        return result;
+    }
+
     result accept(const request& request, const steps& steps)
     {
         const auto online = is_online(request);
@@ -187,6 +221,12 @@ namespace online_launch
                 return give_up(steps, refused("update_failed", error), true);
             }
 
+            // A cancel that reached the tracker after the update returned: nothing written, nothing started.
+            if (steps.cancelled())
+            {
+                return give_up(steps, refused("update_cancelled", "The patch update was cancelled."), online);
+            }
+
             if (online)
             {
                 // The DLL that will run, after any update: at least required_fix.
@@ -205,6 +245,10 @@ namespace online_launch
                 }
             }
 
+            if (steps.cancelled())
+            {
+                return give_up(steps, refused("update_cancelled", "The start was cancelled."), online);
+            }
             const auto process = steps.start_process();
             if (!process.started)
             {

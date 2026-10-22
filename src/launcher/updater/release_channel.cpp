@@ -358,6 +358,16 @@ namespace release_channel
         return true;
     }
 
+    build_version launcher_build(const std::string_view describe, const std::string_view tag, const std::string_view product)
+    {
+        build_version result{};
+        const auto tagged = tag_version(tag);
+        result.version = tagged.empty() ? std::string(product) : tagged;
+        result.release = !tagged.empty() && product != "0.0.0" && describe == tag;
+        result.prerelease = is_prerelease(result.version);
+        return result;
+    }
+
     const asset* release::find(const std::string_view name) const
     {
         for (const auto& file : this->assets)

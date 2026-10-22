@@ -62,6 +62,18 @@ namespace release_channel
     // but not ">=1.8.0".
     bool satisfies(std::string_view version, std::string_view requirement);
 
+    // What a launcher build is (from premake's version.h): `version` is its release tag's version with
+    // any suffix ("v0.5.0-beta.1" -> "0.5.0-beta.1"), else VERSION_PRODUCT's numbers (VERSIONINFO stays
+    // numeric); `release` when it was built exactly at that tag (GIT_DESCRIBE == GIT_TAG: it may update
+    // itself), `prerelease` when that version has a suffix.
+    struct build_version
+    {
+        std::string version;
+        bool release{};
+        bool prerelease{};
+    };
+    build_version launcher_build(std::string_view describe, std::string_view tag, std::string_view product);
+
     // ---- releases ----
 
     struct asset

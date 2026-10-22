@@ -111,15 +111,8 @@ namespace launcher_update
             const auto version = utils::properties::load(property_keys::DEV_LAUNCHER_VERSION).value_or("");
             return is_release_version(version) ? version : std::string{};
 #else
-            const std::string product = VERSION_PRODUCT;
-            const std::string describe = GIT_DESCRIBE;
-            const std::string tag = GIT_TAG;
-            const auto version = release_channel::tag_version(tag);
-            if (product == "0.0.0" || !is_release_version(version) || describe != tag)
-            {
-                return {};
-            }
-            return version;
+            const auto build = release_channel::launcher_build(GIT_DESCRIBE, GIT_TAG, VERSION_PRODUCT);
+            return build.release && is_release_version(build.version) ? build.version : std::string{};
 #endif
         }
 
@@ -1282,8 +1275,9 @@ namespace launcher_update
 
     std::string running_version()
     {
+        // A development build too keeps its last tag's suffix (one made after v0.5.0-beta.1 is not 0.5.0 yet).
         const auto current = current_version();
-        return current.empty() ? std::string(VERSION_PRODUCT) : current;
+        return current.empty() ? release_channel::launcher_build(GIT_DESCRIBE, GIT_TAG, VERSION_PRODUCT).version : current;
     }
 
     void channel_changed()

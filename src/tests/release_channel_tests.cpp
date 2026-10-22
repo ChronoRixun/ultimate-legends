@@ -232,3 +232,25 @@ TEST(the_fix_version_comes_from_the_recorded_release)
     CHECK(release_channel::satisfies(*effective_patch_version(std::string("1.8.0"), beta, "aaaa"), ">=1.8.0-0"));
     CHECK(!release_channel::satisfies("1.7.9", ">=1.8.0-0"));
 }
+
+TEST(the_launcher_version_comes_from_its_tag)
+{
+    using release_channel::launcher_build;
+    // A stable release tag, as before.
+    auto build = launcher_build("v0.4.0", "v0.4.0", "0.4.0");
+    CHECK(build.version == "0.4.0" && build.release && !build.prerelease);
+    // A beta tag: the suffix stays (VERSION_PRODUCT, the VERSIONINFO's, has only the numbers).
+    build = launcher_build("v0.5.0-beta.1", "v0.5.0-beta.1", "0.5.0");
+    CHECK(build.version == "0.5.0-beta.1" && build.release && build.prerelease);
+    CHECK(tool_install::compare_versions(build.version, "0.5.0") < 0); // not yet the 0.5.0 a builder may need
+    build = launcher_build("v0.5.0-rc.2", "v0.5.0-rc.2", "0.5.0");
+    CHECK(build.version == "0.5.0-rc.2" && build.release && build.prerelease);
+    // Commits after the tag, or uncommitted changes: a development build, still that version.
+    build = launcher_build("v0.5.0-beta.1-3-gabc1234", "v0.5.0-beta.1", "0.5.0");
+    CHECK(build.version == "0.5.0-beta.1" && !build.release && build.prerelease);
+    build = launcher_build("v0.4.0-dirty", "v0.4.0", "0.4.0");
+    CHECK(build.version == "0.4.0" && !build.release);
+    // No tag at all.
+    build = launcher_build("abc1234", "", "0.0.0");
+    CHECK(build.version == "0.0.0" && !build.release && !build.prerelease);
+}

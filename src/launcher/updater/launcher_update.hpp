@@ -70,7 +70,8 @@ namespace launcher_update
 
     // The version this launcher updates from ("0.5.0-beta.1" for a beta); empty for a development build.
     std::string installed_version();
-    // installed_version(), or VERSION_PRODUCT for a development build: what min_launcher is checked against.
+    // installed_version(), or for a development build its last tag's version (VERSION_PRODUCT without a tag):
+    // what min_launcher is checked against.
     std::string running_version();
 
     // The update channel changed: forget the other channel's answer, and on Stable discard a beta

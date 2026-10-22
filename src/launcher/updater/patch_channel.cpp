@@ -1,6 +1,7 @@
 #include "std_include.hpp"
 #include "patch_channel.hpp"
 #include "client_store.hpp"
+#include "file_hash_cache.hpp"
 #include "patch_status.hpp"
 #include "release_source.hpp"
 
@@ -15,6 +16,18 @@ namespace patch_channel
     namespace
     {
         constexpr auto manifest_name = "ultimate-legends.json";
+
+        // The DLL's SHA-1, read again only when the file changed (the Online section asks every 500 ms).
+        updater::file_hash_cache& dll_hashes()
+        {
+            static updater::file_hash_cache cache([](const std::filesystem::path& file)
+            {
+                std::string data;
+                return utils::io::read_file(file, &data) ? utils::string::to_lower(utils::cryptography::sha1::compute(data, true))
+                                                         : std::string{};
+            });
+            return cache;
+        }
 
         source as_configured(const game_config::game_config_t& config, const std::string& note = {})
         {
@@ -31,10 +44,10 @@ namespace patch_channel
             return as_configured(config);
         }
 
-        const auto installed = installed_version(config, folder);
+        const auto installed = installed_fix(config, folder);
         const auto channel = release_source::current_channel();
         const auto found = release_source::resolve(config.patch_repo, channel, {manifest_name});
-        const auto decision = patch_policy::decide(installed, found, consent);
+        const auto decision = patch_policy::decide(installed.version, found, consent, installed.recorded);
         utils::logger::write("XML2 Fix update ({}, {}): {}", config.game_key, release_channel::channel_name(channel), decision.note);
 
         switch (decision.what)
@@ -63,21 +76,26 @@ namespace patch_channel
         client_store::write_release(config.game_key, folder, {version, utils::string::to_lower(patch_sha1)});
     }
 
-    std::optional<std::string> installed_version(const game_config::game_config_t& config, const std::filesystem::path& folder)
+    installed_state installed_fix(const game_config::game_config_t& config, const std::filesystem::path& folder)
     {
         const auto file = folder / utils::string::utf8_to_path(config.patch_file);
         const auto resource = patch_status::installed_version(file);
         if (!resource || config.patch_repo.empty())
         {
-            return resource;
+            return {resource, false};
         }
         const auto record = client_store::read_release(config.game_key, folder);
         if (!record || record->version.empty())
         {
-            return resource;
+            return {resource, false};
         }
-        std::string data;
-        const auto sha1 = utils::io::read_file(file, &data) ? utils::string::to_lower(utils::cryptography::sha1::compute(data, true)) : std::string{};
-        return release_channel::effective_patch_version(resource, record, sha1);
+        const auto sha1 = dll_hashes().get(file);
+        const auto version = release_channel::effective_patch_version(resource, record, sha1);
+        return {version, version == record->version && sha1 == record->sha1};
+    }
+
+    std::optional<std::string> installed_version(const game_config::game_config_t& config, const std::filesystem::path& folder)
+    {
+        return installed_fix(config, folder).version;
     }
 }

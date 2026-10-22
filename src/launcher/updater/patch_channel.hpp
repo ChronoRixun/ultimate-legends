@@ -39,6 +39,14 @@ namespace patch_channel
                 const std::string& patch_sha1);
 
     // The fix in `folder`: the recorded release while the file is the one recorded, else its version
-    // resource ("" when unreadable); nullopt when there is no fix file.
+    // resource ("" when unreadable); nullopt when there is no fix file. `recorded`: the version is that
+    // record's (false: only the DLL's numeric VERSIONINFO, which can't tell 1.8.0-beta.N from 1.8.0). The
+    // DLL's SHA-1 is computed again only when the file changed (updater::file_hash_cache).
+    struct installed_state
+    {
+        std::optional<std::string> version;
+        bool recorded{};
+    };
+    installed_state installed_fix(const game_config::game_config_t& config, const std::filesystem::path& folder);
     std::optional<std::string> installed_version(const game_config::game_config_t& config, const std::filesystem::path& folder);
 }

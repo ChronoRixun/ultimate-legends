@@ -2,6 +2,7 @@
 #include "channel_status.hpp"
 #include "launcher_update.hpp"
 #include "patch_channel.hpp"
+#include "patch_policy.hpp"
 #include "release_source.hpp"
 
 #include "game_config.hpp"
@@ -54,8 +55,9 @@ namespace channel_status
             return value;
         }
 
-        // The fix in a game's folder, when the game has one set up.
-        std::optional<std::string> fix_version(const char* game)
+        // The fix in a game's folder, when the game has one set up (and whether its version is the
+        // launcher's install record or only the DLL's numeric VERSIONINFO).
+        std::optional<patch_channel::installed_state> fix_version(const char* game)
         {
             const auto config = game_config::get_game_config(game);
             const auto folder = config ? config->get_install_path() : std::nullopt;
@@ -63,11 +65,12 @@ namespace channel_status
             {
                 return std::nullopt;
             }
-            return patch_channel::installed_version(*config, *folder);
+            const auto state = patch_channel::installed_fix(*config, *folder);
+            return state.version ? std::optional(state) : std::nullopt;
         }
 
         void add_item(rapidjson::Value& items, const char* id, const char* game, const std::string& installed, const channel current,
-                      rapidjson::Document::AllocatorType& allocator, const bool dev = false)
+                      rapidjson::Document::AllocatorType& allocator, const bool dev = false, const bool recorded = true)
         {
             const auto get = [&](const channel value) -> found
             {
@@ -89,7 +92,9 @@ namespace channel_status
             item.AddMember("prerelease", release_channel::is_prerelease(installed), allocator);
             item.AddMember("stable", make_string(stable.version, allocator), allocator);
             item.AddMember("beta", make_string(current == channel::beta ? beta.version : std::string{}, allocator), allocator);
-            item.AddMember("ahead", !dev && release_channel::is_ahead_of(installed, stable.version), allocator);
+            // A recorded beta newer than the latest release, or a fix with no install record whose numbers
+            // are (a hand-copied 1.8.0 test kit): Switch back to Stable is offered for either.
+            item.AddMember("ahead", !dev && patch_policy::offers_switch_back(installed, recorded, stable.version), allocator);
             item.AddMember("fromCache", mine.from_cache, allocator);
             item.AddMember("error", make_string(mine.error, allocator), allocator);
             items.PushBack(item, allocator);
@@ -116,11 +121,11 @@ namespace channel_status
         add_item(items, "launcher", nullptr, launcher, current, allocator, launcher_dev);
         if (xml2_fix)
         {
-            add_item(items, "fix", "xml2", *xml2_fix, current, allocator);
+            add_item(items, "fix", "xml2", *xml2_fix->version, current, allocator, false, xml2_fix->recorded);
         }
         if (xml1_fix)
         {
-            add_item(items, "fix", "xml1", *xml1_fix, current, allocator);
+            add_item(items, "fix", "xml1", *xml1_fix->version, current, allocator, false, xml1_fix->recorded);
         }
         if (!builder.empty())
         {

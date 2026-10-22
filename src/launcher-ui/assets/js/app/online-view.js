@@ -191,6 +191,9 @@
         if (data.fixState === 'old' && data.updateChannel === 'stable') return { key: 'online.blocked.needsBeta', action: 'open-update-channel' };
         if (data.fixState === 'old') return { key: 'online.blocked.fixOld', variables: { required: requiredFix(gameId), version: data.fixVersion || '' } };
         if (data.fixState !== 'ok') return { key: 'online.blocked.fixUnknown', variables: { required: requiredFix(gameId) } };
+        // The fix has rooms, the build doesn't: made by a builder from before online play (its stamp's
+        // requires.xml2fix below 1.8.0-0, no GameVersion). Only a rebuild gives it rooms.
+        if (data.buildOnline === false) return { key: 'online.blocked.rebuild', action: 'rebuild' };
         if (queue && typeof queue.isAnyBlockingActive === 'function' && queue.isAnyBlockingActive()) {
             return { key: 'online.blocked.otherUpdating' };
         }
@@ -244,6 +247,7 @@
                     <span class="ul-online-blocked-text"></span>
                     <button type="button" class="secondary-action xml1-small ul-online-testmode-off" hidden>${escapeHtml(t('testMode.turnOff'))}</button>
                     <button type="button" class="secondary-action xml1-small ul-online-open-channel" hidden>${escapeHtml(t('online.openUpdateChannel'))}</button>
+                    <button type="button" class="secondary-action xml1-small ul-online-rebuild" hidden>${escapeHtml(t('online.rebuild'))}</button>
                 </div>
                 <p class="xml1-note ul-online-offline" hidden>${escapeHtml(t('online.offline'))}</p>
                 <div class="ul-online-idle">
@@ -304,6 +308,9 @@
         host.querySelector('.ul-online-testmode-off').addEventListener('click', () => turnTestModeOff(gameId));
         host.querySelector('.ul-online-open-channel').addEventListener('click', () => {
             if (window.UpdateChannel) window.UpdateChannel.openSetting();
+        });
+        host.querySelector('.ul-online-rebuild').addEventListener('click', () => {
+            if (window.Xml1View && typeof window.Xml1View.rebuild === 'function') window.Xml1View.rebuild();
         });
         host.querySelector('.ul-online-public-toggle').addEventListener('click', event => {
             const button = event.target.closest && event.target.closest('.toggle-btn');
@@ -506,6 +513,9 @@
         off.hidden = !(reason && reason.action === 'test-mode-off');
         off.disabled = !!(port() && (port().starting || port().isBuilding()));
         host.querySelector('.ul-online-open-channel').hidden = !(reason && reason.action === 'open-update-channel');
+        const rebuildButton = host.querySelector('.ul-online-rebuild');
+        rebuildButton.hidden = !(reason && reason.action === 'rebuild');
+        rebuildButton.disabled = off.disabled;
         host.querySelectorAll('.ul-online-host-button, .ul-online-join-button, .ul-online-code-input, .ul-online-public-toggle .toggle-btn').forEach(control => {
             control.disabled = !!reason;
         });
@@ -631,6 +641,9 @@
             if (outcome.reason === 'test_mode_on') {
                 body += `<button type="button" class="secondary-action xml1-small ul-online-testmode-off">${escapeHtml(t('testMode.turnOff'))}</button>`;
             }
+            if (outcome.reason === 'build_too_old') {
+                body += `<button type="button" class="secondary-action xml1-small ul-online-rebuild">${escapeHtml(t('online.rebuild'))}</button>`;
+            }
         } else if (outcome) {
             kind = outcome.kind === 'not_started' ? 'error' : 'info';
             line = t(`online.phase.${outcome.kind === 'not_started' ? 'notStarted' : outcome.kind}`);
@@ -706,6 +719,7 @@
         if (target.classList.contains('ul-online-copy')) copy(gameId);
         else if (target.classList.contains('ul-online-again')) back(gameId);
         else if (target.classList.contains('ul-online-testmode-off')) turnTestModeOff(gameId);
+        else if (target.classList.contains('ul-online-rebuild') && window.Xml1View && typeof window.Xml1View.rebuild === 'function') window.Xml1View.rebuild();
     }
 
     // Back to Host / Join (the code typed for a join is still in its field), with what the game and the

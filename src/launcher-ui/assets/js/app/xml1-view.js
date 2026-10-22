@@ -227,6 +227,19 @@
         });
     }
 
+    // Rebuild (this page, and the Online section when the build is older than the XML2 Fix): from the disc
+    // image the port remembers, after a confirmation; without one, setup asks for it.
+    async function rebuild() {
+        const port = window.Xml1Port;
+        if (!port.canRebuild()) {
+            window.Xml1Setup.show();
+            return;
+        }
+        const choice = await window.showMessageBox(t('xml1.rebuildTitle'), GameUtils.escapeHtml(t('xml1.rebuildBody')),
+            [t('common.cancel'), t('xml1.rebuild')]);
+        if (choice === 1) await port.resume();
+    }
+
     async function act(gameId, action) {
         const port = window.Xml1Port;
         const s = port.status;
@@ -239,16 +252,9 @@
             case 'resume':
                 await port.primaryAction();
                 break;
-            case 'rebuild': {
-                if (!port.canRebuild()) {
-                    window.Xml1Setup.show();
-                    break;
-                }
-                const choice = await window.showMessageBox(t('xml1.rebuildTitle'), GameUtils.escapeHtml(t('xml1.rebuildBody')),
-                    [t('common.cancel'), t('xml1.rebuild')]);
-                if (choice === 1) await port.resume();
+            case 'rebuild':
+                await rebuild();
                 break;
-            }
             case 'cancel-build':
                 await port.confirmCancel();
                 break;
@@ -335,6 +341,7 @@
 
     window.Xml1View = {
         supports: gameId => SUPPORTED.has(gameId),
-        render
+        render,
+        rebuild
     };
 })();

@@ -419,6 +419,7 @@
             online: {
                 title: 'Online',
                 openUpdateChannel: 'Open Update channel',
+                rebuild: 'Rebuild',
                 intro: 'Play X-Men Legends online with friends: one player hosts, the others join with the code the host gets. No port forwarding, no settings to edit.',
                 loading: 'Loading online play…',
                 host: {
@@ -481,6 +482,7 @@
                     noFix: 'Install the {{fix}} first (Verify Files on this page) to play online.',
                     fixOld: 'Online play needs XML2 Fix {{required}} or later; this folder has {{version}}. Use Verify Files on this page to update it, then host or join.',
                     needsBeta: 'Online play arrives with Legends Classic 0.3.0. Want to try it now? Switch Update channel to Beta in Settings.',
+                    rebuild: 'Rebuild to play online: this build is older than your XML2 Fix.',
                     fixUnknown: 'The version of the XML2 Fix in this folder can’t be read, and online play needs {{required}} or later. Use Verify Files on this page to reinstall it, then host or join.',
                     building: 'A build is running: host or join when it has finished.',
                     updating: 'The XML2 Fix is being installed or updated: host or join when it has finished.',
@@ -505,6 +507,7 @@
                     update_cancelled: 'The XML2 Fix update was cancelled, so the game was not started.',
                     fix_too_old: 'The XML2 Fix in the game folder is too old for online play (it needs {{required}} or later). Use Verify Files on this page, then try again.',
                     fix_unknown: 'The version of the XML2 Fix in the game folder can’t be read (online play needs {{required}} or later). Use Verify Files on this page, then try again.',
+                    build_too_old: 'This build is older than your XML2 Fix: rebuild it (Rebuild, on this page) to play online.',
                     launch_cancelled: 'The game did not start: it needs administrator permission, and the prompt was declined.',
                     launch_failed: 'The game could not be started: {{error}}',
                     cleanup: "The online settings of this start could not be removed ({{error}}). Press Play here once before you start the game from Steam or its exe, so that it doesn't open or join that room."
@@ -1355,6 +1358,7 @@
             online: {
                 title: 'En ligne',
                 openUpdateChannel: 'Ouvrir le canal de mise a jour',
+                rebuild: 'Reconstruire',
                 intro: "Jouez a X-Men Legends en ligne avec vos amis : un joueur heberge, les autres rejoignent avec le code qu'il recoit. Pas de redirection de ports, aucun reglage a modifier.",
                 loading: 'Chargement du jeu en ligne…',
                 host: {
@@ -1416,6 +1420,7 @@
                     noFix: "Installez d'abord le {{fix}} (Verifier les fichiers sur cette page) pour jouer en ligne.",
                     fixOld: 'Le jeu en ligne demande le XML2 Fix {{required}} ou plus recent ; ce dossier a la version {{version}}. Utilisez Verifier les fichiers sur cette page pour le mettre a jour, puis hebergez ou rejoignez.',
                     needsBeta: 'Le jeu en ligne arrive avec Legends Classic 0.3.0. Envie de l\'essayer maintenant ? Passez le canal de mise a jour sur Beta dans les Parametres.',
+                    rebuild: 'Reconstruisez pour jouer en ligne : cette construction est plus ancienne que votre XML2 Fix.',
                     fixUnknown: 'La version du XML2 Fix de ce dossier ne peut pas etre lue, et le jeu en ligne demande la {{required}} ou plus recente. Utilisez Verifier les fichiers sur cette page pour le reinstaller, puis hebergez ou rejoignez.',
                     building: 'Une construction est en cours : hebergez ou rejoignez quand elle sera terminee.',
                     updating: "Le XML2 Fix est en cours d'installation ou de mise a jour : hebergez ou rejoignez quand ce sera fini.",
@@ -1440,6 +1445,7 @@
                     update_cancelled: "La mise a jour du XML2 Fix a ete annulee, le jeu n'a donc pas ete lance.",
                     fix_too_old: 'Le XML2 Fix du dossier du jeu est trop ancien pour le jeu en ligne (il faut la {{required}} ou plus recente). Utilisez Verifier les fichiers sur cette page, puis reessayez.',
                     fix_unknown: 'La version du XML2 Fix du dossier du jeu ne peut pas etre lue (le jeu en ligne demande la {{required}} ou plus recente). Utilisez Verifier les fichiers sur cette page, puis reessayez.',
+                    build_too_old: 'Cette construction est plus ancienne que votre XML2 Fix : reconstruisez-la (Reconstruire, sur cette page) pour jouer en ligne.',
                     launch_cancelled: "Le jeu n'a pas demarre : il demande les droits administrateur, et la demande a ete refusee.",
                     launch_failed: "Le jeu n'a pas pu etre lance : {{error}}",
                     cleanup: "Les reglages en ligne de ce lancement n'ont pas pu etre retires ({{error}}). Appuyez une fois sur Jouer ici avant de lancer le jeu depuis Steam ou son exe, pour qu'il n'ouvre ni ne rejoigne cette salle."
@@ -1935,6 +1941,7 @@
             online: {
                 title: 'En linea',
                 openUpdateChannel: 'Abrir el canal de actualizacion',
+                rebuild: 'Reconstruir',
                 intro: 'Juega a X-Men Legends en linea con amigos: un jugador aloja la partida y los demas se unen con el codigo que recibe. Sin abrir puertos ni editar ajustes.',
                 loading: 'Cargando el juego en linea…',
                 host: {
@@ -1996,6 +2003,7 @@
                     noFix: 'Primero instala el {{fix}} (Verificar archivos en esta pagina) para jugar en linea.',
                     fixOld: 'El juego en linea necesita el XML2 Fix {{required}} o posterior; esta carpeta tiene la version {{version}}. Usa Verificar archivos en esta pagina para actualizarlo y luego aloja o unete.',
                     needsBeta: 'El juego en linea llega con Legends Classic 0.3.0. ¿Quieres probarlo ya? Cambia el canal de actualizacion a Beta en Ajustes.',
+                    rebuild: 'Reconstruye para jugar en linea: esta compilacion es mas antigua que tu XML2 Fix.',
                     fixUnknown: 'No se puede leer la version del XML2 Fix de esta carpeta, y el juego en linea necesita la {{required}} o posterior. Usa Verificar archivos en esta pagina para reinstalarlo y luego aloja o unete.',
                     building: 'Hay una construccion en curso: aloja o unete cuando termine.',
                     updating: 'Se esta instalando o actualizando el XML2 Fix: aloja o unete cuando termine.',
@@ -2020,6 +2028,7 @@
                     update_cancelled: 'Se cancelo la actualizacion del XML2 Fix, asi que el juego no se inicio.',
                     fix_too_old: 'El XML2 Fix de la carpeta del juego es demasiado antiguo para el juego en linea (necesita la {{required}} o posterior). Usa Verificar archivos en esta pagina y vuelve a intentarlo.',
                     fix_unknown: 'No se puede leer la version del XML2 Fix de la carpeta del juego (el juego en linea necesita la {{required}} o posterior). Usa Verificar archivos en esta pagina y vuelve a intentarlo.',
+                    build_too_old: 'Esta compilacion es mas antigua que tu XML2 Fix: reconstruyela (Reconstruir, en esta pagina) para jugar en linea.',
                     launch_cancelled: 'El juego no se inicio: necesita permisos de administrador y se rechazo la solicitud.',
                     launch_failed: 'No se pudo iniciar el juego: {{error}}',
                     cleanup: 'No se pudieron quitar los ajustes en linea de este inicio ({{error}}). Pulsa Jugar aqui una vez antes de iniciar el juego desde Steam o su exe, para que no abra ni se una a esa sala.'

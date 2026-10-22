@@ -48,6 +48,9 @@ jobs:
       - name: Release tag logic self-test
         run: python tools/release_tag.py --self-test
 
+      - name: Release publish logic self-test
+        run: python tools/publish_release.py --self-test
+
       - name: Add msbuild to PATH
         uses: microsoft/setup-msbuild@v3
 
@@ -138,9 +141,11 @@ jobs:
         # A -beta.<n> / -rc.<n> tag (v0.5.0-beta.1) publishes a pre-release that is never the latest (Stable,
         # releases/latest, never sees it; the Beta update channel does), with the same asset names, and its notes are
         # docs/release/v<base>-notes.md (v0.5.0-notes.md) under a "Beta - test build" banner.
+        # tools/publish_release.py: a release that already exists for the tag (a re-run) gets its files again with
+        # --clobber, never a delete and a new release; then the job fails unless GitHub shows the tag's prerelease
+        # flag, every file, and - for a pre-release - releases/latest still the release it was before.
         run: |
           $tag = python tools/release_tag.py $env:GITHUB_REF_NAME --notes-out build/release-notes.md | ConvertFrom-Json
           if ($LASTEXITCODE -ne 0 -or -not $tag) { throw "not a release tag: $env:GITHUB_REF_NAME" }
-          $channel = if ($tag.prerelease) { @('--prerelease', '--latest=false') } else { @() }
-          gh release create $env:GITHUB_REF_NAME (Get-ChildItem dist/*.zip).FullName dist/SHA256SUMS.txt --title $tag.title --notes-file build/release-notes.md @channel
-          if ($LASTEXITCODE -ne 0) { throw "gh release create failed" }
+          python tools/publish_release.py --repo $env:GITHUB_REPOSITORY --tag $env:GITHUB_REF_NAME --notes-file build/release-notes.md (Get-ChildItem dist/*.zip).FullName dist/SHA256SUMS.txt
+          if ($LASTEXITCODE -ne 0) { throw "publishing $env:GITHUB_REF_NAME failed (see above)" }

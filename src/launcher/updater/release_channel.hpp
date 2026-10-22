@@ -47,7 +47,7 @@ namespace release_channel
 
     // The version a tag names ("v1.8.0-beta.1" -> "1.8.0-beta.1"); empty when it names none. Stricter
     // than parse_version (which also reads DLL version resources): no leading zero in the numbers
-    // ("v01.8.0"); like it, no empty build identifier ("v1.8.0+..").
+    // ("v01.8.0"), no upper case after the "v" ("v1.8.0-Beta.1"); like it, no empty build identifier ("v1.8.0+..").
     std::string tag_version(std::string_view tag);
     bool is_version(std::string_view text);
     bool is_prerelease(std::string_view text);

@@ -38,6 +38,9 @@ class Backend {
     constructor(options = {}) {
         this.installed = options.installed !== false;
         this.playable = options.playable !== false;
+        // The build was made for online play (online_launch::build_supports_online: its stamp's requires.xml2fix
+        // at least 1.8.0-0, or a GameVersion); false: a build from an older builder, which only a rebuild fixes.
+        this.buildOnline = options.buildOnline !== false;
         this.fixInstalled = options.fixInstalled !== false;
         // The DLL's file version (null: none that reads; the DLL missing: fixInstalled false).
         this.fixVersion = options.fixVersion === undefined ? '1.8.0' : options.fixVersion;
@@ -118,6 +121,7 @@ class Backend {
                 return this.refused(reason, `refused: ${reason}`, true);
             }
             if (this.testMode) return this.refused('test_mode_on', 'test mode', true);
+            if (!this.buildOnline) return this.refused('build_too_old', 'This X-Men Legends build is older than the XML2 Fix: rebuild it to play online.', true);
         } else {
             this.disarm();
         }
@@ -185,7 +189,8 @@ class Backend {
                     fixVersion: this.installed && this.fixInstalled ? (this.fixVersion === null ? '' : this.fixVersion) : null,
                     fixState: fixState(this.installed && this.fixInstalled ? (this.fixVersion === null ? '' : this.fixVersion) : null),
                     requiredFix: REQUIRED_FIX, updateChannel: this.updateChannel, offline: this.offline,
-                    playable: this.installed && this.playable, running: this.running, testMode: this.testMode,
+                    playable: this.installed && this.playable, buildOnline: this.installed && this.playable && this.buildOnline,
+                    running: this.running, testMode: this.testMode,
                     fix: 'XML2 Fix', file: 'xml2-fix.ini', ini: `${FOLDER}\\xml2-fix.ini`,
                     values: Object.fromEntries(LAUNCH_KEYS.map(key => [key, this.online[key] === undefined ? null : this.online[key]])),
                     status: this.status === null ? null : JSON.parse(JSON.stringify(this.status)),

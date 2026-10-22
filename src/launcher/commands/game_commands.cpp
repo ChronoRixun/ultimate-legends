@@ -394,6 +394,10 @@ namespace commands::game_commands
                 {
                     return std::optional<std::string>{};
                 };
+                steps.build_online = []
+                {
+                    return true;
+                };
                 steps.clear_status = [](std::string&)
                 {
                     return true;
@@ -420,6 +424,10 @@ namespace commands::game_commands
             steps.fix_version = [config, folder]
             {
                 return patch_channel::installed_version(config, folder);
+            };
+            steps.build_online = [folder, ini, fix]
+            {
+                return online_launch::build_supports_online(xml1_port::stamp_requires_xml2fix(folder), online_settings::target(ini, fix).version_token);
             };
             steps.clear_status = [folder](std::string& error)
             {

@@ -36,6 +36,7 @@ namespace
         bool running = false;
         bool test_mode = false;
         std::optional<std::string> fix_version = std::string("1.8.0");
+        bool build_online = true; // the build's stamp / GameVersion (online_launch::build_supports_online)
         bool update_replaces_fix = false; // the update leaves fix_after_update (nullopt: no DLL)
         std::optional<std::string> fix_after_update{};
         bool status_file = true;
@@ -70,6 +71,7 @@ namespace
             s.game_running = [this] { return running; };
             s.test_mode_on = [this] { return test_mode; };
             s.fix_version = [this] { return fix_version; };
+            s.build_online = [this] { return build_online; };
             s.clear_status = [this](std::string& error)
             {
                 log.push_back("clear-status");
@@ -768,4 +770,54 @@ TEST(run_update_reads_the_cancel_after_every_way_the_updater_returns)
     steps.skip = false;
     error.clear();
     CHECK(online_launch::run_update(steps, error) == online_launch::update_result::failed && error == "disk full");
+}
+
+TEST(online_play_needs_a_build_made_for_it)
+{
+    using online_launch::build_supports_online;
+    // The stamp's requires.xml2fix from a 0.3.0 builder: stable ">=1.8", beta / rc ">=1.8.0-0".
+    CHECK(build_supports_online(">=1.8", ""));
+    CHECK(build_supports_online(">=1.8.0-0", ""));
+    CHECK(build_supports_online(">=1.8.0", "") && build_supports_online("1.9", "") && build_supports_online(">1.8.0-0", ""));
+    CHECK(build_supports_online(">=1.8.0-0, <2", ""));
+    // An older builder's (0.2.x: ">=1.7.1"), none at all, or only an upper bound: rebuild.
+    CHECK(!build_supports_online(">=1.7.1", ""));
+    CHECK(!build_supports_online(">=1.7.1-0", "") && !build_supports_online("", "") && !build_supports_online("<2", ""));
+    CHECK(!build_supports_online(">=1.7.9 <2", "") && !build_supports_online("=1.8.0", "") && !build_supports_online("not-a-version", ""));
+    // A GameVersion token in [Online]: the builder made it for online play.
+    CHECK(build_supports_online("", "LC33") && build_supports_online(">=1.7.1", "LC33"));
+    CHECK(!build_supports_online(">=1.7.1", "  "));
+
+    // Host and Join refuse an old build before the update (nothing armed) and again right before arming.
+    for (const auto& request : {host_request(), join_request()})
+    {
+        fake f;
+        stale_keys(f);
+        f.build_online = false;
+        const auto result = start(f, request);
+        CHECK(!result.ok && result.reason == "build_too_old");
+        CHECK(result.error.find("rebuild") != std::string::npos);
+        CHECK(!f.armed() && f.builder_keys_kept() && !f.barrier_held);
+        CHECK(std::find(f.log.begin(), f.log.end(), "update") == f.log.end());
+    }
+    {
+        fake f;
+        f.build_online = false;
+        const auto accepted = online_launch::accept(host_request(), f.steps());
+        CHECK(!accepted.ok && accepted.reason == "build_too_old");
+    }
+    // The check right before arming (a rebuild that broke off between the click and the update's end).
+    {
+        fake f;
+        CHECK(online_launch::accept(host_request(), f.steps()).ok);
+        f.build_online = false;
+        const auto finished = online_launch::finish(host_request(), f.steps());
+        CHECK(!finished.ok && finished.reason == "build_too_old" && !f.armed() && !f.barrier_held);
+    }
+    // A normal start never asks.
+    {
+        fake f;
+        f.build_online = false;
+        CHECK(start(f, {}).ok);
+    }
 }

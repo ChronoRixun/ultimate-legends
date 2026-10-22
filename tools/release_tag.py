@@ -16,7 +16,8 @@ Two kinds of tag, nothing else:
                premake's VERSION_PRODUCT_RC).
 
 Any other suffix (v0.5.0-alpha, v0.5.0-hotfix) is refused: published by mistake it would become the latest
-release every Stable launcher installs.
+release every Stable launcher installs. So is any upper case (v1.8.0-Beta.1, V0.4.0): the launcher reads only
+lower-case tags (release_channel::tag_version), and "Beta" would sort below "beta" by SemVer's ASCII order.
 
 The notes: docs/release/v<base>-notes.md when it exists (v0.5.0-beta.1 reads v0.5.0-notes.md), else the
 generic line; a pre-release's start with the "Beta - test build" banner. Standard library only, Python 3.8+.
@@ -82,7 +83,7 @@ def self_test():
         info = classify(tag)
         check(info["prerelease"] and info["version"] == version and info["base"] == base, f"{tag}: pre-release {version}")
     for tag in ("v0.5.0-alpha.1", "v0.5.0-beta", "v0.5.0-beta.01", "v0.5-beta.1", "v0.5.0-hotfix", "0.4.0", "v", "vnext",
-                "v0.4.0-beta.1-dirty", "v0.4.0 "):
+                "v0.4.0-beta.1-dirty", "v0.4.0 ", "v1.8.0-Beta.1", "v1.8.0-RC.1", "V0.4.0", "V0.5.0-beta.1"):
         try:
             classify(tag)
             check(False, f"{tag!r} refused")

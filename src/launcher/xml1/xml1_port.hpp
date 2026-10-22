@@ -95,6 +95,9 @@ namespace xml1_port
     // (_build\building.json, design 2.7), so the port may start from it.
     bool is_playable(const std::filesystem::path& folder);
 
+    // The build's _build\stamp.json requires.xml2fix (">=1.8.0-0"), "" when the stamp has none or can't be read.
+    std::string stamp_requires_xml2fix(const std::filesystem::path& folder);
+
     // What a folder holds, as a destination for a build. launcher_only: only what the launcher and
     // the player own (dinput.dll, xml2-fix.*, mods\ - the builder never touches them), so nothing
     // is built there and the builder accepts it (its `info` and `verify` call it "absent").

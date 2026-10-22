@@ -25,6 +25,16 @@ Reviewed companion commits (from the local pipeline handoff, 2026-10-22):
   `xml1-builder.json` (and the zip it names). A release that doesn't have them yet is not chosen.
 - **Version authority.** The tag (`v1.8.0-beta.1` → `1.8.0-beta.1`). For the XML2 Fix the launcher records the
   tag's version with the SHA-1 of the `dinput.dll` it installed; the DLL's VERSIONINFO may stay numeric (`1.8.0.0`).
+  A DLL without a matching record (a hand-copied test kit) is known only by its numbers, so a release with the same
+  three numbers installs over it as a repair.
+- **Tags are lower case.** `v1.8.0-Beta.1` is not a release tag to the launcher (nor to `tools/release_tag.py`).
+- **Online needs the build's stamp.** Host and Join need the build's `_build\stamp.json` `requires.xml2fix` to have a
+  lower bound of `1.8.0-0` or later (`>=1.8`, `>=1.8.0-0`), or a `GameVersion` in its `[Online]`; otherwise the Online
+  section asks for a rebuild.
+- **The Beta rules** (`docs/release/0.4.0-checklist.md`, "Beta rules") apply to both pipelines: never delete a
+  published beta, pair the betas (`fix -beta.N` with `builder -beta.N`), a protocol change bumps the builder's
+  requirement and `GameVersion`, the final is tagged on the rc's tree, no releases from the web UI, and
+  `releases/latest` and the tag's `prerelease` flag checked after every publish.
 
 ## XML2 Fix - matches, keep as is
 

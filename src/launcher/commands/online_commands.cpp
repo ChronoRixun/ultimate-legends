@@ -57,7 +57,7 @@ namespace commands::online_commands
 
     void register_commands(cef::cef_ui& cef_ui, command_context& ctx)
     {
-        // { supported, installed, fixInstalled, fixVersion, fixState, requiredFix, playable, running, testMode,
+        // { supported, installed, fixInstalled, fixVersion, fixState, requiredFix, playable, buildOnline, running, testMode,
         //   offline, fix, file, ini, values: { Host, Public, RoomName, JoinCode },
         //   status: <online-status.json's object> | null, statusUnreadable }.
         // fixVersion: the XML2 Fix DLL's file version ("" when it has none that reads, null without the DLL);
@@ -91,7 +91,13 @@ namespace commands::online_commands
             // Stable has no XML2 Fix with rooms until Legends Classic 0.3.0 is final: the page points there to Beta.
             response.AddMember("updateChannel", rapidjson::StringRef(release_channel::channel_name(release_source::current_channel())), allocator);
             response.AddMember("offline", utils::flags::has_flag("offline"), allocator);
-            response.AddMember("playable", installed && playable(where), allocator);
+            const auto is_playable = installed && playable(where);
+            response.AddMember("playable", is_playable, allocator);
+            // The build was made for online play (online_launch::build_supports_online): false asks for a
+            // rebuild (a build from an older builder has no rooms, whatever the XML2 Fix).
+            response.AddMember("buildOnline", is_playable && online_launch::build_supports_online(
+                xml1_port::stamp_requires_xml2fix(*where.game_dir),
+                online_settings::target(where.fix_installed ? where.ini() : std::nullopt, where.info).version_token), allocator);
             response.AddMember("running", is_supported && game_config::is_game_process_running(config->id, 1000), allocator);
             if (is_supported)
             {

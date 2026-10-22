@@ -107,7 +107,10 @@ the whole launcher (below).
   - Every version comparison orders pre-releases now, `min_launcher` and the build's `requires.xml2fix` included:
     the XML2 Fix `1.8.0-beta.2` meets `>=1.7.1` but not `>=1.8.0` (online play takes 1.8.0's own betas on purpose:
     they have the rooms). The fix's own version resource is numeric, so the launcher records the release it
-    installed and that is the fix's version while the DLL is still that file.
+    installed and that is the fix's version while the DLL is still that file. A fix the launcher has no matching
+    record for (a test kit copied by hand, reading `1.8.0` or `1.8.0.0`) is known only by its numbers: a release
+    with the same three numbers (`1.8.0-beta.2`) installs over it as a repair on Beta, and on Stable Settings offers
+    Switch back to Stable for it.
   - Nothing is ever installed over a newer version without asking, on either channel (an older Stable release
     never replaces a newer final fix either). Switching back to Stable with a beta newer than the latest release
     asks "You're on a beta (x). Switch back to y?": **Switch back** installs exactly the versions shown - the
@@ -124,11 +127,16 @@ the whole launcher (below).
     Legends Classic 0.3.0. Want to try it now? Switch Update channel to Beta in Settings." and has **Open Update
     channel** (Settings, the focus on the setting) instead of Verify Files, which has nothing newer to install on
     Stable. On Beta the Verify Files message stays.
+  - **Online needs a build made for it:** with a 1.8 XML2 Fix in a port built by an older builder (its stamp's
+    `requires.xml2fix` below `1.8.0-0`, no `GameVersion`), the Online section says "Rebuild to play online: this
+    build is older than your XML2 Fix" with **Rebuild**, and Host and Join are refused by the launcher too.
   - **Launcher pre-releases:** a `v<x.y.z>-beta.<n>` or `-rc.<n>` tag publishes a GitHub pre-release that is never
     the latest release, with the same asset names (`ultimate-legends-<version>-win64-portable.zip`,
     `SHA256SUMS.txt`), its notes `docs/release/v<base>-notes.md` under a "Beta - test build" banner
-    (`tools/release_tag.py`, self-tested in every Build run). Stable `v*` tags publish as before; any other suffix is
-    refused. A launcher built at such a tag calls itself `x.y.z-beta.n` wherever it shows or compares its own
+    (`tools/release_tag.py`, self-tested in every Build run). Stable `v*` tags publish as before; any other suffix,
+    and upper case (`-Beta.1`), is refused. After publishing, the job checks what GitHub shows and fails unless the
+    tag's release has its pre-release flag and every file and, for a pre-release, `releases/latest` is unchanged; a
+    re-run uploads the files again with `--clobber` instead of making a new release (`tools/publish_release.py`). A launcher built at such a tag calls itself `x.y.z-beta.n` wherever it shows or compares its own
     version; its VERSIONINFO stays numeric.
 
 ### Changed

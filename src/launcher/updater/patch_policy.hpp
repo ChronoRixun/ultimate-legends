@@ -16,7 +16,11 @@
 //     the beta or a channel change all start again without one;
 //   - when GitHub can't be asked and there is no earlier choice for the channel: nothing over a fix
 //     already there; into a folder without one, the latest release's files (as launcher 0.3 did), each
-//     still checked against the manifest's hash.
+//     still checked against the manifest's hash;
+//   - a fix the launcher has no matching install record for (a hand-copied test kit, a 0.3 install) is
+//     known only by its numeric VERSIONINFO: 1.8.0-beta.N reads 1.8.0. A release with the same three
+//     numbers (1.8.0-beta.2 over a DLL reading 1.8.0, 1.8.0.0 or 1.8.0.2) is then a repair and is
+//     installed; with a matching record the full version decides.
 namespace patch_policy
 {
     struct consent
@@ -43,7 +47,16 @@ namespace patch_policy
     };
 
     // `installed`: the fix in the folder (patch_channel::installed_version: nullopt without one, "" when
-    // its version can't be read).
+    // its version can't be read). `recorded`: that version is the launcher's install record for exactly
+    // these files (false: it is only the DLL's numeric VERSIONINFO).
     decision decide(const std::optional<std::string>& installed, const release_channel::outcome& found,
-                    const std::optional<consent>& consent);
+                    const std::optional<consent>& consent, bool recorded = true);
+
+    // Whether Settings offers Switch back to Stable for this fix: a recorded pre-release newer than the
+    // latest release (release_channel::is_ahead_of), or a fix without a record whose numbers are newer
+    // than it (a hand-copied 1.8.0 test kit while Stable is 1.7.1).
+    bool offers_switch_back(const std::string& installed, bool recorded, const std::string& stable);
+
+    // The same major.minor.patch (a fourth number and a pre-release part don't count).
+    bool same_numbers(const std::string& a, const std::string& b);
 }

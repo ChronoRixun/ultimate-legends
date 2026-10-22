@@ -519,6 +519,22 @@ namespace xml1_port
                !utils::io::file_exists(folder / L"_build" / L"building.json");
     }
 
+    std::string stamp_requires_xml2fix(const std::filesystem::path& folder)
+    {
+        const auto stamp = read_json(folder / L"_build" / L"stamp.json");
+        if (!stamp || !stamp->IsObject())
+        {
+            return {};
+        }
+        const auto requires_member = stamp->FindMember("requires");
+        if (requires_member == stamp->MemberEnd() || !requires_member->value.IsObject())
+        {
+            return {};
+        }
+        const auto fix = requires_member->value.FindMember("xml2fix");
+        return fix != requires_member->value.MemberEnd() && fix->value.IsString() ? std::string(fix->value.GetString()) : std::string{};
+    }
+
     sizes disk_usage()
     {
         const auto folder_bytes = [](const std::filesystem::path& folder) -> std::optional<std::uint64_t>

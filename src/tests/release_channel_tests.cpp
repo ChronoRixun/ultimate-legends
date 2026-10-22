@@ -80,6 +80,25 @@ TEST(semver_parses_versions_and_tags)
     CHECK(release_channel::parse_channel("") == channel::stable && release_channel::parse_channel("nightly") == channel::stable);
 }
 
+TEST(pre_release_tags_are_lower_case)
+{
+    // FL4: release_tag.py publishes only lower-case pre-release tags; the launcher reads no other.
+    CHECK(release_channel::tag_version("v1.8.0-Beta.1").empty());
+    CHECK(release_channel::tag_version("v1.8.0-RC.1").empty() && release_channel::tag_version("V1.8.0-BETA.1").empty());
+    CHECK(release_channel::tag_version("v1.8.0-beta.1+Build").empty());
+    CHECK(release_channel::tag_version("V1.8.0-beta.1") == "1.8.0-beta.1"); // the prefix's case never mattered
+
+    // In a release list, Beta skips it and goes on with the next one.
+    std::string error;
+    const auto list = release_channel::parse_releases_json(
+        R"([{"tag_name":"v1.8.0-Beta.9","prerelease":true,"assets":[{"name":"ultimate-legends.json","browser_download_url":"https://x/a","size":1}]},)"
+        R"({"tag_name":"v1.8.0-beta.1","prerelease":true,"assets":[{"name":"ultimate-legends.json","browser_download_url":"https://x/b","size":1}]}])",
+        error);
+    CHECK(error.empty() && list.size() == 1 && list.front().tag == "v1.8.0-beta.1");
+    const auto chosen = release_channel::pick(channel::beta, list, {"ultimate-legends.json"});
+    CHECK(chosen && chosen->version == "1.8.0-beta.1");
+}
+
 TEST(requirements_understand_pre_releases)
 {
     using release_channel::satisfies;

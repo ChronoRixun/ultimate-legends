@@ -282,6 +282,12 @@ namespace release_channel
         {
             tag.remove_prefix(1);
         }
+        // Pre-release identifiers are lower case (tools/release_tag.py publishes only those): "v1.8.0-Beta.1"
+        // is not a release tag, so it can never sort against "beta" by ASCII ("Beta" < "beta").
+        if (std::ranges::any_of(tag, [](const char c) { return c >= 'A' && c <= 'Z'; }))
+        {
+            return {};
+        }
         // A release tag is stricter than a DLL's version resource: no leading zero in its numbers
         // ("v01.8.0" is not one; "1.08" from a resource still compares as 1.8).
         const auto core = tag.substr(0, std::min(tag.find('-'), tag.find('+')));

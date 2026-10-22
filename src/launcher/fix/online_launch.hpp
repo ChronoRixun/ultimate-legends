@@ -50,6 +50,12 @@ namespace online_launch
     // "ok", "old", "unknown", "missing".
     const char* fix_state_name(fix_state state);
 
+    // The build in the folder was made for online play: its _build\stamp.json `requires.xml2fix` has a lower
+    // bound of 1.8.0-0 or later (">=1.8" from a stable 0.3.0 builder, ">=1.8.0-0" from a beta or rc one), or its
+    // [Online] section has a GameVersion token (the same builders write it). A build from an older builder
+    // (">=1.7.1", no token) has no rooms, whatever XML2 Fix is in the folder: the player rebuilds it.
+    bool build_supports_online(std::string_view requires_xml2fix, std::string_view game_version);
+
     struct request
     {
         online_rules::mode mode{online_rules::mode::normal};
@@ -95,6 +101,7 @@ namespace online_launch
         std::function<bool()> game_running;
         std::function<bool()> test_mode_on;
         std::function<std::optional<std::string>()> fix_version;
+        std::function<bool()> build_online; // build_supports_online for the folder's build
         std::function<bool(std::string& error)> clear_status;
         // Which of online_rules::keys() the [Online] section has now, and writing changes to it.
         std::function<std::vector<std::string>()> present;
@@ -110,7 +117,7 @@ namespace online_launch
         bool ok{};
         // Why not, for the page (online-view.js words each): offline, already_running, running, test_mode_on,
         // status_locked, write_failed, update_cancelled, update_failed, no_fix, fix_too_old, fix_unknown,
-        // launch_cancelled, launch_failed.
+        // build_too_old, launch_cancelled, launch_failed.
         std::string reason{};
         std::string error{};         // English, for the log and the details line
         std::string cleanup_error{}; // the four keys could not be removed after the refusal

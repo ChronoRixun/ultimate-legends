@@ -51,8 +51,11 @@ the whole launcher (below).
   - **Public games connect players directly**, so they can see each other's internet address: one line says so by
     List my game publicly, under Browse games and in How online works ("Share a private code to play only with
     friends").
-  - **How online works**: host or join, share the code, what each message means, that nothing needs port
-    forwarding, and that LAN and Connect by IP still work.
+  - **How online works**: two cards, Host a game and Join a game, of three short steps with an icon each (the
+    game's menus named in English: Play Online, Host, Join Game), always shown; under them **Good to know** (the
+    same version for everyone, no port forwarding, public games and your internet address, solo story parts,
+    enough heroes, the launcher kept open, test mode, LAN and Connect by IP with Play) and **What the messages
+    mean**, each a fold that the keyboard and a controller open and close.
   - Host and Join are off, with the reason, while the game isn't built, a build or an XML2 Fix update holds its
     folder, the folder's XML2 Fix is older than 1.8.0 or its version can't be read (**Verify Files** updates it), Test
     mode is on (with **Turn test mode off** right there) or the game is running. The launcher reads the DLL's version
@@ -66,7 +69,7 @@ the whole launcher (below).
     and Refresh offer to restart the launcher online first. Play works offline as before.
   - **Close launcher after game launch** applies to Play only: Host and Join keep the launcher open, to show and copy
     the room's code and follow the session (the setting itself is unchanged; Settings and How online works say so).
-  - Buttons and text fields in the Tab order with a focus ring (How online works' summary too); the focus follows
+  - Buttons and text fields in the Tab order with a focus ring (How online works' two folds too); the focus follows
     what replaces a control (Copy when the code is up, Try again after an error, the same row's Join after a refresh of
     the list), and a slow Refresh gives the focus back only if you haven't moved it.
   - en, fr, es.

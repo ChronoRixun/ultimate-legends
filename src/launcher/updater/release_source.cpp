@@ -1,41 +1,17 @@
 #include "std_include.hpp"
 #include "release_source.hpp"
+#include "release_resolver.hpp"
 
 #include <utils/http.hpp>
 #include <utils/logger.hpp>
 #include <utils/properties.hpp>
 #include <utils/property_keys.hpp>
 
-#include <map>
-
 namespace release_source
 {
     namespace
     {
         using release_channel::channel;
-
-        // A successful answer is reused this long (each start checks the launcher, the fix and the
-        // builder; Verify and Play check the fix again).
-        constexpr auto reuse_for = std::chrono::minutes(10);
-
-        struct answer
-        {
-            release_channel::outcome outcome;
-            std::chrono::steady_clock::time_point at;
-        };
-
-        std::mutex mutex_;
-        std::map<std::string, answer> answers_; // by "<repo>|<channel>"
-
-        std::string key(const std::string& repo, const channel value)
-        {
-            return repo + "|" + release_channel::channel_name(value);
-        }
-
-        std::string cache_property(const std::string& repo, const channel value)
-        {
-            return std::string("release-cache-") + release_channel::channel_name(value) + "-" + repo;
-        }
 
         std::string api_base()
         {
@@ -49,7 +25,7 @@ namespace release_source
             return "https://api.github.com";
         }
 
-        std::optional<std::string> get(const std::string& url, std::string& error)
+        release_resolver::http_answer get(const std::string& url)
         {
             const utils::http::headers headers{
                 {"Accept", "application/vnd.github+json"},
@@ -57,55 +33,37 @@ namespace release_source
                 {"X-GitHub-Api-Version", "2022-11-28"},
             };
             const auto result = utils::http::get_data(url, {}, headers, {}, 20, 1);
+            release_resolver::http_answer answer{};
             if (!result || result->code != CURLE_OK)
             {
-                error = std::format("Could not reach GitHub ({}).", result ? curl_easy_strerror(result->code) : "no connection");
-                return std::nullopt;
+                answer.reach_error = result ? curl_easy_strerror(result->code) : "no connection";
+                return answer;
             }
-            if (result->response_code == 403 || result->response_code == 429)
-            {
-                error = std::format("GitHub's limit on update checks was reached (HTTP {}); it resets within an hour.", result->response_code);
-                return std::nullopt;
-            }
-            if (result->response_code == 404)
-            {
-                error = "No release has been published.";
-                return std::nullopt;
-            }
-            if (result->response_code != 200)
-            {
-                error = std::format("GitHub answered HTTP {}.", result->response_code);
-                return std::nullopt;
-            }
-            return result->buffer;
+            answer.reached = true;
+            answer.status = result->response_code;
+            answer.body = result->buffer;
+            return answer;
         }
 
-        std::optional<release_channel::release> fetch(const std::string& repo, const channel value, const std::vector<std::string>& required,
-                                                      std::string& error)
+        release_resolver::resolver& shared()
         {
-            const auto base = api_base() + "/repos/" + repo + "/releases";
-            if (value == channel::stable)
-            {
-                const auto body = get(base + "/latest", error);
-                return body ? release_channel::parse_release_json(*body, error) : std::nullopt;
-            }
-
-            const auto body = get(base + "?per_page=30", error);
-            if (!body)
-            {
-                return std::nullopt;
-            }
-            const auto releases = release_channel::parse_releases_json(*body, error);
-            if (!error.empty())
-            {
-                return std::nullopt;
-            }
-            auto chosen = release_channel::pick(value, releases, required);
-            if (!chosen)
-            {
-                error = "No release has been published.";
-            }
-            return chosen;
+            static release_resolver::resolver resolver{{
+                get,
+                [](const std::string& key)
+                {
+                    return utils::properties::load(key);
+                },
+                [](const std::string& key, const std::string& value)
+                {
+                    utils::properties::store(key, value);
+                },
+                []
+                {
+                    return std::chrono::steady_clock::now();
+                },
+                api_base,
+            }};
+            return resolver;
         }
     }
 
@@ -121,48 +79,18 @@ namespace release_source
 
     release_channel::outcome resolve(const std::string& repo, const channel value, const std::vector<std::string>& required, const bool force)
     {
-        const auto id = key(repo, value);
-        {
-            std::lock_guard lock(mutex_);
-            if (const auto found = answers_.find(id); !force && found != answers_.end() && found->second.outcome.chosen &&
-                                                       !found->second.outcome.from_cache &&
-                                                       std::chrono::steady_clock::now() - found->second.at < reuse_for)
-            {
-                return found->second.outcome;
-            }
-        }
-
-        std::string error;
-        auto fetched = fetch(repo, value, required, error);
-        std::optional<release_channel::release> cached;
-        if (value == channel::beta)
-        {
-            if (fetched)
-            {
-                utils::properties::store(cache_property(repo, value), release_channel::to_json(*fetched));
-            }
-            else
-            {
-                cached = release_channel::release_from_json(utils::properties::load(cache_property(repo, value)).value_or(""));
-            }
-        }
-        auto outcome = release_channel::settle(std::move(fetched), error, cached);
+        auto outcome = shared().resolve(repo, value, required, force);
         if (!outcome.chosen || outcome.from_cache)
         {
             utils::logger::write("release channel: {} ({}): {}{}", repo, release_channel::channel_name(value), outcome.error,
                                  outcome.from_cache ? " - using the last release found, " + outcome.chosen->version : std::string{});
         }
-
-        std::lock_guard lock(mutex_);
-        answers_[id] = {outcome, std::chrono::steady_clock::now()};
         return outcome;
     }
 
     std::optional<release_channel::outcome> last(const std::string& repo, const channel value)
     {
-        std::lock_guard lock(mutex_);
-        const auto found = answers_.find(key(repo, value));
-        return found == answers_.end() ? std::nullopt : std::optional(found->second.outcome);
+        return shared().last(repo, value);
     }
 
     std::string file_url(const std::string& repo, const release_channel::release& chosen, const std::string& file)

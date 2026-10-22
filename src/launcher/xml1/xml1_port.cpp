@@ -81,20 +81,29 @@ namespace xml1_port
             return tool;
         }
 
-        // The builder's manifest on the update channel: Stable, releases/latest as always; Beta, the
-        // channel's release by its tag (the last one found when GitHub can't be asked: `from_cache`,
-        // `error`). False with `error` when Beta has no release to offer.
-        bool channel_manifest(tool_install::tool& tool, const release_channel::channel channel, bool& from_cache, std::string& error)
+        // The builder's manifest on the update channel (release_source: Stable, GitHub's latest release;
+        // Beta, pre-releases too), from the chosen release's tag, so the manifest and the zip next to it
+        // come from one release; the channel's last choice when GitHub can't be asked (`from_cache`,
+        // `error`). With no choice at all: into a PC without a builder, the latest release's manifest (as
+        // launcher 0.3 did; its zip is still checked by size and SHA-256); else false with `error`, and
+        // the installed builder stays.
+        bool channel_manifest(tool_install::tool& tool, const release_channel::channel channel, const bool has_builder, bool& from_cache,
+                              std::string& error)
         {
             from_cache = false;
-            if (channel == release_channel::channel::stable || tool.manifest_url != builder_manifest_url)
+            if (tool.manifest_url != builder_manifest_url)
             {
-                return true; // (or a Debug build's local stand-in)
+                return true; // a Debug build's local stand-in
             }
             const auto outcome = release_source::resolve(release_source::builder_repo, channel, {builder_manifest_name});
             error = outcome.error;
             if (!outcome.chosen)
             {
+                if (!has_builder)
+                {
+                    utils::logger::write("xml1-builder: the update channel can't be checked ({}); the latest release is used", error);
+                    return true;
+                }
                 return false;
             }
             from_cache = outcome.from_cache;
@@ -905,7 +914,7 @@ namespace xml1_port
         return found && !found->dev ? found->version : std::string{};
     }
 
-    bool check_builder(const bool install, const std::optional<std::filesystem::path>& zip, const bool downgrade)
+    bool check_builder(const bool install, const std::optional<std::filesystem::path>& zip, const std::string& downgrade_to)
     {
         {
             std::lock_guard lock(mutex_);
@@ -920,7 +929,7 @@ namespace xml1_port
             check_.source.clear();
         }
 
-        std::thread([install, zip, downgrade]
+        std::thread([install, zip, downgrade_to]
         {
             auto tool = builder_tool();
             const auto channel = release_source::current_channel();
@@ -929,7 +938,7 @@ namespace xml1_port
             bool not_published = false;
             bool from_cache = false;
             std::optional<tool_install::manifest> latest;
-            if (channel_manifest(tool, channel, from_cache, cache_error))
+            if (channel_manifest(tool, channel, find_builder().has_value(), from_cache, cache_error))
             {
                 latest = tool_install::fetch_manifest(tool, error, &not_published);
             }
@@ -975,10 +984,16 @@ namespace xml1_port
             }
 
             // A zip the player chose is always checked (and installed when it is the release's). Never an
-            // older builder than the one installed, unless the player chose Switch back to Stable.
+            // older builder than the one installed, unless the player chose Switch back to Stable to
+            // exactly this version, for this attempt.
             const auto installed = find_builder();
             const auto order = installed ? tool_install::compare_versions(latest->version, installed->version) : 1;
-            const auto wanted = zip || (install && (!installed || (!installed->dev && (order > 0 || (downgrade && order != 0)))));
+            const auto approved = !downgrade_to.empty() && latest->version == downgrade_to && channel == release_channel::channel::stable;
+            const auto wanted = zip || (install && (!installed || (!installed->dev && (order > 0 || (approved && order < 0)))));
+            if (!downgrade_to.empty() && !approved)
+            {
+                utils::logger::write("xml1-builder: the switch back to {} was not done: the update channel offers {}", downgrade_to, latest->version);
+            }
             set_check([&](builder_check& check)
             {
                 check.checking = false;

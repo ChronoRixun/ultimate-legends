@@ -27,7 +27,6 @@ namespace launcher_update
 {
     namespace
     {
-        constexpr auto release_api = "https://api.github.com/repos/ChronoRixun/ultimate-legends/releases/latest";
         constexpr auto release_page = "https://github.com/ChronoRixun/ultimate-legends/releases/latest";
         constexpr auto exe_name = "ultimate-legends.exe";
         constexpr auto sums_name = "SHA256SUMS.txt";
@@ -113,15 +112,6 @@ namespace launcher_update
 #else
             const auto build = release_channel::launcher_build(GIT_DESCRIBE, GIT_TAG, VERSION_PRODUCT);
             return build.release && is_release_version(build.version) ? build.version : std::string{};
-#endif
-        }
-
-        std::string release_url()
-        {
-#ifdef _DEBUG
-            return utils::properties::load(property_keys::DEV_LAUNCHER_RELEASE).value_or("");
-#else
-            return release_api;
 #endif
         }
 
@@ -573,60 +563,54 @@ namespace launcher_update
             return latest;
         }
 
-        // Stable: GitHub's releases/latest, as always. Beta: the channel's release (release_source),
-        // or the last one found when GitHub can't be asked (`from_cache`, `error` says why).
-        std::optional<release> fetch_release(const release_channel::channel channel, std::string& error, bool& from_cache)
+#ifdef _DEBUG
+        // Debug builds only (tools/dev/launcher_update_cdp.py): the test's stand-in for releases/latest.
+        std::optional<release> fetch_dev_release(std::string& error)
         {
-            from_cache = false;
-            if (channel == release_channel::channel::beta)
-            {
-                const auto outcome = release_source::resolve(launcher_repo(), channel, {zip_name("{version}"), sums_name}, true);
-                if (!outcome.chosen)
-                {
-                    error = outcome.error;
-                    return std::nullopt;
-                }
-                from_cache = outcome.from_cache;
-                error = outcome.error;
-                std::string invalid;
-                auto latest = to_release(*outcome.chosen, invalid);
-                if (!latest)
-                {
-                    error = invalid;
-                }
-                return latest;
-            }
-
-            const auto url = release_url();
+            const auto url = utils::properties::load(property_keys::DEV_LAUNCHER_RELEASE).value_or("");
             if (url.empty())
             {
                 error = "No release address.";
                 return std::nullopt;
             }
-            const utils::http::headers headers{
-                {"Accept", "application/vnd.github+json"},
-                {"User-Agent", "ultimate-legends-launcher"},
-                {"X-GitHub-Api-Version", "2022-11-28"},
-            };
-            const auto result = utils::http::get_data(url, {}, headers, {}, 20, 1);
-            if (!result || result->code != CURLE_OK)
+            const auto result = utils::http::get_data(url, {}, {{"User-Agent", "ultimate-legends-launcher"}}, {}, 20, 1);
+            if (!result || result->code != CURLE_OK || result->response_code != 200)
             {
-                error = std::format("Could not reach GitHub ({}).", result ? curl_easy_strerror(result->code) : "no connection");
+                error = "The test's release could not be read.";
                 return std::nullopt;
             }
-            if (result->response_code == 404)
-            {
-                error = "No release has been published.";
-                return std::nullopt;
-            }
-            if (result->response_code != 200)
-            {
-                error = std::format("GitHub answered HTTP {}.", result->response_code);
-                return std::nullopt;
-            }
-
             const auto found = release_channel::parse_release_json(result->buffer, error);
             return found ? to_release(*found, error) : std::nullopt;
+        }
+#endif
+
+        // The update channel's release (release_source: Stable, GitHub's releases/latest; Beta, the
+        // releases list), or that channel's last one when GitHub can't be asked (`from_cache`, `error` says
+        // why). Its zip and SHA256SUMS.txt are the ones of its tag.
+        std::optional<release> fetch_release(const release_channel::channel channel, std::string& error, bool& from_cache)
+        {
+            from_cache = false;
+#ifdef _DEBUG
+            if (channel == release_channel::channel::stable)
+            {
+                return fetch_dev_release(error);
+            }
+#endif
+            const auto outcome = release_source::resolve(launcher_repo(), channel, {zip_name("{version}"), sums_name}, true);
+            if (!outcome.chosen)
+            {
+                error = outcome.error;
+                return std::nullopt;
+            }
+            from_cache = outcome.from_cache;
+            error = outcome.error;
+            std::string invalid;
+            auto latest = to_release(*outcome.chosen, invalid);
+            if (!latest)
+            {
+                error = invalid;
+            }
+            return latest;
         }
 
         // The SHA-256 SHA256SUMS.txt gives `name` ("<hash>  <name>" or "<hash> *<name>" lines).
@@ -1141,7 +1125,7 @@ namespace launcher_update
         }).detach();
     }
 
-    bool start_download(const bool downgrade)
+    bool start_download(const std::string& downgrade_to)
     {
         std::optional<release> latest;
         {
@@ -1152,9 +1136,10 @@ namespace launcher_update
                 return false;
             }
             const auto newer = tool_install::compare_versions(state_.latest->version, current) > 0;
-            // An older version only as Switch back to Stable: the latest release, over a beta.
-            const auto back = downgrade && state_.channel == release_channel::channel::stable &&
-                              release_channel::is_ahead_of(current, state_.latest->version);
+            // An older version only as Switch back to Stable: exactly the latest release the player was
+            // shown, over a beta, for this attempt.
+            const auto back = !downgrade_to.empty() && state_.channel == release_channel::channel::stable &&
+                              state_.latest->version == downgrade_to && release_channel::is_ahead_of(current, state_.latest->version);
             if ((!newer && !back) || (state_.state != "available" && state_.state != "failed" && state_.state != "up-to-date") ||
                 (state_.state == "up-to-date" && !back))
             {
@@ -1174,12 +1159,25 @@ namespace launcher_update
             const auto error = stage(*latest);
             with_state([&](state_t& state)
             {
-                // Switched to Stable while a beta downloaded: it doesn't install.
-                if (error.empty() && release_channel::is_prerelease(latest->version) &&
-                    release_source::current_channel() == release_channel::channel::stable && !state.downgrade)
+                // Switched to Stable while a beta downloaded, or a switch back revoked meanwhile (Keep the
+                // beta, a channel change): it doesn't install.
+                const auto older = tool_install::compare_versions(latest->version, current_version()) < 0;
+                if (error.empty() && ((release_channel::is_prerelease(latest->version) &&
+                                       release_source::current_channel() == release_channel::channel::stable && !older) ||
+                                      (older && !state.downgrade)))
                 {
                     remove_tree(updates_folder() / "ready");
                     state.state = "idle";
+                    state.downgrade = false;
+                    return;
+                }
+                // A switch back that failed leaves no permission behind: Settings asks again.
+                if (!error.empty() && state.downgrade)
+                {
+                    utils::logger::write("launcher update: switching back to {} failed: {}", latest->version, error);
+                    state.downgrade = false;
+                    state.state = "up-to-date";
+                    state.install_error = "Switching back to " + latest->version + " failed: " + error + " Your launcher was not changed.";
                     return;
                 }
                 if (error.empty())
@@ -1280,9 +1278,32 @@ namespace launcher_update
         return current.empty() ? release_channel::launcher_build(GIT_DESCRIBE, GIT_TAG, VERSION_PRODUCT).version : current;
     }
 
+    namespace
+    {
+        // Called with mutex_ held: an approved switch back that hasn't installed yet no longer may.
+        void revoke_locked()
+        {
+            state_.downgrade = false;
+            if (state_.state == "ready" && can_install() &&
+                read_json_string(updates_folder() / "ready" / "update.json", "downgrade") == "true" && remove_tree(updates_folder() / "ready"))
+            {
+                trace("the switch back to {} was revoked before it installed", state_.ready_version);
+                state_.ready_version.clear();
+                state_.state = "idle";
+            }
+        }
+    }
+
+    void revoke_downgrade()
+    {
+        std::lock_guard lock(mutex_);
+        revoke_locked();
+    }
+
     void channel_changed()
     {
         std::lock_guard lock(mutex_);
+        revoke_locked();
         // A beta downloaded on Beta and not installed yet doesn't install on Stable.
         if (state_.state == "ready" && release_channel::is_prerelease(state_.ready_version) && can_install() &&
             release_source::current_channel() == release_channel::channel::stable)

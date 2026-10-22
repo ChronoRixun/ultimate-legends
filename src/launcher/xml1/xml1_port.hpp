@@ -80,9 +80,10 @@ namespace xml1_port
     // Downloads) and checks out, else downloaded. With `zip` (one the player chose), checks that zip
     // against the release and installs it, never downloading. Progress and errors show in
     // write_status(). False when a check or install is already under way. The manifest is the update
-    // channel's (Stable: the latest release; Beta: pre-releases too). Never an older builder than the
-    // installed one, unless `downgrade` (Switch back to Stable).
-    bool check_builder(bool install, const std::optional<std::filesystem::path>& zip = std::nullopt, bool downgrade = false);
+    // channel's (Stable: the latest release; Beta: pre-releases too), from that release's tag. Never an
+    // older builder than the installed one, unless `downgrade_to` names exactly the release offered
+    // (Switch back to Stable, approved for this attempt).
+    bool check_builder(bool install, const std::optional<std::filesystem::path>& zip = std::nullopt, const std::string& downgrade_to = {});
 
     // The builder installed from a release ("" when none, or a Debug build's stand-in).
     std::string installed_builder_version();

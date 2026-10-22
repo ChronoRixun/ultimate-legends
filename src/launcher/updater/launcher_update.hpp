@@ -59,8 +59,10 @@ namespace launcher_update
 
     // Downloads, verifies and unpacks that release into updates\ready, in the background. False when
     // there is nothing to download or this install can't update itself. Only a newer version, unless
-    // `downgrade`: Switch back to Stable, the latest release over a newer beta this launcher is.
-    bool start_download(bool downgrade = false);
+    // `downgrade_to` names it: Switch back to Stable, exactly the latest release the player was shown,
+    // over a newer beta this launcher is - for this attempt only (a failure, Keep the beta or a channel
+    // change revokes it).
+    bool start_download(const std::string& downgrade_to = {});
 
     // Restart now: false with `error` ("busy", "not-ready") when it can't; else the process ends
     // shortly after (so the command's answer still reaches the UI) and the new start installs it.
@@ -74,7 +76,10 @@ namespace launcher_update
     // what min_launcher is checked against.
     std::string running_version();
 
-    // The update channel changed: forget the other channel's answer, and on Stable discard a beta
-    // that was downloaded but not installed yet.
+    // The update channel changed: forget the other channel's answer, revoke a switch back not installed
+    // yet, and on Stable discard a beta that was downloaded but not installed yet.
     void channel_changed();
+
+    // Keep the beta: a switch back approved earlier and not installed yet no longer installs.
+    void revoke_downgrade();
 }

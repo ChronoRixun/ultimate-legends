@@ -233,13 +233,13 @@ namespace release_channel
         }
         if (const auto plus = text.find('+'); plus != std::string_view::npos)
         {
-            const auto build = text.substr(plus + 1);
-            if (build.empty() || std::any_of(build.begin(), build.end(), [](const char c)
+            // Build metadata: dot-separated identifiers, none empty ("+abc.1"; not "+" or "+..").
+            for (const auto part : split(text.substr(plus + 1), '.'))
             {
-                return !is_identifier_char(c) && c != '.';
-            }))
-            {
-                return std::nullopt;
+                if (part.empty() || !std::all_of(part.begin(), part.end(), is_identifier_char))
+                {
+                    return std::nullopt;
+                }
             }
             text = text.substr(0, plus);
         }
@@ -281,6 +281,16 @@ namespace release_channel
         if (tag.starts_with('v') || tag.starts_with('V'))
         {
             tag.remove_prefix(1);
+        }
+        // A release tag is stricter than a DLL's version resource: no leading zero in its numbers
+        // ("v01.8.0" is not one; "1.08" from a resource still compares as 1.8).
+        const auto core = tag.substr(0, std::min(tag.find('-'), tag.find('+')));
+        for (const auto part : split(core, '.'))
+        {
+            if (part.size() > 1 && part.front() == '0')
+            {
+                return {};
+            }
         }
         return is_version(tag) ? std::string(tag) : std::string{};
     }
@@ -417,6 +427,19 @@ namespace release_channel
         return releases;
     }
 
+    bool has_files(const release& value, const std::vector<std::string>& required)
+    {
+        return std::all_of(required.begin(), required.end(), [&](const std::string& name)
+        {
+            auto file = name;
+            if (const auto at = file.find("{version}"); at != std::string::npos)
+            {
+                file.replace(at, 9, value.version);
+            }
+            return value.find(file) != nullptr;
+        });
+    }
+
     std::optional<release> pick(const channel value, const std::vector<release>& releases, const std::vector<std::string>& required)
     {
         const release* best = nullptr;
@@ -426,15 +449,7 @@ namespace release_channel
             {
                 continue;
             }
-            if (!std::all_of(required.begin(), required.end(), [&](const std::string& name)
-            {
-                auto file = name;
-                if (const auto at = file.find("{version}"); at != std::string::npos)
-                {
-                    file.replace(at, 9, entry.version);
-                }
-                return entry.find(file) != nullptr;
-            }))
+            if (!has_files(entry, required))
             {
                 continue;
             }

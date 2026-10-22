@@ -47,6 +47,16 @@
         }
     }
 
+    // A repository by what it updates.
+    function repoName(id) {
+        switch (id) {
+            case 'launcher': return t('updateChannel.itemLauncher');
+            case 'fix': return t('updateChannel.repoFix');
+            case 'builder': return t('updateChannel.itemBuilder');
+            default: return id;
+        }
+    }
+
     // "1.8.0-beta.2" and a Beta badge, for any page that shows a version.
     function badgeHtml() {
         return `<span class="beta-badge">${escapeHtml(t('updateChannel.badge'))}</span>`;
@@ -114,9 +124,13 @@
             return items.sort((a, b) => ORDER.indexOf(keyOf(a)) - ORDER.indexOf(keyOf(b)));
         },
 
-        // Betas newer than the latest release, while the channel is Stable.
+        // Betas newer than the latest release, while the channel is Stable - but not a launcher whose
+        // switch back is downloaded and only waits for the restart that installs it.
         ahead() {
-            return this.channel() === 'stable' ? this.items().filter(item => item.ahead) : [];
+            if (this.channel() !== 'stable') return [];
+            const launcher = window.LauncherUpdate && window.LauncherUpdate.status;
+            return this.items().filter(item => item.ahead &&
+                !(item.id === 'launcher' && launcher && launcher.state === 'ready' && launcher.readyVersion === item.stable));
         },
 
         async choose(value) {
@@ -147,7 +161,12 @@
             window.dispatchEvent(new CustomEvent('gameInstallationUpdated', { detail: { game: null } }));
         },
 
-        // "You're on a beta (x). Switch back to y?" Yes reinstalls the latest releases, then offers a rebuild.
+        // "You're on a beta (x). Switch back to y?" Switch back installs exactly the versions shown, each
+        // approved for this one attempt: the launcher's download, Verify in each XML2 Fix folder, the
+        // builder. Each item's result is what is on the disk afterwards, not that its work started; what
+        // failed or was cancelled stays as it was and is said, with the same offer kept here for a retry
+        // (asked again). Rebuild is offered only when the builder and the port's fix it needed both
+        // switched. Keep the beta revokes anything approved before that hasn't installed yet.
         async offerSwitchBack() {
             const ahead = this.ahead();
             if (!ahead.length || this.busy) return false;
@@ -156,52 +175,116 @@
             const choice = await window.showMessageBox(t('updateChannel.switchBackTitle'),
                 `${escapeHtml(t('updateChannel.switchBackBody', { current, stable }))}<br><br>${escapeHtml(t('updateChannel.switchBackDetail'))}`,
                 [t('updateChannel.switchBackYes'), { label: t('updateChannel.keepBeta'), cancel: true }]);
-            if (choice !== 0) return false;
+            if (choice !== 0) {
+                try {
+                    await run('keep-beta');
+                } catch (error) {
+                    console.error('update channel: keep-beta failed', error);
+                }
+                return false;
+            }
 
             this.busy = true;
             this.render();
-            let result = null;
+            const outcomes = [];
             try {
+                const launcher = ahead.find(item => item.id === 'launcher');
+                const builder = ahead.find(item => item.id === 'builder');
                 // The launcher's download starts from its check of the latest release.
-                if (ahead.some(item => item.id === 'launcher') && window.LauncherUpdate && !window.IS_OFFLINE) {
-                    await window.LauncherUpdate.check();
+                if (launcher && window.LauncherUpdate && !window.IS_OFFLINE) await window.LauncherUpdate.check();
+                const started = (await run('switch-back-to-stable', {
+                    launcher: launcher ? launcher.stable : '',
+                    builder: builder ? builder.stable : ''
+                })) || {};
+                for (const item of ahead.filter(entry => entry.id === 'fix')) {
+                    outcomes.push({ item, ...(await this.verify(item)) });
                 }
-                result = await run('switch-back-to-stable', { items: Array.from(new Set(ahead.map(item => item.id))) });
-                result = result || {};
-                // The fix: Verify installs the latest release over the beta, in each folder.
-                for (const game of result.fixGames || []) {
-                    await this.verify(game);
-                }
-                if (result.builder) await this.waitForBuilder();
-                // The launcher: its download, then the bar's Restart now.
-                if (result.launcher && window.LauncherUpdate) await window.LauncherUpdate.follow();
+                if (builder) outcomes.push({ item: builder, ...(await this.builderResult(builder, !!started.builder)) });
+                if (launcher) outcomes.push({ item: launcher, ...(await this.launcherResult(launcher, !!started.launcher)) });
             } catch (error) {
                 console.error('update channel: switching back failed', error);
+                for (const item of ahead) {
+                    if (!outcomes.some(outcome => outcome.item === item)) outcomes.push({ item, ok: false, reason: String(error && error.message || error) });
+                }
             } finally {
                 this.busy = false;
                 await this.refresh(false);
             }
             window.dispatchEvent(new CustomEvent('gameInstallationUpdated', { detail: { game: null } }));
-            if (result && (result.builder || (result.fixGames || []).includes('xml1'))) await this.offerRebuild();
-            return true;
+            await this.report(outcomes);
+
+            // A rebuild with the stable builder and fix, once both that the port needed are there.
+            const portNeeds = outcomes.filter(outcome => outcome.item.id === 'builder' || keyOf(outcome.item) === 'fix:xml1');
+            if (portNeeds.length && portNeeds.every(outcome => outcome.ok)) await this.offerRebuild();
+            return outcomes.every(outcome => outcome.ok);
         },
 
-        async verify(game) {
+        // What happened to each item, when anything did not switch back (and a short note when all did).
+        async report(outcomes) {
+            const failed = outcomes.filter(outcome => !outcome.ok);
+            if (!failed.length) {
+                if (outcomes.length && window.showToast) window.showToast(t('updateChannel.resultAllDone'), 'success', 6000);
+                return;
+            }
+            const lines = outcomes.map(({ item, ok, pending, reason }) => {
+                if (ok && pending) return t('updateChannel.resultLauncherReady', { name: itemName(item), version: item.stable, button: t('launcherUpdate.restartNow') });
+                if (ok) return t('updateChannel.resultDone', { name: itemName(item), version: item.stable });
+                return t('updateChannel.resultFailed', { name: itemName(item), version: item.installed, reason: reason || t('updateChannel.reasonUnknown') });
+            });
+            await window.showMessageBox(t('updateChannel.resultTitle'),
+                `${escapeHtml(t('updateChannel.resultIntro'))}<br><br>${lines.map(escapeHtml).join('<br>')}<br><br>${escapeHtml(t('updateChannel.resultRetry'))}`,
+                [t('common.ok')]);
+        },
+
+        // Verify with the approval for this folder, this attempt: { ok, reason } from get-patch-attempt,
+        // which reads the folder afterwards.
+        async verify(item) {
+            const game = item.game;
             const gameId = (GameUtils.getUIIdFromBackendId && GameUtils.getUIIdFromBackendId(game)) || game;
             const name = window.GameInstallationManager && window.GameInstallationManager.getGameDisplayName
                 ? window.GameInstallationManager.getGameDisplayName(gameId) : game;
+            let answer = null;
             try {
-                await GameUtils.trackCommandProgress({
+                answer = await GameUtils.trackCommandProgress({
                     gameId,
                     command: 'verify-game',
                     op: 'verify',
-                    commandArgs: { game },
+                    commandArgs: { game, downgrade: { from: item.installed, to: item.stable } },
                     initialMessage: t('progress.verifying', { game: name }),
                     completeMessage: t('progress.verificationComplete')
                 });
             } catch (error) {
                 console.error(`update channel: verify ${game} failed`, error);
+                return { ok: false, reason: String(error && error.message || error) };
             }
+            if (!answer || answer.accepted === false || !answer.attempt) return { ok: false, reason: t('updateChannel.reasonBusy') };
+            for (let i = 0; i < MAX_POLLS * 5; i++) {
+                const attempt = await run('get-patch-attempt', { attempt: answer.attempt });
+                if (attempt && attempt.state !== 'running') {
+                    if (attempt.state === 'done' && attempt.installed === item.stable) return { ok: true };
+                    if (attempt.state === 'cancelled') return { ok: false, reason: t('updateChannel.reasonCancelled') };
+                    return { ok: false, reason: attempt.error || attempt.state };
+                }
+                await sleep(500);
+            }
+            return { ok: false, reason: t('updateChannel.reasonUnknown') };
+        },
+
+        // The builder's install of exactly `item.stable`: done when that version is the one installed.
+        async builderResult(item, started) {
+            if (!started) return { ok: false, reason: t('updateChannel.reasonBusy') };
+            const builder = await this.waitForBuilder();
+            if (builder && builder.version === item.stable && !builder.code) return { ok: true };
+            return { ok: false, reason: (builder && (builder.error || builder.code)) || t('updateChannel.reasonUnknown') };
+        },
+
+        // The launcher's download of exactly `item.stable`: ready to install at the next start.
+        async launcherResult(item, started) {
+            if (!started || !window.LauncherUpdate) return { ok: false, reason: t('updateChannel.reasonBusy') };
+            const s = await window.LauncherUpdate.follow() || window.LauncherUpdate.status;
+            const status = s || window.LauncherUpdate.status;
+            if (status && status.state === 'ready' && status.readyVersion === item.stable) return { ok: true, pending: true };
+            return { ok: false, reason: (status && (status.installError || status.error)) || t('updateChannel.reasonUnknown') };
         },
 
         async waitForBuilder() {
@@ -242,23 +325,25 @@
             }, 0);
         },
 
+        // What Settings says under the versions, one line each: offline mode; a check running; for each
+        // repository GitHub could not be asked about, whether its last result is used or there is none (a
+        // first check that failed); a beta newer than the latest release on Stable.
         note() {
             const s = this.status;
             if (!s) return '';
             if (s.offline) return t('updateChannel.offline');
             if (s.checking) return t('updateChannel.checking');
-            const cached = this.items().find(item => item.fromCache);
-            if (cached && this.channel() === 'beta') {
-                return t('updateChannel.fromCache', { error: cached.error, version: cached.beta || '?' });
-            }
+            const lines = (Array.isArray(s.repos) ? s.repos : []).filter(repo => repo.error).map(repo => repo.fromCache
+                ? t('updateChannel.fromCacheRepo', { name: repoName(repo.id), error: repo.error, version: repo.version })
+                : t('updateChannel.checkFailedRepo', { name: repoName(repo.id), error: repo.error }));
             const ahead = this.ahead();
             if (ahead.length) {
-                return t('updateChannel.aheadNote', {
+                lines.push(t('updateChannel.aheadNote', {
                     current: ahead.map(item => `${itemName(item)} ${item.installed}`).join(', '),
                     stable: ahead.map(item => item.stable).join(', ')
-                });
+                }));
             }
-            return '';
+            return lines.join('\n');
         },
 
         render() {

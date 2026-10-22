@@ -4759,3 +4759,6 @@ html[data-reduce-motion] .ul-online-spinner { animation: none; }
     color: var(--text-muted);
     font-size: 12px;
 }
+
+/* One line per repository the update channel could not check (update-channel.js note()). */
+.update-channel-note { white-space: pre-line; }

@@ -306,7 +306,8 @@ targetname "ultimate-legends-tests"
 files {"./src/tests/**.hpp", "./src/tests/**.cpp", "./src/launcher/tools/tool_check.cpp", "./src/launcher/updater/swap_retry.cpp",
        "./src/launcher/display/display_changes.cpp", "./src/launcher/updater/folder_work.cpp", "./src/launcher/fix/online_rules.cpp",
        "./src/launcher/fix/online_launch.cpp", "./src/launcher/fix/online_status.cpp", "./src/launcher/updater/progress_tracker.cpp",
-       "./src/launcher/updater/update_cancelled.cpp", "./src/launcher/updater/release_channel.cpp"}
+       "./src/launcher/updater/update_cancelled.cpp", "./src/launcher/updater/release_channel.cpp",
+       "./src/launcher/updater/release_resolver.cpp", "./src/launcher/updater/patch_policy.cpp"}
 
 -- src/tests first: its std_include.hpp stands in for the launcher's precompiled header. rapidjson
 -- (header-only) for updater/release_channel.cpp, which reads GitHub's release JSON.

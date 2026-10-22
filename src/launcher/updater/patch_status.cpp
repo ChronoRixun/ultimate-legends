@@ -127,9 +127,11 @@ namespace patch_status
             return true;
         }
 
-        // Starts a background check when none is running and the last one is stale: Stable asks
-        // `url` (GitHub's releases/latest), Beta the channel's release of `repo`. Called with mutex_ held.
-        void check_if_stale(const std::string& key, const std::string& url, const std::string& repo, release_check& check)
+        // Starts a background check when none is running and the last one is stale: the update channel's
+        // release of `repo` (release_source, with its last choice when GitHub can't be asked), else `url`
+        // (a patch without a repository: GitHub's releases/latest). Called with mutex_ held.
+        void check_if_stale(const std::string& key, const std::string& url, const std::string& repo, const release_channel::channel channel,
+                            release_check& check)
         {
             const auto now = clock::now();
             if (check.checking || (check.checked && now - *check.checked < (check.failed ? retry_after : recheck_after)))
@@ -138,7 +140,7 @@ namespace patch_status
             }
 
             check.checking = true;
-            std::thread([key, url, repo]
+            std::thread([key, url, repo, channel]
             {
                 std::string version;
                 std::string page;
@@ -151,7 +153,7 @@ namespace patch_status
                 }
                 else
                 {
-                    const auto outcome = release_source::resolve(repo, release_channel::channel::beta, {patch_manifest_name});
+                    const auto outcome = release_source::resolve(repo, channel, {patch_manifest_name});
                     ok = outcome.chosen.has_value();
                     if (ok)
                     {
@@ -223,8 +225,11 @@ namespace patch_status
             installed = patch_channel::installed_version(config, *folder);
         }
 
-        // Only a patch with a repository follows the update channel (the XML2 Fix).
-        const auto channel = config.patch_repo.empty() ? release_channel::channel::stable : release_source::current_channel();
+        // Only a patch with a repository follows the update channel (the XML2 Fix); a Debug build's stand-in
+        // release (patch-release) is read as before.
+        const auto follows = !config.patch_repo.empty() &&
+                             config.patch_release_url == "https://api.github.com/repos/" + config.patch_repo + "/releases/latest";
+        const auto channel = follows ? release_source::current_channel() : release_channel::channel::stable;
         const auto beta = channel == release_channel::channel::beta;
         std::string latest;
         std::string page;
@@ -233,10 +238,10 @@ namespace patch_status
         auto from_cache = false;
         if (!config.patch_release_url.empty() && !utils::flags::has_flag("offline"))
         {
-            const auto key = beta ? config.patch_repo + "|beta" : config.patch_release_url;
+            const auto key = follows ? config.patch_repo + "|" + release_channel::channel_name(channel) : config.patch_release_url;
             std::lock_guard lock(mutex_);
             auto& check = checks_[key];
-            check_if_stale(key, config.patch_release_url, beta ? config.patch_repo : std::string{}, check);
+            check_if_stale(key, config.patch_release_url, follows ? config.patch_repo : std::string{}, channel, check);
             latest = check.version;
             page = check.page;
             checking = check.checking;
@@ -257,12 +262,12 @@ namespace patch_status
         out.AddMember("updateAvailable", update_available, allocator);
         // The update channel: "beta" only for a patch that follows it; a pre-release in the folder
         // (the page's Beta badge); on Stable, a beta newer than the latest release (it stays until
-        // the player switches back, Settings > Update channel); Beta's last release found when
-        // GitHub couldn't be asked.
+        // the player switches back, Settings > Update channel); the channel's last release found when
+        // GitHub couldn't be asked (fromCache), and why GitHub couldn't be asked (error).
         out.AddMember("channel", rapidjson::StringRef(release_channel::channel_name(channel)), allocator);
         out.AddMember("prerelease", installed && release_channel::is_prerelease(*installed), allocator);
         out.AddMember("aheadOfStable", !beta && installed && release_channel::is_ahead_of(*installed, latest), allocator);
         out.AddMember("fromCache", from_cache, allocator);
-        out.AddMember("error", make_string(from_cache ? error : std::string{}, allocator), allocator);
+        out.AddMember("error", make_string(error, allocator), allocator);
     }
 }

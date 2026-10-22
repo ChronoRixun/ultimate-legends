@@ -32,7 +32,7 @@
     const LauncherUpdate = {
         status: null,
         dismissed: '', // the version whose "available" bar the player closed this session
-        polling: false,
+        polling: null, // the poll under way (follow())
 
         async init() {
             const checkButton = el('launcher-update-check');
@@ -68,19 +68,22 @@
             return this.status;
         },
 
-        // Polls while the backend checks or downloads.
-        async follow() {
-            if (this.polling) return;
-            this.polling = true;
-            try {
-                for (;;) {
-                    const s = await this.refresh();
-                    if (!s || (s.state !== 'checking' && s.state !== 'downloading')) break;
-                    await sleep(s.state === 'downloading' ? 500 : 1000);
+        // Polls while the backend checks or downloads; the status it settles on. A second caller waits for
+        // the same poll (Switch back to Stable reads the result).
+        follow() {
+            if (this.polling) return this.polling;
+            this.polling = (async () => {
+                try {
+                    for (;;) {
+                        const s = await this.refresh();
+                        if (!s || (s.state !== 'checking' && s.state !== 'downloading')) return s;
+                        await sleep(s.state === 'downloading' ? 500 : 1000);
+                    }
+                } finally {
+                    this.polling = null;
                 }
-            } finally {
-                this.polling = false;
-            }
+            })();
+            return this.polling;
         },
 
         async check() {
@@ -118,7 +121,8 @@
                 t('launcherUpdate.confirmBody', { version: s.latest, current: s.current, size }),
                 [t('launcherUpdate.update'), { label: t('launcherUpdate.notNow'), cancel: true }]);
             if (choice !== 0) return;
-            await run('start-launcher-update', { downgrade: !!s.downgrade });
+            // (Never a switch back: that is asked for in Settings each time, update-channel.js.)
+            await run('start-launcher-update');
             await this.follow();
         },
 

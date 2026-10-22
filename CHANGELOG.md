@@ -93,20 +93,30 @@ the whole launcher (below).
   - (Developed as 0.3.3 in PR #11; 0.3.3 was never released on its own: this ships first in 0.4.0.)
 - **Update channel: Stable (the default) or Beta** (Settings > Updates), for testers: Beta gets the pre-releases of
   the launcher, the XML2 Fix and the Legends Classic builder through the launcher, instead of test kits copied by
-  hand. Stable is GitHub's latest release, exactly as before (it never sees a pre-release). Beta takes the highest
-  version of each repository's releases by SemVer, pre-releases included (`1.8.0-beta.1` < `1.8.0-beta.2` <
-  `1.8.0`), so a beta that becomes final moves Beta to the release; drafts and tags that aren't versions are
-  skipped. Its files are downloaded by the chosen release's tag, with the same checks as before (SHA256SUMS.txt for
-  the launcher, the manifests' hashes for the fix and the builder). When GitHub can't be asked (offline, its limit on
-  checks), Beta uses the last release it found and says so.
+  hand. Stable is GitHub's latest release (it never sees a pre-release). Beta takes the highest version of each
+  repository's releases by SemVer, pre-releases included (`1.8.0-beta.2` < `1.8.0-beta.10` < `1.8.0-rc.1` <
+  `1.8.0`), so a beta that becomes final moves Beta to the release; drafts, tags that aren't versions and releases
+  still uploading their files are skipped. On both channels, every path (the launcher, the XML2 Fix, the builder)
+  downloads the chosen release's files by its tag - never `releases/latest/download` once a release was chosen, so
+  a manifest and its files always come from one release - with the same checks as before (SHA256SUMS.txt for the
+  launcher, the manifests' hashes for the fix and the builder). When GitHub can't be asked (offline, its limit on
+  checks), each channel uses its own last choice for that repository and Settings says so; a check that failed
+  with no earlier result is said too ("could not check …, and there is no earlier result to use"). Only into a
+  folder with no XML2 Fix (or a PC with no builder) does an unanswered check fall back to the latest release's
+  files, as 0.3 did, still checked by their hashes.
   - Every version comparison orders pre-releases now, `min_launcher` and the build's `requires.xml2fix` included:
     the XML2 Fix `1.8.0-beta.2` meets `>=1.7.1` but not `>=1.8.0` (online play takes 1.8.0's own betas on purpose:
     they have the rooms). The fix's own version resource is numeric, so the launcher records the release it
     installed and that is the fix's version while the DLL is still that file.
-  - Nothing is ever installed over a newer version without asking. Switching back to Stable with a beta newer
-    than the latest release asks "You're on a beta (x). Switch back to y?": **Switch back** reinstalls the latest
-    release of each (the launcher's download, Verify for the fix, the builder) and then offers to rebuild X-Men
-    Legends; **Keep the beta** changes nothing, and Settings keeps offering it.
+  - Nothing is ever installed over a newer version without asking, on either channel (an older Stable release
+    never replaces a newer final fix either). Switching back to Stable with a beta newer than the latest release
+    asks "You're on a beta (x). Switch back to y?": **Switch back** installs exactly the versions shown - the
+    launcher's download, Verify in each XML2 Fix folder, the builder - each approved for that one attempt only (a
+    Verify carries its folder's approval; nothing is stored). What each really did is read back: an item that
+    failed or was cancelled stays as it was and is listed with why, and Switch back to Stable stays offered (it
+    asks again). **Rebuild** is offered only once the builder and the port's fix it needed have both switched.
+    **Keep the beta**, a channel change or a failed attempt revokes any approval not yet installed, so a later
+    Play, Verify, retry or restart never downgrades.
   - Settings lists the launcher, the XML2 Fix (in each game's folder) and the builder with their exact versions;
     a pre-release has a **Beta** badge there, in the version line (with the channel), on the XML2 Fix line of a
     game page and in the X-Men Legends page's fix and builder rows.

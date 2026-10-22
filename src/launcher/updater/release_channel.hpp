@@ -45,7 +45,9 @@ namespace release_channel
     };
     std::optional<version> parse_version(std::string_view text);
 
-    // The version a tag names ("v1.8.0-beta.1" -> "1.8.0-beta.1"); empty when it names none.
+    // The version a tag names ("v1.8.0-beta.1" -> "1.8.0-beta.1"); empty when it names none. Stricter
+    // than parse_version (which also reads DLL version resources): no leading zero in the numbers
+    // ("v01.8.0"); like it, no empty build identifier ("v1.8.0+..").
     std::string tag_version(std::string_view tag);
     bool is_version(std::string_view text);
     bool is_prerelease(std::string_view text);
@@ -106,6 +108,9 @@ namespace release_channel
     // the release's version: "ultimate-legends-{version}-win64-portable.zip"). Stable's: the same among
     // releases that are neither pre-releases by flag nor by version (releases/latest is what Stable
     // really uses; this is for a list a test or a cache holds).
+    // Whether `value` has every file in `required` ("{version}" as for pick()).
+    bool has_files(const release& value, const std::vector<std::string>& required);
+
     std::optional<release> pick(channel value, const std::vector<release>& releases, const std::vector<std::string>& required);
 
     // https://github.com/<repo>/releases/download/<tag>/<file> and .../releases/latest/download/<file>;

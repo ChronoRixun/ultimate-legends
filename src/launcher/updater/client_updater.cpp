@@ -140,7 +140,8 @@ namespace client_updater
     }
 
     client_updater::client_updater(const game_config::game_config_t& config, updater::ui_progress_listener* listener,
-                                   const std::optional<std::filesystem::path>& install_path)
+                                   const std::optional<std::filesystem::path>& install_path,
+                                   const std::optional<patch_policy::consent>& consent)
         : config_(config), install_path_(install_path ? *install_path : resolve_install_path(config)), client_id_(config.game_key),
           progress_listener_(listener)
     {
@@ -151,12 +152,15 @@ namespace client_updater
 
         // The release the update channel takes (patch_channel.hpp); none when the patch in the folder
         // stays as it is (a beta newer than what the channel offers).
-        const auto source = patch_channel::resolve(config, this->install_path_);
+        const auto source = patch_channel::resolve(config, this->install_path_, consent);
         this->update_manifest_url_ = source.manifest_url;
         this->update_folder_url_ = source.folder_url;
         this->release_version_ = source.version;
+        this->downgrade_ = source.downgrade;
+        this->note_ = source.note;
         if (this->update_manifest_url_.empty())
         {
+            this->kept_ = true;
             return;
         }
 

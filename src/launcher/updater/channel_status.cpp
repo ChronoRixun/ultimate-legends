@@ -127,6 +127,25 @@ namespace channel_status
             add_item(items, "builder", nullptr, builder, current, allocator);
         }
         out.AddMember("items", items, allocator);
+
+        // What GitHub said for each repository on the current channel, installed or not (a first check
+        // that failed with no earlier result is said too): {id, version, fromCache, error}.
+        rapidjson::Value checked(rapidjson::kArrayType);
+        for (const auto& spec : repos())
+        {
+            const auto it = found_.find(std::string(spec.id) + "|" + release_channel::channel_name(current));
+            if (it == found_.end())
+            {
+                continue;
+            }
+            rapidjson::Value repo(rapidjson::kObjectType);
+            repo.AddMember("id", rapidjson::StringRef(spec.id), allocator);
+            repo.AddMember("version", make_string(it->second.version, allocator), allocator);
+            repo.AddMember("fromCache", it->second.from_cache, allocator);
+            repo.AddMember("error", make_string(it->second.error, allocator), allocator);
+            checked.PushBack(repo, allocator);
+        }
+        out.AddMember("repos", checked, allocator);
     }
 
     void refresh()
@@ -185,49 +204,32 @@ namespace channel_status
         refresh();
     }
 
-    switch_back_result switch_back(const std::vector<std::string>& items)
+    switch_back_result switch_back(const std::string& launcher_to, const std::string& builder_to)
     {
         switch_back_result result{};
         if (release_source::current_channel() != channel::stable)
         {
             return result;
         }
-        const auto wants = [&](const char* id)
+        // Each approved for exactly the version the player was shown, and for this attempt only: the
+        // fix's goes with each folder's Verify (verify-game { downgrade }).
+        if (!launcher_to.empty())
         {
-            return std::find(items.begin(), items.end(), id) != items.end();
-        };
-
-        std::string stable_fix;
-        {
-            std::lock_guard lock(mutex_);
-            if (const auto it = found_.find("fix|stable"); it != found_.end())
-            {
-                stable_fix = it->second.version;
-            }
+            result.launcher = launcher_update::start_download(launcher_to);
         }
-
-        if (wants("launcher"))
+        if (!builder_to.empty())
         {
-            result.launcher = launcher_update::start_download(true);
+            result.builder = xml1_port::check_builder(true, std::nullopt, builder_to);
         }
-        if (wants("fix"))
-        {
-            for (const auto* game : {"xml2", "xml1"})
-            {
-                const auto installed = fix_version(game);
-                if (installed && release_channel::is_ahead_of(*installed, stable_fix))
-                {
-                    patch_channel::allow_downgrade(*game_config::get_game_config(game));
-                    result.fix_games.emplace_back(game);
-                }
-            }
-        }
-        if (wants("builder"))
-        {
-            result.builder = xml1_port::check_builder(true, std::nullopt, true);
-        }
-        utils::logger::write("update channel: switch back to Stable (launcher {}, builder {}, fix in {} folder(s))", result.launcher,
-                             result.builder, result.fix_games.size());
+        utils::logger::write("update channel: switch back to Stable (launcher {} -> {}, builder {} -> {})", launcher_to.empty() ? "-" : launcher_to,
+                             result.launcher, builder_to.empty() ? "-" : builder_to, result.builder);
         return result;
+    }
+
+    void keep_beta()
+    {
+        // Keep the beta: nothing approved earlier and still pending may switch back.
+        launcher_update::revoke_downgrade();
+        utils::logger::write("update channel: the player kept the beta");
     }
 }

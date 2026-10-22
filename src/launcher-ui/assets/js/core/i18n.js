@@ -601,15 +601,12 @@
                     host: {
                         press: 'Press {{button}}',
                         inGame: 'In the game: Play Online, then Host',
-                        inGameDetail: 'Your room opens then. Start a new or saved campaign as usual.',
-                        share: 'Send friends your code (it’s already copied)',
-                        shareDetail: 'A chat message is fine; Copy copies it again.'
+                        share: 'Send friends your code (it’s already copied)'
                     },
                     join: {
                         code: 'Paste the code and press {{button}}, or pick a game in {{browse}}',
                         codeDetail: 'Lower case, spaces and dashes are fine.',
                         inGame: 'In the game: Play Online, then Join Game',
-                        inGameDetail: 'Select the host’s game. This page then says “{{connected}}”',
                         late: 'Game already running? You join at the next level',
                         lateDetail: 'Wait on Joined Game until then.'
                     },
@@ -623,6 +620,9 @@
                     keepOpen: 'Host and Join keep the launcher open while you play, to show your code and follow the game, even with {{setting}} on. Play still closes it.',
                     testMode: 'Test mode turns online play off: turn it off to host or join.',
                     lan: 'On the same network, LAN and Connect by IP still work with Play, which never opens a room.',
+                    roomOpens: 'Your room opens when you pick Play Online, then Host in the game; start a new or saved campaign as usual.',
+                    shareCode: 'Send the code any way you like (a chat message is fine); Copy copies it again.',
+                    connected: 'In Join Game, select the host’s game; this page then says “{{connected}}”',
                     errorsTitle: 'What the messages mean'
                 }
             },
@@ -1549,15 +1549,12 @@
                     host: {
                         press: 'Appuyez sur {{button}}',
                         inGame: 'Dans le jeu : Play Online, puis Host',
-                        inGameDetail: "Votre salle s'ouvre alors. Lancez une nouvelle campagne ou une sauvegarde comme d'habitude.",
-                        share: 'Envoyez votre code a vos amis (il est deja copie)',
-                        shareDetail: 'Un message suffit ; Copier le copie a nouveau.'
+                        share: 'Envoyez votre code a vos amis (il est deja copie)'
                     },
                     join: {
                         code: 'Collez le code et appuyez sur {{button}}, ou choisissez une partie dans {{browse}}',
                         codeDetail: 'Minuscules, espaces et tirets sont acceptes.',
                         inGame: 'Dans le jeu : Play Online, puis Join Game',
-                        inGameDetail: "Selectionnez la partie de l'hote. Cette page affiche alors « {{connected}} »",
                         late: 'Partie deja en cours ? Vous entrez au prochain niveau',
                         lateDetail: 'Attendez sur Joined Game jusque-la.'
                     },
@@ -1571,6 +1568,9 @@
                     keepOpen: 'Heberger et Rejoindre gardent le lanceur ouvert pendant la partie, pour afficher votre code et suivre la partie, meme avec {{setting}} active. Jouer le ferme toujours.',
                     testMode: 'Le mode test desactive le jeu en ligne : desactivez-le pour heberger ou rejoindre.',
                     lan: "Sur le meme reseau, le LAN et Connect by IP fonctionnent toujours avec Jouer, qui n'ouvre jamais de salle.",
+                    roomOpens: "Votre salle s'ouvre quand vous choisissez Play Online, puis Host dans le jeu ; lancez une nouvelle campagne ou une sauvegarde comme d'habitude.",
+                    shareCode: 'Envoyez le code comme vous voulez (un message suffit) ; Copier le copie a nouveau.',
+                    connected: "Dans Join Game, selectionnez la partie de l'hote ; cette page affiche alors « {{connected}} »",
                     errorsTitle: 'Ce que veulent dire les messages'
                 }
             }
@@ -2142,15 +2142,12 @@
                     host: {
                         press: 'Pulsa {{button}}',
                         inGame: 'En el juego: Play Online y luego Host',
-                        inGameDetail: 'Tu sala se abre entonces. Empieza una campana nueva o guardada, como siempre.',
-                        share: 'Envia tu codigo a tus amigos (ya esta copiado)',
-                        shareDetail: 'Basta con un mensaje; Copiar lo copia de nuevo.'
+                        share: 'Envia tu codigo a tus amigos (ya esta copiado)'
                     },
                     join: {
                         code: 'Pega el codigo y pulsa {{button}}, o elige una partida en {{browse}}',
                         codeDetail: 'Valen minusculas, espacios y guiones.',
                         inGame: 'En el juego: Play Online y luego Join Game',
-                        inGameDetail: 'Selecciona la partida del anfitrion. Esta pagina dice entonces «{{connected}}»',
                         late: '¿Partida ya en marcha? Entras en el proximo nivel',
                         lateDetail: 'Espera en Joined Game hasta entonces.'
                     },
@@ -2164,6 +2161,9 @@
                     keepOpen: 'Alojar y Unirse mantienen el lanzador abierto mientras juegas, para mostrar tu codigo y seguir la partida, incluso con {{setting}} activado. Jugar lo sigue cerrando.',
                     testMode: 'El modo de prueba desactiva el juego en linea: desactivalo para alojar o unirte.',
                     lan: 'En la misma red, LAN y Connect by IP siguen funcionando con Jugar, que nunca abre una sala.',
+                    roomOpens: 'Tu sala se abre al elegir Play Online y luego Host en el juego; empieza una campana nueva o guardada, como siempre.',
+                    shareCode: 'Envia el codigo como quieras (basta con un mensaje); Copiar lo copia de nuevo.',
+                    connected: 'En Join Game, selecciona la partida del anfitrion; esta pagina dice entonces «{{connected}}»',
                     errorsTitle: 'Que significan los mensajes'
                 }
             }

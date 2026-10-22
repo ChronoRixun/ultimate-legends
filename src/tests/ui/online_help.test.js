@@ -33,7 +33,14 @@ const CARDS = {
     }
 };
 const ICONS = { host: ['play', 'gamepad', 'copy'], join: ['clipboard', 'gamepad', 'door'] };
-const NOTES = ['sameVersion', 'noPorts', 'public', 'publicIp', 'soloSegment', 'heroes', 'keepOpen', 'testMode', 'lan'];
+const NOTES = ['sameVersion', 'noPorts', 'public', 'publicIp', 'soloSegment', 'heroes', 'keepOpen', 'testMode', 'lan',
+    'roomOpens', 'shareCode', 'connected'];
+// The only steps with a grey second line (owner): Join's paste step and its next-level step.
+const DETAILS = {
+    en: { code: 'Lower case, spaces and dashes are fine.', late: 'Wait on Joined Game until then.' },
+    fr: { code: 'Minuscules, espaces et tirets sont acceptes.', late: 'Attendez sur Joined Game jusque-la.' },
+    es: { code: 'Valen minusculas, espacios y guiones.', late: 'Espera en Joined Game hasta entonces.' }
+};
 const FOLD_TITLES = { en: ['Good to know', 'What the messages mean'], fr: ['Bon a savoir', 'Ce que veulent dire les messages'],
     es: ['Conviene saber', 'Que significan los mensajes'] };
 
@@ -61,6 +68,10 @@ test('How online works: the Host and Join cards, three steps each with an icon, 
             assert.equal(steps.length, 3);
             steps.forEach(step => assert.ok(step.querySelector('.ul-online-howto-step-icon svg[aria-hidden="true"]'), `${language}: a step icon`));
         }
+        // Two grey lines, both on the Join card.
+        const details = [...t.document.querySelectorAll('#xml1-online-panel .ul-online-howto-detail')]
+            .map(detail => [detail.closest('.ul-online-howto-card').dataset.card, detail.closest('.ul-online-howto-step').dataset.step, detail.textContent]);
+        assert.deepEqual(details, [['join', 'code', DETAILS[language].code], ['join', 'late', DETAILS[language].late]], `${language}: only those two`);
         // The example code, as the page shows a real one.
         assert.equal(t.text('.ul-online-howto-card[data-card="host"] [data-step="share"] .ul-online-howto-code'), 'ABCD-EFGH');
         // The game's own menus stay in English.
@@ -139,9 +150,9 @@ test('How online works: every fact of the old text is still there (cards or fold
     const text = t.text('.ul-online-help');
     for (const fact of [
         // The old steps.
-        /Press Host a game/, /In the game: Play Online, then Host/, /Your room opens then/, /ABCD-EFGH/, /new or saved campaign as usual/,
-        /already copied/, /A chat message is fine/, /Copy copies it again/, /Paste the code and press Join/, /Lower case, spaces and dashes are fine/,
-        /Play Online, then Join Game/, /Select the host’s game/, /Connected – playing together\./,
+        /Press Host a game/, /In the game: Play Online, then Host/, /Your room opens when you pick Play Online, then Host in the game/, /ABCD-EFGH/,
+        /new or saved campaign as usual/, /already copied/, /a chat message is fine/, /Copy copies it again/, /Paste the code and press Join/,
+        /Lower case, spaces and dashes are fine/, /Play Online, then Join Game/, /In Join Game, select the host’s game; this page then says “Connected – playing together\.”/,
         // The old notes.
         /List my game publicly puts your game in Browse games for everyone with the launcher; off, only friends with the code can join/,
         /Wait on Joined Game/, /next level/, /enough heroes for everyone/, /solo story parts, players without a hero stay connected and watch the shared camera, then rejoin/,

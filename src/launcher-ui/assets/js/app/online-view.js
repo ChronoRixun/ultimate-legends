@@ -221,8 +221,10 @@
         { id: 'host', icon: 'crown', steps: [['press', 'play'], ['inGame', 'gamepad'], ['share', 'copy']] },
         { id: 'join', icon: 'people', steps: [['code', 'clipboard'], ['inGame', 'gamepad'], ['late', 'door']] }
     ];
-    // Good to know, in order.
-    const HELP_NOTES = ['sameVersion', 'noPorts', 'public', 'publicIp', 'soloSegment', 'heroes', 'keepOpen', 'testMode', 'lan'];
+    // Good to know, in order (the last three finish the cards' steps). Only two steps keep a grey second line:
+    // Join's paste step and its next-level step.
+    const HELP_NOTES = ['sameVersion', 'noPorts', 'public', 'publicIp', 'soloSegment', 'heroes', 'keepOpen', 'testMode', 'lan',
+        'roomOpens', 'shareCode', 'connected'];
     const EXAMPLE_CODE = 'ABCD-EFGH';
 
     function icon(name, className) {

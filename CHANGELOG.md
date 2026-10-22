@@ -54,7 +54,8 @@ the whole launcher (below).
   - **How online works**: two cards, Host a game and Join a game, of three short steps with an icon each (the
     game's menus named in English: Play Online, Host, Join Game), always shown; under them **Good to know** (the
     same version for everyone, no port forwarding, public games and your internet address, solo story parts,
-    enough heroes, the launcher kept open, test mode, LAN and Connect by IP with Play) and **What the messages
+    enough heroes, the launcher kept open, test mode, LAN and Connect by IP with Play, when the room opens,
+    sending the code, and what this page says once you've joined) and **What the messages
     mean**, each a fold that the keyboard and a controller open and close.
   - Host and Join are off, with the reason, while the game isn't built, a build or an XML2 Fix update holds its
     folder, the folder's XML2 Fix is older than 1.8.0 or its version can't be read (**Verify Files** updates it), Test

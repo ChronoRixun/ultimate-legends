@@ -29,8 +29,10 @@ Reviewed companion commits (from the local pipeline handoff, 2026-10-22):
   three numbers installs over it as a repair.
 - **Tags are lower case.** `v1.8.0-Beta.1` is not a release tag to the launcher (nor to `tools/release_tag.py`).
 - **Online needs the build's stamp.** Host and Join need the build's `_build\stamp.json` `requires.xml2fix` to have a
-  lower bound of `1.8.0-0` or later (`>=1.8`, `>=1.8.0-0`), or a `GameVersion` in its `[Online]`; otherwise the Online
-  section asks for a rebuild.
+  lower bound of `1.8.0-0` or later (`>=1.8`, `>=1.8.0-0`); otherwise the Online section asks for a rebuild. The stamp
+  decides whenever it has a requirement: a `>=1.7.1` stamp is not online-capable even with a `GameVersion` (0.2.4
+  builds have `LC31`, 0.2.5 `LC32`). Only a stamp with no requirement at all falls back to the ini, which then needs
+  both a `GameVersion` and a non-empty `[Online]` `Broker`.
 - **The Beta rules** (`docs/release/0.4.0-checklist.md`, "Beta rules") apply to both pipelines: never delete a
   published beta, pair the betas (`fix -beta.N` with `builder -beta.N`), a protocol change bumps the builder's
   requirement and `GameVersion`, the final is tagged on the rc's tree, no releases from the web UI, and

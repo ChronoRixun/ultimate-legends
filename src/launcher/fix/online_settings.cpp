@@ -98,7 +98,7 @@ namespace online_settings
             const auto it = values.find(key);
             return it == values.end() ? std::string{} : it->second;
         };
-        return {online_rules::rooms_host(value("Broker")), online_rules::rooms_pin(value("BrokerPin")), value("GameVersion")};
+        return {online_rules::rooms_host(value("Broker")), online_rules::rooms_pin(value("BrokerPin")), value("GameVersion"), value("Broker")};
     }
 
     bool test_mode_on(const std::filesystem::path& ini, const fix_ini::fix& fix)

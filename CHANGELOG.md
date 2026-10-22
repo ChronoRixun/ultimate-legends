@@ -128,7 +128,8 @@ the whole launcher (below).
     channel** (Settings, the focus on the setting) instead of Verify Files, which has nothing newer to install on
     Stable. On Beta the Verify Files message stays.
   - **Online needs a build made for it:** with a 1.8 XML2 Fix in a port built by an older builder (its stamp's
-    `requires.xml2fix` below `1.8.0-0`, no `GameVersion`), the Online section says "Rebuild to play online: this
+    `requires.xml2fix` below `1.8.0-0`, whatever `GameVersion` the build has: 0.2.4 and 0.2.5 builds have one; a
+    stamp without a requirement needs both `GameVersion` and `Broker` in `[Online]`), the Online section says "Rebuild to play online: this
     build is older than your XML2 Fix" with **Rebuild**, and Host and Join are refused by the launcher too.
   - **Launcher pre-releases:** a `v<x.y.z>-beta.<n>` or `-rc.<n>` tag publishes a GitHub pre-release that is never
     the latest release, with the same asset names (`ultimate-legends-<version>-win64-portable.zip`,

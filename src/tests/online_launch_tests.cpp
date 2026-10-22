@@ -775,18 +775,27 @@ TEST(run_update_reads_the_cancel_after_every_way_the_updater_returns)
 TEST(online_play_needs_a_build_made_for_it)
 {
     using online_launch::build_supports_online;
+    const auto broker = "broker.example:7777";
     // The stamp's requires.xml2fix from a 0.3.0 builder: stable ">=1.8", beta / rc ">=1.8.0-0".
-    CHECK(build_supports_online(">=1.8", ""));
-    CHECK(build_supports_online(">=1.8.0-0", ""));
-    CHECK(build_supports_online(">=1.8.0", "") && build_supports_online("1.9", "") && build_supports_online(">1.8.0-0", ""));
-    CHECK(build_supports_online(">=1.8.0-0, <2", ""));
-    // An older builder's (0.2.x: ">=1.7.1"), none at all, or only an upper bound: rebuild.
-    CHECK(!build_supports_online(">=1.7.1", ""));
-    CHECK(!build_supports_online(">=1.7.1-0", "") && !build_supports_online("", "") && !build_supports_online("<2", ""));
-    CHECK(!build_supports_online(">=1.7.9 <2", "") && !build_supports_online("=1.8.0", "") && !build_supports_online("not-a-version", ""));
-    // A GameVersion token in [Online]: the builder made it for online play.
-    CHECK(build_supports_online("", "LC33") && build_supports_online(">=1.7.1", "LC33"));
-    CHECK(!build_supports_online(">=1.7.1", "  "));
+    CHECK(build_supports_online(">=1.8", "", ""));
+    CHECK(build_supports_online(">=1.8.0-0", "", ""));
+    CHECK(build_supports_online(">=1.8.0", "", "") && build_supports_online("1.9", "", "") && build_supports_online(">1.8.0-0", "", ""));
+    CHECK(build_supports_online(">=1.8.0-0, <2", "", ""));
+    // An older builder's stamp (0.2.x: ">=1.7.1"), or a requirement with no lower bound: rebuild.
+    CHECK(!build_supports_online(">=1.7.1", "", ""));
+    CHECK(!build_supports_online(">=1.7.1-0", "", "") && !build_supports_online("<2", "", ""));
+    CHECK(!build_supports_online(">=1.7.9 <2", "", "") && !build_supports_online("=1.8.0", "", "") && !build_supports_online("not-a-version", "", ""));
+    // The stamp wins whenever it has a requirement: 0.2.4 / 0.2.5 builds have a GameVersion (LC31 / LC32) and a
+    // Broker too, and still no rooms.
+    CHECK(!build_supports_online(">=1.7.1", "LC32", broker));
+    CHECK(!build_supports_online(">=1.7.1", "LC31", broker));
+    CHECK(!build_supports_online("<2", "LC33", broker));
+    CHECK(build_supports_online(">=1.8.0-0", "", "")); // (and a 0.3.0 stamp needs nothing from the ini)
+    // No requirement in the stamp at all: the ini's [Online] needs both a GameVersion and a Broker.
+    CHECK(build_supports_online("", "LC33", broker));
+    CHECK(!build_supports_online("", "LC33", "") && !build_supports_online("", "LC33", "  "));
+    CHECK(!build_supports_online("", "", broker) && !build_supports_online("", "  ", broker));
+    CHECK(!build_supports_online("", "", "") && !build_supports_online(" ", "", ""));
 
     // Host and Join refuse an old build before the update (nothing armed) and again right before arming.
     for (const auto& request : {host_request(), join_request()})

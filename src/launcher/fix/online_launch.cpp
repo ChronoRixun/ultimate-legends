@@ -105,13 +105,17 @@ namespace online_launch
         return release_channel::satisfies(*version, ">=" + std::string(required_fix) + "-0") ? fix_state::ok : fix_state::old;
     }
 
-    bool build_supports_online(const std::string_view requires_xml2fix, const std::string_view game_version)
+    bool build_supports_online(const std::string_view requires_xml2fix, const std::string_view game_version, const std::string_view broker)
     {
-        if (game_version.find_first_not_of(" \t") != std::string_view::npos)
+        const auto blank = [](const std::string_view text)
         {
-            return true;
+            return text.find_first_not_of(" \t,") == std::string_view::npos;
+        };
+        if (blank(requires_xml2fix))
+        {
+            return !blank(game_version) && !blank(broker);
         }
-        // Each clause (separated by spaces or commas, as satisfies() reads them) that sets a lower bound.
+        // The stamp's requirement alone. Each clause (separated by spaces or commas, as satisfies() reads them) that sets a lower bound.
         const auto minimum = std::string(required_fix) + "-0";
         std::string_view rest = requires_xml2fix;
         while (!rest.empty())

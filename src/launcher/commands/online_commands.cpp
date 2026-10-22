@@ -93,11 +93,12 @@ namespace commands::online_commands
             response.AddMember("offline", utils::flags::has_flag("offline"), allocator);
             const auto is_playable = installed && playable(where);
             response.AddMember("playable", is_playable, allocator);
-            // The build was made for online play (online_launch::build_supports_online): false asks for a
-            // rebuild (a build from an older builder has no rooms, whatever the XML2 Fix).
+            // The build was made for online play (online_launch::build_supports_online: the stamp's requirement,
+            // else the ini's GameVersion and Broker): false asks for a rebuild (a build from an older builder has
+            // no rooms, whatever the XML2 Fix).
+            const auto settings = online_settings::target(where.fix_installed ? where.ini() : std::nullopt, where.info);
             response.AddMember("buildOnline", is_playable && online_launch::build_supports_online(
-                xml1_port::stamp_requires_xml2fix(*where.game_dir),
-                online_settings::target(where.fix_installed ? where.ini() : std::nullopt, where.info).version_token), allocator);
+                xml1_port::stamp_requires_xml2fix(*where.game_dir), settings.version_token, settings.broker), allocator);
             response.AddMember("running", is_supported && game_config::is_game_process_running(config->id, 1000), allocator);
             if (is_supported)
             {

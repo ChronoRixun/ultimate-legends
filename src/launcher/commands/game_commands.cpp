@@ -427,7 +427,8 @@ namespace commands::game_commands
             };
             steps.build_online = [folder, ini, fix]
             {
-                return online_launch::build_supports_online(xml1_port::stamp_requires_xml2fix(folder), online_settings::target(ini, fix).version_token);
+                const auto settings = online_settings::target(ini, fix);
+                return online_launch::build_supports_online(xml1_port::stamp_requires_xml2fix(folder), settings.version_token, settings.broker);
             };
             steps.clear_status = [folder](std::string& error)
             {

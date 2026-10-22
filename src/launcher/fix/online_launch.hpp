@@ -50,11 +50,13 @@ namespace online_launch
     // "ok", "old", "unknown", "missing".
     const char* fix_state_name(fix_state state);
 
-    // The build in the folder was made for online play: its _build\stamp.json `requires.xml2fix` has a lower
-    // bound of 1.8.0-0 or later (">=1.8" from a stable 0.3.0 builder, ">=1.8.0-0" from a beta or rc one), or its
-    // [Online] section has a GameVersion token (the same builders write it). A build from an older builder
-    // (">=1.7.1", no token) has no rooms, whatever XML2 Fix is in the folder: the player rebuilds it.
-    bool build_supports_online(std::string_view requires_xml2fix, std::string_view game_version);
+    // The build in the folder was made for online play. The stamp decides whenever it has a requirement: its
+    // _build\stamp.json `requires.xml2fix` must have a lower bound of 1.8.0-0 or later (">=1.8" from a stable
+    // 0.3.0 builder, ">=1.8.0-0" from a beta or rc one). A ">=1.7.1" stamp is an older builder's, whose build has
+    // no rooms whatever XML2 Fix is in the folder - even with a GameVersion (0.2.4 wrote LC31, 0.2.5 LC32): the
+    // player rebuilds it. Only a stamp with no requirement at all falls back to the ini: its [Online] needs both
+    // a GameVersion and a Broker (as written, not blank).
+    bool build_supports_online(std::string_view requires_xml2fix, std::string_view game_version, std::string_view broker);
 
     struct request
     {

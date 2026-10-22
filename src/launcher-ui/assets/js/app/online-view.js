@@ -19,7 +19,9 @@
 //   code flow with the row's code.
 // - Host and Join are off, with the reason, while the port is not built, a build or an XML2 Fix update
 //   holds the folder (Xml1Port, as for Display / Discord / Test mode), the folder's XML2 Fix is older than
-//   1.8.0 or its version can't be read (Verify Files), Test mode is on (the fix refuses online play then;
+//   requiredFix (on the Beta update channel Verify Files updates it; on Stable, which has no such fix until
+//   Legends Classic 0.3.0 is final, Open Update channel leads to Beta) or its version can't be read (Verify
+//   Files), Test mode is on (the fix refuses online play then;
 //   Turn test mode off is right there), or the game is already running. In offline mode they stay on, with
 //   a note, and ask to restart the launcher online (guardOnline) before anything is written or fetched.
 //
@@ -183,7 +185,10 @@
         if (!data.installed) return { key: 'online.blocked.notSetUp' };
         if (!data.playable) return { key: 'online.blocked.notBuilt' };
         if (!data.fixInstalled || data.fixState === 'missing') return { key: 'online.blocked.noFix', variables: { fix: data.fix || 'XML2 Fix' } };
-        // The DLL in the folder, read by the backend: too old for rooms, or no version to tell.
+        // The DLL in the folder, read by the backend: too old for rooms, or no version to tell. On Stable no
+        // release has rooms yet (until Legends Classic 0.3.0 is final): the way there is the Beta channel, not
+        // Verify Files. On Beta, Verify Files installs the beta fix.
+        if (data.fixState === 'old' && data.updateChannel === 'stable') return { key: 'online.blocked.needsBeta', action: 'open-update-channel' };
         if (data.fixState === 'old') return { key: 'online.blocked.fixOld', variables: { required: requiredFix(gameId), version: data.fixVersion || '' } };
         if (data.fixState !== 'ok') return { key: 'online.blocked.fixUnknown', variables: { required: requiredFix(gameId) } };
         if (queue && typeof queue.isAnyBlockingActive === 'function' && queue.isAnyBlockingActive()) {
@@ -238,6 +243,7 @@
                 <div class="xml1-note is-warn ul-online-blocked" role="status" hidden>
                     <span class="ul-online-blocked-text"></span>
                     <button type="button" class="secondary-action xml1-small ul-online-testmode-off" hidden>${escapeHtml(t('testMode.turnOff'))}</button>
+                    <button type="button" class="secondary-action xml1-small ul-online-open-channel" hidden>${escapeHtml(t('online.openUpdateChannel'))}</button>
                 </div>
                 <p class="xml1-note ul-online-offline" hidden>${escapeHtml(t('online.offline'))}</p>
                 <div class="ul-online-idle">
@@ -296,6 +302,9 @@
             if (checked.code) input.value = displayCode(checked.code);
         });
         host.querySelector('.ul-online-testmode-off').addEventListener('click', () => turnTestModeOff(gameId));
+        host.querySelector('.ul-online-open-channel').addEventListener('click', () => {
+            if (window.UpdateChannel) window.UpdateChannel.openSetting();
+        });
         host.querySelector('.ul-online-public-toggle').addEventListener('click', event => {
             const button = event.target.closest && event.target.closest('.toggle-btn');
             if (!button || button.disabled) return;
@@ -496,6 +505,7 @@
         const off = host.querySelector('.ul-online-testmode-off');
         off.hidden = !(reason && reason.action === 'test-mode-off');
         off.disabled = !!(port() && (port().starting || port().isBuilding()));
+        host.querySelector('.ul-online-open-channel').hidden = !(reason && reason.action === 'open-update-channel');
         host.querySelectorAll('.ul-online-host-button, .ul-online-join-button, .ul-online-code-input, .ul-online-public-toggle .toggle-btn').forEach(control => {
             control.disabled = !!reason;
         });

@@ -30,8 +30,9 @@
 // gives it the real steps.
 namespace online_launch
 {
-    // The first XML2 Fix with broker rooms, Legends Classic 0.3.0's (1.7.x has none). The one number: the
-    // Online section shows the one get-online-status sends.
+    // The first XML2 Fix with broker rooms, Legends Classic 0.3.0's (1.7.x has none); its pre-releases
+    // (1.8.0-beta.1, on the Beta update channel) count too. The one number: the Online section shows the
+    // one get-online-status sends.
     constexpr std::string_view required_fix = "1.8.0";
 
     enum class fix_state

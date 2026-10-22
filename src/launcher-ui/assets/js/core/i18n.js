@@ -405,6 +405,7 @@
             // XML2 Fix's online service, and what each of its states and errors means.
             online: {
                 title: 'Online',
+                openUpdateChannel: 'Open Update channel',
                 intro: 'Play X-Men Legends online with friends: one player hosts, the others join with the code the host gets. No port forwarding, no settings to edit.',
                 loading: 'Loading online play…',
                 host: {
@@ -466,6 +467,7 @@
                     notBuilt: 'Build the game first (Build section below) to play online.',
                     noFix: 'Install the {{fix}} first (Verify Files on this page) to play online.',
                     fixOld: 'Online play needs XML2 Fix {{required}} or later; this folder has {{version}}. Use Verify Files on this page to update it, then host or join.',
+                    needsBeta: 'Online play arrives with Legends Classic 0.3.0. Want to try it now? Switch Update channel to Beta in Settings.',
                     fixUnknown: 'The version of the XML2 Fix in this folder can’t be read, and online play needs {{required}} or later. Use Verify Files on this page to reinstall it, then host or join.',
                     building: 'A build is running: host or join when it has finished.',
                     updating: 'The XML2 Fix is being installed or updated: host or join when it has finished.',
@@ -1326,6 +1328,7 @@
             },
             online: {
                 title: 'En ligne',
+                openUpdateChannel: 'Ouvrir le canal de mise a jour',
                 intro: "Jouez a X-Men Legends en ligne avec vos amis : un joueur heberge, les autres rejoignent avec le code qu'il recoit. Pas de redirection de ports, aucun reglage a modifier.",
                 loading: 'Chargement du jeu en ligne…',
                 host: {
@@ -1386,6 +1389,7 @@
                     notBuilt: "Construisez d'abord le jeu (section Build plus bas) pour jouer en ligne.",
                     noFix: "Installez d'abord le {{fix}} (Verifier les fichiers sur cette page) pour jouer en ligne.",
                     fixOld: 'Le jeu en ligne demande le XML2 Fix {{required}} ou plus recent ; ce dossier a la version {{version}}. Utilisez Verifier les fichiers sur cette page pour le mettre a jour, puis hebergez ou rejoignez.',
+                    needsBeta: 'Le jeu en ligne arrive avec Legends Classic 0.3.0. Envie de l\'essayer maintenant ? Passez le canal de mise a jour sur Beta dans les Parametres.',
                     fixUnknown: 'La version du XML2 Fix de ce dossier ne peut pas etre lue, et le jeu en ligne demande la {{required}} ou plus recente. Utilisez Verifier les fichiers sur cette page pour le reinstaller, puis hebergez ou rejoignez.',
                     building: 'Une construction est en cours : hebergez ou rejoignez quand elle sera terminee.',
                     updating: "Le XML2 Fix est en cours d'installation ou de mise a jour : hebergez ou rejoignez quand ce sera fini.",
@@ -1891,6 +1895,7 @@
             },
             online: {
                 title: 'En linea',
+                openUpdateChannel: 'Abrir el canal de actualizacion',
                 intro: 'Juega a X-Men Legends en linea con amigos: un jugador aloja la partida y los demas se unen con el codigo que recibe. Sin abrir puertos ni editar ajustes.',
                 loading: 'Cargando el juego en linea…',
                 host: {
@@ -1951,6 +1956,7 @@
                     notBuilt: 'Primero construye el juego (seccion Build, abajo) para jugar en linea.',
                     noFix: 'Primero instala el {{fix}} (Verificar archivos en esta pagina) para jugar en linea.',
                     fixOld: 'El juego en linea necesita el XML2 Fix {{required}} o posterior; esta carpeta tiene la version {{version}}. Usa Verificar archivos en esta pagina para actualizarlo y luego aloja o unete.',
+                    needsBeta: 'El juego en linea llega con Legends Classic 0.3.0. ¿Quieres probarlo ya? Cambia el canal de actualizacion a Beta en Ajustes.',
                     fixUnknown: 'No se puede leer la version del XML2 Fix de esta carpeta, y el juego en linea necesita la {{required}} o posterior. Usa Verificar archivos en esta pagina para reinstalarlo y luego aloja o unete.',
                     building: 'Hay una construccion en curso: aloja o unete cuando termine.',
                     updating: 'Se esta instalando o actualizando el XML2 Fix: aloja o unete cuando termine.',

@@ -226,6 +226,9 @@ TEST(the_fix_version_comes_from_the_recorded_release)
     CHECK(effective_patch_version(std::string(""), std::nullopt, "") == std::optional<std::string>(""));
     // No DLL: none.
     CHECK(!effective_patch_version(std::nullopt, beta, "aaaa").has_value());
-    // So the online check (>= 1.8.0) refuses a 1.8.0 beta that reads 1.8.0.
+    // So a requirement of >=1.8.0 refuses a 1.8.0 beta that reads 1.8.0 (the online check takes 1.8.0's
+    // pre-releases on purpose: >=1.8.0-0).
     CHECK(!release_channel::satisfies(*effective_patch_version(std::string("1.8.0"), beta, "aaaa"), ">=1.8.0"));
+    CHECK(release_channel::satisfies(*effective_patch_version(std::string("1.8.0"), beta, "aaaa"), ">=1.8.0-0"));
+    CHECK(!release_channel::satisfies("1.7.9", ">=1.8.0-0"));
 }

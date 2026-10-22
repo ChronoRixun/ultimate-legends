@@ -22,11 +22,11 @@ const ERRORS = ['broker_unreachable', 'broker_rejected', 'code_not_found', 'code
 const REQUIRED_FIX = '1.8.0';
 const LAUNCH_KEYS = ['Host', 'Public', 'RoomName', 'JoinCode'];
 
-// online_launch::check_fix.
+// online_launch::check_fix: at least REQUIRED_FIX, whose own pre-releases count (1.8.0-beta.1, >=1.8.0-0).
 function fixState(version) {
     if (version === null || version === undefined) return 'missing';
-    if (!/^[0-9][0-9.]*$/.test(version)) return 'unknown';
-    const a = version.split('.').map(Number);
+    if (!/^[0-9]+(\.[0-9]+)*(-[0-9A-Za-z.-]+)?$/.test(version)) return 'unknown';
+    const a = version.split('-')[0].split('.').map(Number);
     const b = REQUIRED_FIX.split('.').map(Number);
     for (let i = 0; i < Math.max(a.length, b.length); i++) {
         if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0) ? 'ok' : 'old';
@@ -44,6 +44,8 @@ class Backend {
         this.running = !!options.running;
         this.testMode = !!options.testMode;
         this.offline = !!options.offline;
+        // Settings > Update channel. The tests before it was there expect Verify Files for an old fix: Beta's way.
+        this.updateChannel = options.updateChannel || 'beta';
         this.closeOnLaunch = !!options.closeOnLaunch;
         this.launcherClosed = false;
         // The port's xml2-fix.ini [Online]: the builder's keys and whatever the launcher wrote.
@@ -182,7 +184,7 @@ class Backend {
                     supported: true, installed: this.installed, fixInstalled: this.installed && this.fixInstalled,
                     fixVersion: this.installed && this.fixInstalled ? (this.fixVersion === null ? '' : this.fixVersion) : null,
                     fixState: fixState(this.installed && this.fixInstalled ? (this.fixVersion === null ? '' : this.fixVersion) : null),
-                    requiredFix: REQUIRED_FIX, offline: this.offline,
+                    requiredFix: REQUIRED_FIX, updateChannel: this.updateChannel, offline: this.offline,
                     playable: this.installed && this.playable, running: this.running, testMode: this.testMode,
                     fix: 'XML2 Fix', file: 'xml2-fix.ini', ini: `${FOLDER}\\xml2-fix.ini`,
                     values: Object.fromEntries(LAUNCH_KEYS.map(key => [key, this.online[key] === undefined ? null : this.online[key]])),

@@ -93,12 +93,14 @@ namespace online_launch
             return fix_state::missing;
         }
         // A version resource has only numbers ("1.8.0", "1.8.0.2"); the release the launcher installed
-        // may be a pre-release ("1.8.0-beta.2", below 1.8.0). Anything else isn't one to compare.
+        // may be a pre-release ("1.8.0-beta.2"). Anything else isn't one to compare.
         if (!release_channel::is_version(*version))
         {
             return fix_state::unknown;
         }
-        return release_channel::satisfies(*version, ">=" + std::string(required_fix)) ? fix_state::ok : fix_state::old;
+        // required_fix's own pre-releases count ("-0" is the lowest one): XML2 Fix 1.8.0 comes out as betas
+        // first (v1.8.0-beta.1, the Beta update channel), and those have the rooms. 1.7.x doesn't.
+        return release_channel::satisfies(*version, ">=" + std::string(required_fix) + "-0") ? fix_state::ok : fix_state::old;
     }
 
     const char* fix_state_name(const fix_state state)

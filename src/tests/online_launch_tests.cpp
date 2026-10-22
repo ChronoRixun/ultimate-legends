@@ -213,9 +213,13 @@ TEST(the_fix_online_play_needs_is_1_8_0)
     CHECK(online_launch::check_fix(std::string("0.9.0")) == online_launch::fix_state::old);
     CHECK(online_launch::check_fix(std::string("")) == online_launch::fix_state::unknown);
     CHECK(online_launch::check_fix(std::string("beta")) == online_launch::fix_state::unknown);
-    // A pre-release (the release the launcher installed, on the Beta channel) is below its release.
-    CHECK(online_launch::check_fix(std::string("1.8.0-rc1")) == online_launch::fix_state::old);
-    CHECK(online_launch::check_fix(std::string("1.8.0-beta.2")) == online_launch::fix_state::old);
+    // 1.8.0's own pre-releases have the rooms (XML2 Fix 1.8.0 comes out as betas first, on the Beta
+    // update channel); 1.7.x's don't.
+    CHECK(online_launch::check_fix(std::string("1.8.0-rc1")) == online_launch::fix_state::ok);
+    CHECK(online_launch::check_fix(std::string("1.8.0-beta.1")) == online_launch::fix_state::ok);
+    CHECK(online_launch::check_fix(std::string("1.8.0-beta.2")) == online_launch::fix_state::ok);
+    CHECK(online_launch::check_fix(std::string("1.7.9-beta.1")) == online_launch::fix_state::old);
+    CHECK(online_launch::check_fix(std::string("1.7.99")) == online_launch::fix_state::old);
     CHECK(online_launch::check_fix(std::string("1.8.1-beta.1")) == online_launch::fix_state::ok);
     CHECK(online_launch::check_fix(std::string("1.8.0 beta")) == online_launch::fix_state::unknown);
     CHECK(online_launch::check_fix(std::nullopt) == online_launch::fix_state::missing);

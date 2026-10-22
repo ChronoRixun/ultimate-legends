@@ -230,6 +230,18 @@
             return true;
         },
 
+        // Shows Settings with the focus on Update channel (the Online section's "Open Update channel").
+        openSetting() {
+            const nav = el('settings');
+            if (nav && !nav.classList.contains('active')) nav.click();
+            setTimeout(() => {
+                const select = el('update-channel-select');
+                if (!select) return;
+                if (typeof select.scrollIntoView === 'function') select.scrollIntoView({ block: 'center' });
+                select.focus();
+            }, 0);
+        },
+
         note() {
             const s = this.status;
             if (!s) return '';

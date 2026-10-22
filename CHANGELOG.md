@@ -5,10 +5,12 @@ generates the project, so a release only needs this entry and the tag.
 
 ## 0.4.0 (unreleased)
 
-Ships in one coordinated release with Legends Classic 0.3.0 and XML2 Fix 1.8.0, whose fix reads the keys below (the
-launcher <-> XML2 Fix contract, v1.5). Online play needs XML2 Fix 1.8.0 or later in the port's folder (1.7.x has no
-rooms); Play, LAN and Connect by IP work with any fix, as before. It also brings controller and keyboard navigation
-to the whole launcher (below).
+A normal stable release with the Online section and the Beta update channel (below). Online play needs XML2 Fix 1.8.0
+(Legends Classic 0.3.0's, which reads the keys below: the launcher <-> XML2 Fix contract, v1.5) in the port's folder;
+1.7.x has no rooms. XML2 Fix 1.8.0 and Legends Classic 0.3.0 come out as betas first (`v1.8.0-beta.1`,
+`v0.3.0-beta.1`), so until they are final online play needs the Beta update channel, and a 1.8.0 beta counts as
+1.8.0. Play, LAN and Connect by IP work with any fix, as before. It also brings controller and keyboard navigation to
+the whole launcher (below).
 
 ### Added
 - **Online play for X-Men Legends (Legends Classic port), without ini edits or the Connect by IP box.** An Online
@@ -98,9 +100,9 @@ to the whole launcher (below).
   the launcher, the manifests' hashes for the fix and the builder). When GitHub can't be asked (offline, its limit on
   checks), Beta uses the last release it found and says so.
   - Every version comparison orders pre-releases now, `min_launcher` and the build's `requires.xml2fix` included:
-    the XML2 Fix `1.8.0-beta.2` meets `>=1.7.1` but not `>=1.8.0`, so online play (1.8.0 or later) refuses it. The
-    fix's own version resource is numeric, so the launcher records the release it installed and that is the fix's
-    version while the DLL is still that file.
+    the XML2 Fix `1.8.0-beta.2` meets `>=1.7.1` but not `>=1.8.0` (online play takes 1.8.0's own betas on purpose:
+    they have the rooms). The fix's own version resource is numeric, so the launcher records the release it
+    installed and that is the fix's version while the DLL is still that file.
   - Nothing is ever installed over a newer version without asking. Switching back to Stable with a beta newer
     than the latest release asks "You're on a beta (x). Switch back to y?": **Switch back** reinstalls the latest
     release of each (the launcher's download, Verify for the fix, the builder) and then offers to rebuild X-Men
@@ -108,8 +110,16 @@ to the whole launcher (below).
   - Settings lists the launcher, the XML2 Fix (in each game's folder) and the builder with their exact versions;
     a pre-release has a **Beta** badge there, in the version line (with the channel), on the XML2 Fix line of a
     game page and in the X-Men Legends page's fix and builder rows.
-  - A launcher tag with a pre-release suffix (`v0.5.0-beta.1`) is published as a GitHub pre-release, never as the
-    latest release.
+  - **Online play on Stable:** with an XML2 Fix older than 1.8.0, the Online section says "Online play arrives with
+    Legends Classic 0.3.0. Want to try it now? Switch Update channel to Beta in Settings." and has **Open Update
+    channel** (Settings, the focus on the setting) instead of Verify Files, which has nothing newer to install on
+    Stable. On Beta the Verify Files message stays.
+  - **Launcher pre-releases:** a `v<x.y.z>-beta.<n>` or `-rc.<n>` tag publishes a GitHub pre-release that is never
+    the latest release, with the same asset names (`ultimate-legends-<version>-win64-portable.zip`,
+    `SHA256SUMS.txt`), its notes `docs/release/v<base>-notes.md` under a "Beta - test build" banner
+    (`tools/release_tag.py`, self-tested in every Build run). Stable `v*` tags publish as before; any other suffix is
+    refused. A launcher built at such a tag calls itself `x.y.z-beta.n` wherever it shows or compares its own
+    version; its VERSIONINFO stays numeric.
 
 ### Changed
 - **Play (and every start that isn't the Online section's: the library, `-launch`, `ultimatelegends://play`) removes

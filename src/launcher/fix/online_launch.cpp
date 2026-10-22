@@ -1,7 +1,7 @@
 #include "std_include.hpp"
 #include "online_launch.hpp"
 
-#include "tools/tool_install.hpp"
+#include "updater/release_channel.hpp"
 #include "updater/update_cancelled.hpp"
 
 #include <exception>
@@ -92,16 +92,13 @@ namespace online_launch
         {
             return fix_state::missing;
         }
-        // A version resource has only numbers ("1.8.0", "1.8.0.2"); anything else isn't one to compare.
-        if (version->empty() || !std::isdigit(static_cast<unsigned char>(version->front())) ||
-            !std::all_of(version->begin(), version->end(), [](const char c)
-            {
-                return std::isdigit(static_cast<unsigned char>(c)) || c == '.';
-            }))
+        // A version resource has only numbers ("1.8.0", "1.8.0.2"); the release the launcher installed
+        // may be a pre-release ("1.8.0-beta.2", below 1.8.0). Anything else isn't one to compare.
+        if (!release_channel::is_version(*version))
         {
             return fix_state::unknown;
         }
-        return tool_install::compare_versions(*version, std::string(required_fix)) >= 0 ? fix_state::ok : fix_state::old;
+        return release_channel::satisfies(*version, ">=" + std::string(required_fix)) ? fix_state::ok : fix_state::old;
     }
 
     const char* fix_state_name(const fix_state state)

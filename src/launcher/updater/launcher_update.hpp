@@ -5,8 +5,9 @@
 #include <string>
 
 // The launcher's self-update. A portable install (the release zip: ultimate-legends.exe next to
-// ultimate-legends\portable.marker and ultimate-legends\data\{cef,launcher-ui}) checks GitHub's
-// latest release, and when it is newer and the player says Update:
+// ultimate-legends\portable.marker and ultimate-legends\data\{cef,launcher-ui}) checks the update
+// channel's release (Stable: GitHub's latest release; Beta: pre-releases too, release_source.hpp),
+// and when it is newer and the player says Update:
 //
 //   1. downloads the release's portable zip into ultimate-legends\updates\.staging-*, checks its
 //      size and its SHA-256 against the release's SHA256SUMS.txt, unpacks it, and renames the
@@ -51,16 +52,28 @@ namespace launcher_update
     // succeeded, so the previous version, kept as its way back until now, is deleted.
     void confirm_started();
 
-    // Checks the latest release in the background (no-op while a check or download runs).
+    // Checks the update channel's release in the background (no-op while a check or download runs):
+    // Stable, GitHub's latest release; Beta, the highest version of the releases list, pre-releases
+    // included (updater/release_source.hpp).
     void check();
 
-    // Downloads, verifies and unpacks the latest release into updates\ready, in the background.
-    // False when there is nothing to download or this install can't update itself.
-    bool start_download();
+    // Downloads, verifies and unpacks that release into updates\ready, in the background. False when
+    // there is nothing to download or this install can't update itself. Only a newer version, unless
+    // `downgrade`: Switch back to Stable, the latest release over a newer beta this launcher is.
+    bool start_download(bool downgrade = false);
 
     // Restart now: false with `error` ("busy", "not-ready") when it can't; else the process ends
     // shortly after (so the command's answer still reaches the UI) and the new start installs it.
     bool restart(std::string& error);
 
     void write_status(rapidjson::Value& out, rapidjson::Document::AllocatorType& allocator);
+
+    // The version this launcher updates from ("0.5.0-beta.1" for a beta); empty for a development build.
+    std::string installed_version();
+    // installed_version(), or VERSION_PRODUCT for a development build: what min_launcher is checked against.
+    std::string running_version();
+
+    // The update channel changed: forget the other channel's answer, and on Stable discard a beta
+    // that was downloaded but not installed yet.
+    void channel_changed();
 }

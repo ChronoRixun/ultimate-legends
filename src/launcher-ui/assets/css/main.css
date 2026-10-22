@@ -4695,3 +4695,67 @@ html[data-reduce-motion] .ul-online-spinner { animation: none; }
 .ul-mod-toggle input:focus-visible + .ul-mod-switch { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 /* A <select> being picked (Enter, then Up / Down, Enter keeps it, Escape puts it back). */
 :root select.is-picking:focus { outline: 2px solid var(--accent); outline-offset: -2px; box-shadow: 0 0 0 4px var(--accent-soft); }
+
+/* ---- Update channel (update-channel.js): the items' versions, the Beta badge ---- */
+.beta-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    line-height: 1.5;
+    vertical-align: middle;
+}
+
+.beta-badge[hidden] { display: none; }
+
+.update-channel-versions {
+    display: grid;
+    gap: 6px;
+    margin: 4px 0 12px;
+}
+
+.update-channel-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+}
+
+.update-channel-version {
+    color: var(--text);
+    font-family: var(--font-mono, inherit);
+    text-align: right;
+}
+
+.update-channel-latest {
+    color: var(--accent);
+    margin-left: 6px;
+}
+
+.update-channel-note {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+.update-channel-note[hidden],
+#update-channel-switch-back[hidden] { display: none; }
+
+.settings-footer .footer-version-line {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+}
+
+.settings-footer .footer-channel {
+    color: var(--text-muted);
+    font-size: 12px;
+}

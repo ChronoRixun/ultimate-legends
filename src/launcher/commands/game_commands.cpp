@@ -15,6 +15,7 @@
 #include "updater/folder_work.hpp"
 #include "mods/game_mods.hpp"
 #include "updater/client_updater.hpp"
+#include "updater/patch_channel.hpp"
 #include "updater/patch_status.hpp"
 #include "updater/game_updater.hpp"
 #include "updater/ui_progress_listener.hpp"
@@ -366,9 +367,10 @@ namespace commands::game_commands
             {
                 return online_settings::test_mode_on(ini, *fix);
             };
-            steps.fix_version = [dll = folder / fix->dll]
+            // The release the launcher installed when the DLL is still that one (a beta's resource is numeric).
+            steps.fix_version = [config, folder]
             {
-                return patch_status::installed_version(dll);
+                return patch_channel::installed_version(config, folder);
             };
             steps.clear_status = [folder](std::string& error)
             {

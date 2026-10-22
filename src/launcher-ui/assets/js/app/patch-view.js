@@ -1,8 +1,9 @@
 // The patch line in a game page's side panel: which release of the game's patch (the MUA Controller
 // Fix, the XML2 Fix) is in its folder, and, when GitHub has a newer one, an "Update available" line
 // whose button runs the same Verify that installs it (launching the game from the launcher installs
-// it too). The backend (updater/patch_status.cpp) reads the installed DLL's version and checks the
-// latest release in the background, so the page asks again while that check is running.
+// it too). The backend (updater/patch_status.cpp) reads the installed DLL's version (for the XML2
+// Fix, the release the launcher installed: a beta's whole version, with a Beta badge) and checks the
+// update channel's release in the background, so the page asks again while that check is running.
 (function () {
     'use strict';
 
@@ -37,10 +38,12 @@
     }
 
     function html(gameId, status) {
+        // A pre-release (the update channel's Beta, update-channel.js): its whole version and a Beta badge.
+        const badge = status.prerelease ? ` <span class="beta-badge">${escapeHtml(t('updateChannel.badge'))}</span>` : '';
         const stat = `
             <div class="detail-stat detail-patch-stat">
                 <span>${escapeHtml(patchName(gameId))}</span>
-                <strong class="detail-patch-installed">${escapeHtml(installedText(status))}</strong>
+                <strong class="detail-patch-installed">${escapeHtml(installedText(status))}${badge}</strong>
             </div>`;
         if (!status.updateAvailable) return stat;
 

@@ -213,7 +213,11 @@ TEST(the_fix_online_play_needs_is_1_8_0)
     CHECK(online_launch::check_fix(std::string("0.9.0")) == online_launch::fix_state::old);
     CHECK(online_launch::check_fix(std::string("")) == online_launch::fix_state::unknown);
     CHECK(online_launch::check_fix(std::string("beta")) == online_launch::fix_state::unknown);
-    CHECK(online_launch::check_fix(std::string("1.8.0-rc1")) == online_launch::fix_state::unknown);
+    // A pre-release (the release the launcher installed, on the Beta channel) is below its release.
+    CHECK(online_launch::check_fix(std::string("1.8.0-rc1")) == online_launch::fix_state::old);
+    CHECK(online_launch::check_fix(std::string("1.8.0-beta.2")) == online_launch::fix_state::old);
+    CHECK(online_launch::check_fix(std::string("1.8.1-beta.1")) == online_launch::fix_state::ok);
+    CHECK(online_launch::check_fix(std::string("1.8.0 beta")) == online_launch::fix_state::unknown);
     CHECK(online_launch::check_fix(std::nullopt) == online_launch::fix_state::missing);
     CHECK(std::string(online_launch::fix_state_name(online_launch::fix_state::ok)) == "ok");
     CHECK(std::string(online_launch::fix_state_name(online_launch::fix_state::old)) == "old");

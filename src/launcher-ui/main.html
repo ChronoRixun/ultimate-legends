@@ -32,6 +32,7 @@
     <script src="./assets/js/app/xml1-setup.js"></script>
     <script src="./assets/js/app/xml1-view.js"></script>
     <script src="./assets/js/app/launcher-update.js"></script>
+    <script src="./assets/js/app/update-channel.js"></script>
     <script src="./assets/js/app/views.js"></script>
     <script src="./assets/js/app/main.js"></script>
 </head>
@@ -297,6 +298,27 @@
                             </div>
                         </section>
 
+                        <section class="settings-section" id="update-channel-section">
+                            <h3 data-i18n="updateChannel.section">Updates</h3>
+                            <div class="setting-item inline-setting">
+                                <div class="setting-info">
+                                    <label for="update-channel-select" data-i18n="updateChannel.label">Update channel</label>
+                                    <span class="setting-description" data-i18n="updateChannel.help">Beta gets test versions early; they may have bugs. You can switch back to Stable any time.</span>
+                                </div>
+                                <div class="setting-control">
+                                    <select class="setting-select" id="update-channel-select">
+                                        <option value="stable" data-i18n="updateChannel.stable">Stable</option>
+                                        <option value="beta" data-i18n="updateChannel.beta">Beta</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="update-channel-versions" id="update-channel-versions"></div>
+                            <div class="update-channel-note" id="update-channel-note" hidden></div>
+                            <div class="settings-actions">
+                                <button type="button" class="settings-action-btn" id="update-channel-switch-back" hidden data-i18n="updateChannel.switchBackButton">Switch back to Stable</button>
+                            </div>
+                        </section>
+
                         <section class="settings-section">
                             <h3 data-i18n="settings.startup">Startup</h3>
                             <div class="setting-item inline-setting">
@@ -380,7 +402,11 @@
 
                     <div class="settings-footer">
                         <div class="footer-title">Ultimate Legends</div>
-                        <div class="footer-version" id="version-footer">Version: Loading...</div>
+                        <div class="footer-version-line">
+                            <span class="footer-version" id="version-footer">Version: Loading...</span>
+                            <span class="beta-badge" id="launcher-version-badge" hidden>Beta</span>
+                            <span class="footer-channel" id="launcher-update-channel"></span>
+                        </div>
                         <div class="footer-update">
                             <span class="footer-update-status" id="launcher-update-status"></span>
                             <button type="button" class="footer-update-check" id="launcher-update-check" data-i18n="launcherUpdate.check">Check for updates</button>

@@ -120,13 +120,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         # The release's notes: docs/release/<tag>-notes.md when the release has one (written with its changelog entry),
-        # else the generic line.
+        # else the generic line. A tag with a pre-release suffix (v0.5.0-beta.1) is published as a pre-release and never
+        # as the latest release: Stable (releases/latest) never sees it, the Beta update channel does.
         run: |
+          $channel = if ($env:GITHUB_REF_NAME -match '^v\d+(\.\d+)*-') { @('--prerelease', '--latest=false') } else { @() }
           $notesFile = "docs/release/$env:GITHUB_REF_NAME-notes.md"
           if (Test-Path $notesFile) {
-            gh release create $env:GITHUB_REF_NAME (Get-ChildItem dist/*.zip).FullName dist/SHA256SUMS.txt --title "Ultimate Legends $env:GITHUB_REF_NAME" --notes-file $notesFile
+            gh release create $env:GITHUB_REF_NAME (Get-ChildItem dist/*.zip).FullName dist/SHA256SUMS.txt --title "Ultimate Legends $env:GITHUB_REF_NAME" --notes-file $notesFile @channel
           } else {
             $notes = "Ultimate Legends $env:GITHUB_REF_NAME - portable build: unzip anywhere and run ultimate-legends.exe. " +
                      "No game files are included; every game runs from your own install. SHA-256 in SHA256SUMS.txt."
-            gh release create $env:GITHUB_REF_NAME (Get-ChildItem dist/*.zip).FullName dist/SHA256SUMS.txt --title "Ultimate Legends $env:GITHUB_REF_NAME" --notes $notes
+            gh release create $env:GITHUB_REF_NAME (Get-ChildItem dist/*.zip).FullName dist/SHA256SUMS.txt --title "Ultimate Legends $env:GITHUB_REF_NAME" --notes $notes @channel
           }

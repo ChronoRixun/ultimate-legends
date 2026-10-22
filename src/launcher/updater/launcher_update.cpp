@@ -1,6 +1,7 @@
 #include "std_include.hpp"
 #include "launcher_update.hpp"
 #include "progress_tracker.hpp"
+#include "release_source.hpp"
 #include "swap_retry.hpp"
 
 #include "tools/archive.hpp"
@@ -46,7 +47,11 @@ namespace launcher_update
         {
             // idle, checking, up-to-date, check-failed, available, downloading, ready, failed
             std::string state = "idle";
-            std::optional<release> latest;
+            std::optional<release> latest; // the update channel's release
+            release_channel::channel channel = release_channel::channel::stable; // the channel `latest` is of
+            bool from_cache{};       // Beta: GitHub couldn't be asked; `latest` is the last one found
+            std::string cache_error; // why
+            bool downgrade{};        // the download is the latest release over a newer beta (Switch back to Stable)
             std::uint64_t done{};
             std::uint64_t total{};
             std::string error;
@@ -89,30 +94,28 @@ namespace launcher_update
             return tool_install::is_safe_version(name);
         }
 
-        // A release version: numbers and dots only ("0.1.2"), so compare_versions() orders it exactly.
+        // A release version ("0.1.2", "0.5.0-beta.1"), which compare_versions() orders exactly
+        // (SemVer: a pre-release is below its release).
         bool is_release_version(const std::string& version)
         {
-            return !version.empty() && version.size() <= 32 && std::isdigit(static_cast<unsigned char>(version.front())) &&
-                   std::isdigit(static_cast<unsigned char>(version.back())) && version.find("..") == std::string::npos &&
-                   std::all_of(version.begin(), version.end(), [](const char c)
-                   {
-                       return std::isdigit(static_cast<unsigned char>(c)) || c == '.';
-                   });
+            return version.size() <= 32 && release_channel::is_version(version);
         }
 
         // The version this launcher is, for updating; empty for a development build, which never
         // updates: Debug builds (unless a test sets dev-launcher-version) and builds not made
-        // exactly at a release tag (GIT_DESCRIBE "v0.1.1-3-gabc1234" or "v0.1.1-dirty").
+        // exactly at a release tag (GIT_DESCRIBE "v0.1.1-3-gabc1234" or "v0.1.1-dirty"). A beta
+        // is its whole tag ("v0.5.0-beta.1" -> "0.5.0-beta.1"); VERSION_PRODUCT has only its numbers.
         std::string current_version()
         {
 #ifdef _DEBUG
             const auto version = utils::properties::load(property_keys::DEV_LAUNCHER_VERSION).value_or("");
             return is_release_version(version) ? version : std::string{};
 #else
-            const std::string version = VERSION_PRODUCT;
+            const std::string product = VERSION_PRODUCT;
             const std::string describe = GIT_DESCRIBE;
             const std::string tag = GIT_TAG;
-            if (version == "0.0.0" || !is_release_version(version) || tag.empty() || describe != tag)
+            const auto version = release_channel::tag_version(tag);
+            if (product == "0.0.0" || !is_release_version(version) || describe != tag)
             {
                 return {};
             }
@@ -127,6 +130,11 @@ namespace launcher_update
 #else
             return release_api;
 #endif
+        }
+
+        std::string launcher_repo()
+        {
+            return release_source::launcher_repo;
         }
 
         bool is_download_url(const std::string& url)
@@ -528,8 +536,74 @@ namespace launcher_update
 
         // ---- the release ----
 
-        std::optional<release> fetch_release(std::string& error)
+        // tools/package-portable.ps1's names.
+        std::string zip_name(const std::string& version)
         {
+            return "ultimate-legends-" + version + "-win64-portable.zip";
+        }
+
+        // The launcher's view of a release: its portable zip and SHA256SUMS.txt, both by its tag.
+        std::optional<release> to_release(const release_channel::release& found, std::string& error)
+        {
+            release latest{};
+            latest.version = found.version;
+            latest.page = found.page.empty() ? std::string(release_page) : found.page;
+            if (!is_release_version(latest.version))
+            {
+                error = "The release's tag (" + found.tag + ") is not a version number; no update.";
+                return std::nullopt;
+            }
+            const auto zip = zip_name(latest.version);
+            for (const auto& asset : found.assets)
+            {
+                if (!is_download_url(asset.url))
+                {
+                    continue;
+                }
+                if (asset.name == zip && asset.size)
+                {
+                    latest.zip = asset.name;
+                    latest.zip_url = asset.url;
+                    latest.size = asset.size;
+                }
+                else if (asset.name == sums_name)
+                {
+                    latest.sums_url = asset.url;
+                }
+            }
+            if (latest.zip.empty() || latest.sums_url.empty() || !latest.size)
+            {
+                // A release still being published (its files upload after it is created).
+                error = "Release " + latest.version + " has no portable zip and SHA256SUMS.txt (yet).";
+                return std::nullopt;
+            }
+            return latest;
+        }
+
+        // Stable: GitHub's releases/latest, as always. Beta: the channel's release (release_source),
+        // or the last one found when GitHub can't be asked (`from_cache`, `error` says why).
+        std::optional<release> fetch_release(const release_channel::channel channel, std::string& error, bool& from_cache)
+        {
+            from_cache = false;
+            if (channel == release_channel::channel::beta)
+            {
+                const auto outcome = release_source::resolve(launcher_repo(), channel, {zip_name("{version}"), sums_name}, true);
+                if (!outcome.chosen)
+                {
+                    error = outcome.error;
+                    return std::nullopt;
+                }
+                from_cache = outcome.from_cache;
+                error = outcome.error;
+                std::string invalid;
+                auto latest = to_release(*outcome.chosen, invalid);
+                if (!latest)
+                {
+                    error = invalid;
+                }
+                return latest;
+            }
+
             const auto url = release_url();
             if (url.empty())
             {
@@ -558,60 +632,8 @@ namespace launcher_update
                 return std::nullopt;
             }
 
-            rapidjson::Document document;
-            document.Parse(result->buffer.data(), result->buffer.size());
-            if (document.HasParseError() || !document.IsObject())
-            {
-                error = "GitHub's answer is not valid JSON.";
-                return std::nullopt;
-            }
-
-            release latest{};
-            const auto tag = json_string(document, "tag_name");
-            latest.version = tag.starts_with('v') || tag.starts_with('V') ? tag.substr(1) : tag;
-            latest.page = json_string(document, "html_url");
-            if (!latest.page.starts_with("https://"))
-            {
-                latest.page = release_page;
-            }
-            if (!is_release_version(latest.version))
-            {
-                // compare_versions() reads "0.2.0-rc1" as 0.2.0: a launcher built at it would never see the real 0.2.0.
-                error = "The latest release's tag (" + tag + ") is not a plain version number; no update.";
-                return std::nullopt;
-            }
-
-            // tools/package-portable.ps1's names.
-            const auto zip = "ultimate-legends-" + latest.version + "-win64-portable.zip";
-            if (document.HasMember("assets") && document["assets"].IsArray())
-            {
-                for (const auto& asset : document["assets"].GetArray())
-                {
-                    const auto name = json_string(asset, "name");
-                    const auto download = json_string(asset, "browser_download_url");
-                    if (!is_download_url(download))
-                    {
-                        continue;
-                    }
-                    if (name == zip && asset.HasMember("size") && asset["size"].IsUint64())
-                    {
-                        latest.zip = name;
-                        latest.zip_url = download;
-                        latest.size = asset["size"].GetUint64();
-                    }
-                    else if (name == sums_name)
-                    {
-                        latest.sums_url = download;
-                    }
-                }
-            }
-            if (latest.zip.empty() || latest.sums_url.empty() || !latest.size)
-            {
-                // A release still being published (its files upload after it is created).
-                error = "Release " + latest.version + " has no portable zip and SHA256SUMS.txt (yet).";
-                return std::nullopt;
-            }
-            return latest;
+            const auto found = release_channel::parse_release_json(result->buffer, error);
+            return found ? to_release(*found, error) : std::nullopt;
         }
 
         // The SHA-256 SHA256SUMS.txt gives `name` ("<hash>  <name>" or "<hash> *<name>" lines).
@@ -759,7 +781,10 @@ namespace launcher_update
             {
                 return "The release's zip is missing parts of the launcher.";
             }
-            write_json(ready / "update.json", {{"version", latest.version}, {"zip", latest.zip}, {"sha256", sha256}});
+            // "downgrade": the player chose the latest release over a newer beta (Switch back to Stable).
+            const auto downgrade = tool_install::compare_versions(latest.version, current_version()) < 0;
+            write_json(ready / "update.json", {{"version", latest.version}, {"zip", latest.zip}, {"sha256", sha256},
+                                               {"downgrade", downgrade ? "true" : "false"}});
 
             const auto target = updates / "ready";
             if (!remove_tree(target) || !move_fresh_path(ready, target))
@@ -870,7 +895,10 @@ namespace launcher_update
         {
             return result::none; // a development build never installs one
         }
-        if (!is_release_version(version) || tool_install::compare_versions(version, current) <= 0)
+        // Never an older version, unless the player chose it (Switch back to Stable wrote "downgrade").
+        const auto downgrade = read_json_string(ready / "update.json", "downgrade") == "true";
+        if (!is_release_version(version) || version == current ||
+            (tool_install::compare_versions(version, current) < 0 && !downgrade))
         {
             utils::logger::write("launcher update: discarding updates\\ready ({}; this is {})", version, current);
             remove_tree(ready);
@@ -1029,8 +1057,9 @@ namespace launcher_update
         // A verified download still waiting (its install was put off): offer Restart now.
         const auto ready_version = read_json_string(updates / "ready" / "update.json", "version");
         const auto current = current_version();
+        const auto ready_downgrade = read_json_string(updates / "ready" / "update.json", "downgrade") == "true";
         if (!ready_version.empty() && !current.empty() && is_complete(updates / "ready") &&
-            tool_install::compare_versions(ready_version, current) > 0)
+            (tool_install::compare_versions(ready_version, current) > 0 || (ready_downgrade && ready_version != current)))
         {
             with_state([&](state_t& state)
             {
@@ -1089,38 +1118,57 @@ namespace launcher_update
 
         std::thread([]
         {
+            const auto channel = release_source::current_channel();
             std::string error;
-            const auto latest = fetch_release(error);
+            auto from_cache = false;
+            const auto latest = fetch_release(channel, error, from_cache);
             const auto current = current_version();
             with_state([&](state_t& state)
             {
                 state.checked = std::chrono::system_clock::now();
+                state.channel = channel;
+                state.from_cache = false;
+                state.cache_error.clear();
                 if (!latest)
                 {
-                    utils::logger::write("launcher update: check: {}", error);
+                    utils::logger::write("launcher update: check ({}): {}", release_channel::channel_name(channel), error);
+                    state.latest.reset(); // what an earlier check (maybe on the other channel) found no longer holds
                     state.state = "check-failed";
                     state.error = error;
                     return;
                 }
                 state.latest = latest;
+                state.from_cache = from_cache;
+                state.cache_error = from_cache ? error : std::string{};
                 state.error.clear();
+                // Never an older version on its own: a beta newer than the latest release stays (the
+                // page offers Switch back to Stable).
                 state.state = tool_install::compare_versions(latest->version, current) > 0 ? "available" : "up-to-date";
             });
         }).detach();
     }
 
-    bool start_download()
+    bool start_download(const bool downgrade)
     {
         std::optional<release> latest;
         {
             std::lock_guard lock(mutex_);
-            if (!can_install() || current_version().empty() || !state_.latest ||
-                (state_.state != "available" && state_.state != "failed") ||
-                tool_install::compare_versions(state_.latest->version, current_version()) <= 0)
+            const auto current = current_version();
+            if (!can_install() || current.empty() || !state_.latest)
+            {
+                return false;
+            }
+            const auto newer = tool_install::compare_versions(state_.latest->version, current) > 0;
+            // An older version only as Switch back to Stable: the latest release, over a beta.
+            const auto back = downgrade && state_.channel == release_channel::channel::stable &&
+                              release_channel::is_ahead_of(current, state_.latest->version);
+            if ((!newer && !back) || (state_.state != "available" && state_.state != "failed" && state_.state != "up-to-date") ||
+                (state_.state == "up-to-date" && !back))
             {
                 return false;
             }
             latest = state_.latest;
+            state_.downgrade = back;
             state_.state = "downloading";
             state_.done = 0;
             state_.total = latest->size;
@@ -1133,6 +1181,14 @@ namespace launcher_update
             const auto error = stage(*latest);
             with_state([&](state_t& state)
             {
+                // Switched to Stable while a beta downloaded: it doesn't install.
+                if (error.empty() && release_channel::is_prerelease(latest->version) &&
+                    release_source::current_channel() == release_channel::channel::stable && !state.downgrade)
+                {
+                    remove_tree(updates_folder() / "ready");
+                    state.state = "idle";
+                    return;
+                }
                 if (error.empty())
                 {
                     state.state = "ready";
@@ -1205,5 +1261,52 @@ namespace launcher_update
         const auto checked = state_.checked.time_since_epoch().count() == 0 ? 0 :
             std::chrono::duration_cast<std::chrono::milliseconds>(state_.checked.time_since_epoch()).count();
         out.AddMember("checkedAt", static_cast<int64_t>(checked), allocator);
+        // The update channel: what `latest` is of, whether this launcher is a pre-release (the Beta
+        // badge), whether it is a beta newer than the latest release (Stable: Switch back offered),
+        // and Beta's last release found when GitHub couldn't be asked.
+        out.AddMember("channel", rapidjson::StringRef(release_channel::channel_name(release_source::current_channel())), allocator);
+        out.AddMember("latestChannel", rapidjson::StringRef(release_channel::channel_name(state_.channel)), allocator);
+        out.AddMember("prerelease", release_channel::is_prerelease(current), allocator);
+        out.AddMember("aheadOfStable", state_.latest && state_.channel == release_channel::channel::stable &&
+                                           release_channel::is_ahead_of(current, state_.latest->version),
+                      allocator);
+        out.AddMember("fromCache", state_.from_cache, allocator);
+        out.AddMember("cacheError", make_string(state_.cache_error, allocator), allocator);
+        out.AddMember("downgrade", state_.downgrade, allocator);
+    }
+
+    std::string installed_version()
+    {
+        return current_version();
+    }
+
+    std::string running_version()
+    {
+        const auto current = current_version();
+        return current.empty() ? std::string(VERSION_PRODUCT) : current;
+    }
+
+    void channel_changed()
+    {
+        std::lock_guard lock(mutex_);
+        // A beta downloaded on Beta and not installed yet doesn't install on Stable.
+        if (state_.state == "ready" && release_channel::is_prerelease(state_.ready_version) && can_install() &&
+            release_source::current_channel() == release_channel::channel::stable)
+        {
+            if (remove_tree(updates_folder() / "ready"))
+            {
+                trace("the update channel is Stable now: the downloaded beta {} was discarded", state_.ready_version);
+                state_.ready_version.clear();
+                state_.state = "idle";
+            }
+        }
+        if (state_.state != "checking" && state_.state != "downloading" && state_.state != "ready")
+        {
+            state_.state = "idle";
+            state_.latest.reset();
+            state_.from_cache = false;
+            state_.cache_error.clear();
+            state_.error.clear();
+        }
     }
 }

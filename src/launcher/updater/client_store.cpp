@@ -109,6 +109,65 @@ namespace client_store
         return utils::io::write_file(manifest_cache_path(client_id), std::string{buffer.GetString(), buffer.GetSize()}, false);
     }
 
+    namespace
+    {
+        std::filesystem::path release_path(const std::string& client_id)
+        {
+            return utils::properties::get_appdata_path() / "clients" / (client_id + "-release.json");
+        }
+
+        std::string member_string(const rapidjson::Value& object, const char* key)
+        {
+            const auto member = object.FindMember(key);
+            return member != object.MemberEnd() && member->value.IsString()
+                       ? std::string{member->value.GetString(), member->value.GetStringLength()}
+                       : std::string{};
+        }
+    }
+
+    // Format: {"install": "<install folder>", "version": "1.8.0-beta.2", "sha1": "<hex>"}
+    std::optional<release_channel::patch_record> read_release(const std::string& client_id, const std::filesystem::path& install_path)
+    {
+        std::string data{};
+        if (!utils::io::read_file(release_path(client_id), &data) || data.empty())
+        {
+            return std::nullopt;
+        }
+        rapidjson::Document doc{};
+        doc.Parse(data.data(), data.size());
+        if (doc.HasParseError() || !doc.IsObject() ||
+            path_key(utils::string::utf8_to_path(member_string(doc, "install"))) != path_key(install_path))
+        {
+            return std::nullopt;
+        }
+        return release_channel::patch_record{member_string(doc, "version"), member_string(doc, "sha1")};
+    }
+
+    bool write_release(const std::string& client_id, const std::filesystem::path& install_path, const release_channel::patch_record& record)
+    {
+        rapidjson::Document doc{rapidjson::kObjectType};
+        auto& allocator = doc.GetAllocator();
+        const auto add = [&](const char* key, const std::string& text)
+        {
+            rapidjson::Value value{};
+            value.SetString(text.data(), static_cast<rapidjson::SizeType>(text.size()), allocator);
+            doc.AddMember(rapidjson::StringRef(key), value, allocator);
+        };
+        add("install", utils::string::path_to_utf8(install_path));
+        add("version", record.version);
+        add("sha1", record.sha1);
+
+        rapidjson::StringBuffer buffer{};
+        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+        doc.Accept(writer);
+        return utils::io::write_file(release_path(client_id), std::string{buffer.GetString(), buffer.GetSize()}, false);
+    }
+
+    void forget_release(const std::string& client_id)
+    {
+        utils::io::remove_file(release_path(client_id));
+    }
+
     bool is_below(const std::filesystem::path& path, const std::filesystem::path& folder)
     {
         return utils::io::is_inside_folder(path, folder) && path_key(path) != path_key(folder);

@@ -89,6 +89,27 @@ to the whole launcher (below).
   - One focus ring for every control, drawn inside it so a clipped group can't hide it, shown while the keyboard
     or a pad is in use and hidden again by the mouse or a touch.
   - (Developed as 0.3.3 in PR #11; 0.3.3 was never released on its own: this ships first in 0.4.0.)
+- **Update channel: Stable (the default) or Beta** (Settings > Updates), for testers: Beta gets the pre-releases of
+  the launcher, the XML2 Fix and the Legends Classic builder through the launcher, instead of test kits copied by
+  hand. Stable is GitHub's latest release, exactly as before (it never sees a pre-release). Beta takes the highest
+  version of each repository's releases by SemVer, pre-releases included (`1.8.0-beta.1` < `1.8.0-beta.2` <
+  `1.8.0`), so a beta that becomes final moves Beta to the release; drafts and tags that aren't versions are
+  skipped. Its files are downloaded by the chosen release's tag, with the same checks as before (SHA256SUMS.txt for
+  the launcher, the manifests' hashes for the fix and the builder). When GitHub can't be asked (offline, its limit on
+  checks), Beta uses the last release it found and says so.
+  - Every version comparison orders pre-releases now, `min_launcher` and the build's `requires.xml2fix` included:
+    the XML2 Fix `1.8.0-beta.2` meets `>=1.7.1` but not `>=1.8.0`, so online play (1.8.0 or later) refuses it. The
+    fix's own version resource is numeric, so the launcher records the release it installed and that is the fix's
+    version while the DLL is still that file.
+  - Nothing is ever installed over a newer version without asking. Switching back to Stable with a beta newer
+    than the latest release asks "You're on a beta (x). Switch back to y?": **Switch back** reinstalls the latest
+    release of each (the launcher's download, Verify for the fix, the builder) and then offers to rebuild X-Men
+    Legends; **Keep the beta** changes nothing, and Settings keeps offering it.
+  - Settings lists the launcher, the XML2 Fix (in each game's folder) and the builder with their exact versions;
+    a pre-release has a **Beta** badge there, in the version line (with the channel), on the XML2 Fix line of a
+    game page and in the X-Men Legends page's fix and builder rows.
+  - A launcher tag with a pre-release suffix (`v0.5.0-beta.1`) is published as a GitHub pre-release, never as the
+    latest release.
 
 ### Changed
 - **Play (and every start that isn't the Online section's: the library, `-launch`, `ultimatelegends://play`) removes

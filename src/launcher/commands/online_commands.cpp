@@ -6,7 +6,7 @@
 #include "fix/online_settings.hpp"
 #include "fix/online_status.hpp"
 #include "online/public_rooms.hpp"
-#include "updater/patch_status.hpp"
+#include "updater/patch_channel.hpp"
 #include "xml1/xml1_port.hpp"
 
 #include <utils/flags.hpp>
@@ -81,7 +81,7 @@ namespace commands::online_commands
             std::optional<std::string> fix_version;
             if (installed)
             {
-                fix_version = patch_status::installed_version(*where.game_dir / where.info->dll);
+                fix_version = patch_channel::installed_version(*config, *where.game_dir);
             }
             response.AddMember("fixVersion", fix_version ? make_string(*fix_version, allocator) : rapidjson::Value(rapidjson::kNullType), allocator);
             response.AddMember("fixState", rapidjson::StringRef(online_launch::fix_state_name(online_launch::check_fix(fix_version))), allocator);

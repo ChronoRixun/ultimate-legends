@@ -25,10 +25,12 @@ namespace client_updater
         void update_files(const std::vector<updater::file_info>& outdated_files) const;
 
     private:
+        game_config::game_config_t config_;
         std::filesystem::path install_path_;
         std::string client_id_;
         std::string update_manifest_url_;
         std::string update_folder_url_;
+        std::string release_version_; // the release the manifest is of, when known (patch_channel)
         std::vector<updater::file_info> manifest_files_;
         updater::ui_progress_listener* progress_listener_;
         bool manifest_fetch_failed_ = false;

@@ -1,6 +1,9 @@
 #pragma once
 
+#include "release_channel.hpp"
+
 #include <filesystem>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -16,6 +19,13 @@ namespace client_store
     std::vector<std::string> read_manifest_cache(const std::string& client_id, const std::filesystem::path& install_path);
     bool write_manifest_cache(const std::string& client_id, const std::filesystem::path& install_path,
                               const std::vector<std::string>& names);
+
+    // The patch release the launcher last installed into `install_path`: its version (empty when it
+    // came from releases/latest, whose tag the update didn't need) and the SHA-1 of the patch's main
+    // file (release_channel::effective_patch_version). Nothing for another folder, as above.
+    std::optional<release_channel::patch_record> read_release(const std::string& client_id, const std::filesystem::path& install_path);
+    bool write_release(const std::string& client_id, const std::filesystem::path& install_path, const release_channel::patch_record& record);
+    void forget_release(const std::string& client_id);
 
     // True when `path` lies strictly inside `folder` (never the folder itself).
     bool is_below(const std::filesystem::path& path, const std::filesystem::path& folder);

@@ -13,6 +13,7 @@
 #define CONTROLLER_FIX_LATEST "https://api.github.com/repos/ChronoRixun/mua-controller-fix/releases/latest"
 // X-Men Legends II gets the same from github.com/ChronoRixun/xml2-fix (dinput.dll: controller
 // bindings and the OpenSpy redirect for online play).
+#define XML2_FIX_REPO "ChronoRixun/xml2-fix"
 #define XML2_FIX_RELEASE "https://github.com/ChronoRixun/xml2-fix/releases/latest/download/"
 #define XML2_FIX_LATEST "https://api.github.com/repos/ChronoRixun/xml2-fix/releases/latest"
 
@@ -174,6 +175,7 @@ namespace game_config
                 .update_folder_url = XML2_FIX_RELEASE,
                 .patch_file = "dinput.dll",
                 .patch_release_url = XML2_FIX_LATEST,
+                .patch_repo = XML2_FIX_REPO,
                 .valid_game_files = {"XMen2.exe"},
                 .check_running_exes = {"XMen2.exe"}
             }
@@ -191,6 +193,7 @@ namespace game_config
                 .update_folder_url = XML2_FIX_RELEASE,
                 .patch_file = "dinput.dll",
                 .patch_release_url = XML2_FIX_LATEST,
+                .patch_repo = XML2_FIX_REPO,
                 // A folder the builder finished: the exe and its stamp, written last.
                 .valid_game_files = {"XMen2.exe", "_build/stamp.json"},
                 .check_running_exes = {"XMen2.exe"},

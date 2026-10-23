@@ -3,7 +3,7 @@
 The launcher's version comes from its release tag (`v0.3.2`): premake reads it with `git describe` when it
 generates the project, so a release only needs this entry and the tag.
 
-## 0.4.0 (unreleased)
+## 0.4.0 (2026-10-23)
 
 A normal stable release with the Online section and the Beta update channel (below). Online play needs XML2 Fix 1.8.0
 (Legends Classic 0.3.0's, which reads the keys below: the launcher <-> XML2 Fix contract, v1.5) in the port's folder;

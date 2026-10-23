@@ -598,21 +598,31 @@
                 done: 'OK',
                 help: {
                     title: 'How online works',
-                    steps: {
-                        host: 'One player presses Host a game. Once the game is up, open Play Online in it: the room opens then, and this page shows a code like ABCD-EFGH.',
-                        share: 'The host sends the code to the friends who play (a chat message is fine). Copy puts it on the clipboard.',
-                        join: 'Each friend types or pastes the code under Join a game and presses Join. Lower case, spaces and dashes are fine.',
-                        inGame: 'In the game, the host picks Play Online → Host, then a new or saved campaign as usual. Friends open Play Online → Join Game and select the host’s game. Once you are together, this page says Connected – playing together.'
+                    host: {
+                        press: 'Press {{button}}',
+                        inGame: 'In the game: Play Online, then Host',
+                        share: 'Send friends your code (it’s already copied)'
                     },
-                    public: 'Public games: turn on List my game publicly when you host, and your game shows in Browse games for everyone with the launcher, who can join it there. Off, only friends with the code can join.',
-                    lateJoin: 'Joining a campaign already in progress? Wait on Joined Game. You enter at the next level change; the party needs enough heroes for everyone.',
-                    soloSegment: 'During a solo story segment, players without a hero stay connected and watch the shared camera; they rejoin when the party grows again.',
+                    join: {
+                        code: 'Paste the code and press {{button}}, or pick a game in {{browse}}',
+                        codeDetail: 'Lower case, spaces and dashes are fine.',
+                        inGame: 'In the game: Play Online, then Join Game',
+                        late: 'Game already running? You join at the next level',
+                        lateDetail: 'Wait on Joined Game until then.'
+                    },
+                    goodToKnow: 'Good to know',
+                    sameVersion: 'Everyone needs the same version: Rebuild (Build section) when it says an update is available.',
+                    noPorts: 'No port forwarding or router setup needed: the online service connects you.',
+                    public: '{{public}} puts your game in {{browse}} for everyone with the launcher; off, only friends with the code can join.',
                     publicIp: 'Public games connect you directly to other players, so they can see your internet address. Share a private code to play only with friends.',
-                    keepOpen: 'Host and Join keep the launcher open while you play, even with Close launcher after game launch on: it shows and copies your code and follows the game. Play still closes it.',
-                    noPorts: 'Nothing needs port forwarding or router settings: the online service connects you.',
-                    sameVersion: 'Everyone needs the same version of the game: keep it up to date on this page (Rebuild in the Build section when it says an update is available).',
-                    lan: 'On the same network, LAN and Connect by IP still work: press Play as usual. Play never opens a room.',
+                    soloSegment: 'In solo story parts, players without a hero stay connected and watch the shared camera, then rejoin when the party grows.',
+                    heroes: 'The party needs enough heroes for everyone.',
+                    keepOpen: 'Host and Join keep the launcher open while you play, to show your code and follow the game, even with {{setting}} on. Play still closes it.',
                     testMode: 'Test mode turns online play off: turn it off to host or join.',
+                    lan: 'On the same network, LAN and Connect by IP still work with Play, which never opens a room.',
+                    roomOpens: 'Your room opens when you pick Play Online, then Host in the game; start a new or saved campaign as usual.',
+                    shareCode: 'Send the code any way you like (a chat message is fine); Copy copies it again.',
+                    connected: 'In Join Game, select the host’s game; this page then says “{{connected}}”',
                     errorsTitle: 'What the messages mean'
                 }
             },
@@ -1536,21 +1546,31 @@
                 done: 'OK',
                 help: {
                     title: 'Comment fonctionne le jeu en ligne',
-                    steps: {
-                        host: "Un joueur appuie sur Heberger une partie. Une fois le jeu lance, ouvrez Play Online : la salle s'ouvre alors, et cette page affiche un code comme ABCD-EFGH.",
-                        share: "L'hote envoie le code aux amis qui jouent (un message suffit). Copier le met dans le presse-papiers.",
-                        join: 'Chaque ami tape ou colle le code sous Rejoindre une partie et appuie sur Rejoindre. Minuscules, espaces et tirets sont acceptes.',
-                        inGame: "Dans le jeu, l'hote choisit Play Online → Host, puis une nouvelle campagne ou une sauvegarde comme d'habitude. Les amis ouvrent Play Online → Join Game et selectionnent la partie de l'hote. Une fois ensemble, cette page affiche Connecte – vous jouez ensemble."
+                    host: {
+                        press: 'Appuyez sur {{button}}',
+                        inGame: 'Dans le jeu : Play Online, puis Host',
+                        share: 'Envoyez votre code a vos amis (il est deja copie)'
                     },
-                    public: "Parties publiques : activez Rendre ma partie publique quand vous hebergez, et votre partie apparait dans Parcourir les parties pour tous les joueurs du lanceur, qui peuvent la rejoindre. Desactive, seuls les amis qui ont le code peuvent rejoindre.",
-                    lateJoin: 'Vous rejoignez une campagne deja en cours ? Attendez sur Joined Game. Vous entrez au prochain changement de niveau ; le groupe doit avoir assez de heros pour tout le monde.',
-                    soloSegment: "Pendant un passage d'histoire en solo, les joueurs sans heros restent connectes et regardent la camera commune ; ils reviennent quand le groupe s'agrandit.",
-                    publicIp: 'Les parties publiques vous connectent directement aux autres joueurs, qui peuvent donc voir votre adresse internet. Partagez un code prive pour jouer seulement avec vos amis.',
-                    keepOpen: 'Heberger et Rejoindre gardent le lanceur ouvert pendant la partie, meme avec Fermer le launcher apres le lancement du jeu active : il affiche et copie votre code et suit la partie. Jouer le ferme toujours.',
+                    join: {
+                        code: 'Collez le code et appuyez sur {{button}}, ou choisissez une partie dans {{browse}}',
+                        codeDetail: 'Minuscules, espaces et tirets sont acceptes.',
+                        inGame: 'Dans le jeu : Play Online, puis Join Game',
+                        late: 'Partie deja en cours ? Vous entrez au prochain niveau',
+                        lateDetail: 'Attendez sur Joined Game jusque-la.'
+                    },
+                    goodToKnow: 'Bon a savoir',
+                    sameVersion: 'Tout le monde doit avoir la meme version : Rebuild (section Build) quand une mise a jour est disponible.',
                     noPorts: 'Aucune redirection de ports ni reglage du routeur : le service en ligne vous connecte.',
-                    sameVersion: "Tout le monde doit avoir la meme version du jeu : tenez-le a jour sur cette page (Rebuild dans la section Build quand une mise a jour est disponible).",
-                    lan: "Sur le meme reseau, le LAN et Connect by IP fonctionnent toujours : appuyez sur Jouer comme d'habitude. Jouer n'ouvre jamais de salle.",
+                    public: '{{public}} affiche votre partie dans {{browse}} pour tous les joueurs du lanceur ; desactive, seuls les amis qui ont le code peuvent rejoindre.',
+                    publicIp: 'Les parties publiques vous connectent directement aux autres joueurs, qui peuvent donc voir votre adresse internet. Partagez un code prive pour jouer seulement avec vos amis.',
+                    soloSegment: "Pendant les passages d'histoire en solo, les joueurs sans heros restent connectes et regardent la camera commune, puis reviennent quand le groupe s'agrandit.",
+                    heroes: 'Le groupe doit avoir assez de heros pour tout le monde.',
+                    keepOpen: 'Heberger et Rejoindre gardent le lanceur ouvert pendant la partie, pour afficher votre code et suivre la partie, meme avec {{setting}} active. Jouer le ferme toujours.',
                     testMode: 'Le mode test desactive le jeu en ligne : desactivez-le pour heberger ou rejoindre.',
+                    lan: "Sur le meme reseau, le LAN et Connect by IP fonctionnent toujours avec Jouer, qui n'ouvre jamais de salle.",
+                    roomOpens: "Votre salle s'ouvre quand vous choisissez Play Online, puis Host dans le jeu ; lancez une nouvelle campagne ou une sauvegarde comme d'habitude.",
+                    shareCode: 'Envoyez le code comme vous voulez (un message suffit) ; Copier le copie a nouveau.',
+                    connected: "Dans Join Game, selectionnez la partie de l'hote ; cette page affiche alors « {{connected}} »",
                     errorsTitle: 'Ce que veulent dire les messages'
                 }
             }
@@ -2119,21 +2139,31 @@
                 done: 'Aceptar',
                 help: {
                     title: 'Como funciona el juego en linea',
-                    steps: {
-                        host: 'Un jugador pulsa Alojar una partida. Cuando el juego este en marcha, abre Play Online: la sala se abre entonces, y esta pagina muestra un codigo como ABCD-EFGH.',
-                        share: 'El anfitrion envia el codigo a los amigos que juegan (un mensaje basta). Copiar lo pone en el portapapeles.',
-                        join: 'Cada amigo escribe o pega el codigo en Unirse a una partida y pulsa Unirse. Valen minusculas, espacios y guiones.',
-                        inGame: 'En el juego, el anfitrion elige Play Online → Host y luego una campana nueva o guardada, como siempre. Los amigos abren Play Online → Join Game y seleccionan la partida del anfitrion. Cuando esteis juntos, esta pagina dice Conectado – jugando juntos.'
+                    host: {
+                        press: 'Pulsa {{button}}',
+                        inGame: 'En el juego: Play Online y luego Host',
+                        share: 'Envia tu codigo a tus amigos (ya esta copiado)'
                     },
-                    public: 'Partidas publicas: activa Hacer publica mi partida al alojar, y tu partida aparece en Explorar partidas para todos los que tienen el lanzador, que pueden unirse desde alli. Desactivado, solo los amigos con el codigo pueden unirse.',
-                    lateJoin: '¿Te unes a una campana ya en curso? Espera en Joined Game. Entras en el proximo cambio de nivel; el grupo necesita heroes suficientes para todos.',
-                    soloSegment: 'Durante un tramo de historia en solitario, los jugadores sin heroe siguen conectados viendo la camara compartida; vuelven cuando el grupo crece de nuevo.',
-                    publicIp: 'Las partidas publicas te conectan directamente con los demas jugadores, asi que pueden ver tu direccion de internet. Comparte un codigo privado para jugar solo con amigos.',
-                    keepOpen: 'Alojar y Unirse mantienen el lanzador abierto mientras juegas, incluso con Cerrar el launcher al iniciar el juego activado: muestra y copia tu codigo y sigue la partida. Jugar lo sigue cerrando.',
+                    join: {
+                        code: 'Pega el codigo y pulsa {{button}}, o elige una partida en {{browse}}',
+                        codeDetail: 'Valen minusculas, espacios y guiones.',
+                        inGame: 'En el juego: Play Online y luego Join Game',
+                        late: '¿Partida ya en marcha? Entras en el proximo nivel',
+                        lateDetail: 'Espera en Joined Game hasta entonces.'
+                    },
+                    goodToKnow: 'Conviene saber',
+                    sameVersion: 'Todos necesitan la misma version: Rebuild (seccion Build) cuando haya una actualizacion.',
                     noPorts: 'No hace falta abrir puertos ni tocar el router: el servicio en linea os conecta.',
-                    sameVersion: 'Todos necesitan la misma version del juego: mantenlo actualizado en esta pagina (Rebuild en la seccion Build cuando haya una actualizacion).',
-                    lan: 'En la misma red, LAN y Connect by IP siguen funcionando: pulsa Jugar como siempre. Jugar nunca abre una sala.',
+                    public: '{{public}} muestra tu partida en {{browse}} a todos los que tienen el lanzador; desactivado, solo los amigos con el codigo pueden unirse.',
+                    publicIp: 'Las partidas publicas te conectan directamente con los demas jugadores, asi que pueden ver tu direccion de internet. Comparte un codigo privado para jugar solo con amigos.',
+                    soloSegment: 'En los tramos de historia en solitario, los jugadores sin heroe siguen conectados viendo la camara compartida y vuelven cuando el grupo crece.',
+                    heroes: 'El grupo necesita heroes suficientes para todos.',
+                    keepOpen: 'Alojar y Unirse mantienen el lanzador abierto mientras juegas, para mostrar tu codigo y seguir la partida, incluso con {{setting}} activado. Jugar lo sigue cerrando.',
                     testMode: 'El modo de prueba desactiva el juego en linea: desactivalo para alojar o unirte.',
+                    lan: 'En la misma red, LAN y Connect by IP siguen funcionando con Jugar, que nunca abre una sala.',
+                    roomOpens: 'Tu sala se abre al elegir Play Online y luego Host en el juego; empieza una campana nueva o guardada, como siempre.',
+                    shareCode: 'Envia el codigo como quieras (basta con un mensaje); Copiar lo copia de nuevo.',
+                    connected: 'En Join Game, selecciona la partida del anfitrion; esta pagina dice entonces «{{connected}}»',
                     errorsTitle: 'Que significan los mensajes'
                 }
             }

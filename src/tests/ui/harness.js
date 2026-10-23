@@ -355,6 +355,8 @@ class Element extends Node {
     set hidden(on) { this.toggleAttribute('hidden', !!on); }
     get disabled() { return this.hasAttribute('disabled'); }
     set disabled(on) { this.toggleAttribute('disabled', !!on); }
+    get open() { return this.hasAttribute('open'); }
+    set open(on) { this.toggleAttribute('open', !!on); }
     get checked() { return this.hasAttribute('checked'); }
     set checked(on) { this.toggleAttribute('checked', !!on); }
 
@@ -439,7 +441,15 @@ class Element extends Node {
 
     click() {
         if (this.disabled) return;
-        this.dispatchEvent(new Event('click', { bubbles: true }));
+        const event = new Event('click', { bubbles: true });
+        this.dispatchEvent(event);
+        // The browser's default action for a <details>' own summary (its first): open or close it.
+        const details = this.parentNode;
+        if (!event.defaultPrevented && this.tagName === 'SUMMARY' && details && details.tagName === 'DETAILS' &&
+            details.children.find(child => child.tagName === 'SUMMARY') === this) {
+            details.open = !details.open;
+            details.dispatchEvent(new Event('toggle'));
+        }
     }
 
     // The focused element is document.activeElement; focusout and focusin bubble as in a browser.

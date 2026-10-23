@@ -67,6 +67,7 @@ INI_TEMPLATE = (
     "[Online]\r\n"
     "; the project broker (the builder's defaults)\r\n"
     "Broker=broker.example.org:7777   ; host[:port]\r\n"
+    "GameVersion=LC33\r\n"
     f"BrokerPin={PIN}\r\n"
     "Domain=openspy.net\r\n"
     "\r\n"
@@ -317,6 +318,7 @@ def main():
             return cmd("is-game-running", {"game": "xml1"}) is True
 
         def stop():
+            time.sleep(1.2)  # is-game-running answers from a snapshot up to 1 s old
             if running():
                 cmd("stop-game", {"game": "xml1"})
                 wait_for(lambda: not running(), 10)
@@ -385,7 +387,7 @@ def main():
             result = start("host", keep=True)
             check(launched(result) and result["values"] == {"Host": "broker", "Public": "0", "RoomName": None, "JoinCode": None},
                   f"host {result}")
-            check(running(), "the (dummy) game runs")
+            check(wait_for(running, 6), "the (dummy) game runs")
             only_online_changed(["Host=broker", "Public=0"], "host (private by default)")
             check(not status_file.exists(), "the stale online-status.json is gone")
             check(text().count("Broker=") == 1 and text().count(f"BrokerPin={PIN}") == 1, "Broker / BrokerPin written once, by the builder")
@@ -430,8 +432,8 @@ def main():
             process = subprocess.Popen([str(exe)])
             try:
                 check(wait_for(running, 5), "the game running")
+                check(wait_for(lambda: status()["running"] is True, 5), "the status says it runs")
                 check(start("host").get("reason") in ("running", "already_running") and raw() == before, "host while it runs: refused")
-                check(status()["running"] is True, "the status says it runs")
             finally:
                 process.kill()
                 wait_for(lambda: not running(), 5)
@@ -498,7 +500,7 @@ def main():
             only_online_changed(["JoinCode=ABCD2345"], "join after a public host: Host, Public and RoomName gone")
             start("host", public=True, roomName="Saturday run")
             check(play().get("accepted") is True and raw() == INI_TEMPLATE.encode("utf-8"), "Play: all four gone, the template byte for byte")
-            check("GameVersion" not in text(), "GameVersion is never written (the builder's)")
+            check(text().count("GameVersion") == 1, "GameVersion is never written (the builder's)")
 
             print("Play: a normal start removes Host and JoinCode (and an old status)")
             open_page()
@@ -534,15 +536,15 @@ def main():
             check(js("(() => { const s = document.querySelector('#xml1-page .detail-online'); return !!s && s.querySelector('.detail-display-title').textContent; })()") == "Online",
                   "an Online section")
             check(blocked() is None and controls_disabled() == [False, False, False], "Host and Join on")
-            check(ui("return $('.ul-online-help summary').textContent;") == "How online works", "How online works")
+            check(ui("return $('.ul-online-help-title').textContent;") == "How online works", "How online works")
             check(hidden_shown() == [], f"idle: every hidden part is display:none {hidden_shown()}")
             check(ui("return $('.ul-online-session').offsetParent === null && $('.ul-online-blocked').offsetParent === null;"),
                   "the session block and the reason line take no space")
             check(ui(f"return {json.dumps(ERRORS)}.every(id => !!$(`.ul-online-help-error[data-error=\"${{id}}\"]`));"), "the help explains every error id")
             shot("idle")
-            js("document.querySelector('#xml1-online-panel .ul-online-help').open = true")
+            js("document.querySelectorAll('#xml1-online-panel .ul-online-help details').forEach(d => d.open = true)")
             shot("help", "#xml1-online-panel .ul-online-help")
-            js("document.querySelector('#xml1-online-panel .ul-online-help').open = false")
+            js("document.querySelectorAll('#xml1-online-panel .ul-online-help details').forEach(d => d.open = false)")
 
             print("page: Host a game")
             write_status(role="host", state="room", code="OLDC0DE0", players=1)
@@ -593,7 +595,7 @@ def main():
 
             print("page: Join a game")
             reset()
-            type_code("abcd-234o")
+            type_code("abcd-234o"); print("   dbg code", js("(() => { const i = document.querySelector('#xml1-online-panel .ul-online-code-input'); const e = document.querySelector('#xml1-online-panel .ul-online-code-error'); return [i && i.value, i && i.disabled, document.activeElement && document.activeElement.className, e && e.hidden, e && e.textContent, !!document.querySelector('#xml1-online-panel .ul-online-session:not([hidden])')]; })()"))
             check("never 0, O, 1, I or L" in (ui("const e = $('.ul-online-code-error'); return e.hidden ? '' : e.textContent;") or ""),
                   "a character no code has: the inline error at once")
             check(ui("$('.ul-online-join-button').click(); return true;") and raw() == INI_TEMPLATE.encode("utf-8") and not running(),
@@ -675,7 +677,7 @@ def main():
 
             def use_ini(pin, version="LC31"):
                 """The template with the fake broker in [Online] (and GameVersion); pin None: no BrokerPin line."""
-                body = INI_TEMPLATE.replace(online_line, "Broker=127.0.0.1:7777\r\n" + (f"GameVersion={version}\r\n" if version else ""))
+                body = INI_TEMPLATE.replace("GameVersion=LC33\r\n", "").replace(online_line, "Broker=127.0.0.1:7777\r\n" + (f"GameVersion={version}\r\n" if version else ""))
                 body = body.replace(f"BrokerPin={PIN}\r\n", f"BrokerPin={pin}\r\n" if pin else "")
                 ini.write_bytes(body.encode("utf-8"))
 
@@ -865,7 +867,7 @@ def main():
 
             print("page: the keyboard reaches everything (Tab, Enter)")
             js("document.querySelector('#xml1-online-panel .ul-online-host-button').focus()")
-            check(focused() == "ul-online-host-button", "Host focusable")
+            check(focused() == "ul-online-host-button", "Host focusable"); print("   dbg", js("[document.hasFocus(), document.activeElement.tagName, document.activeElement.className, location.href, !!document.querySelector('#xml1-online-panel .ul-online-host-button').offsetParent]"))
             # Establish keyboard focus before measuring :focus-visible.
             press("Tab")
             press("Tab", shift=True)
@@ -883,7 +885,7 @@ def main():
                 press("Tab")
             check(focused() == "SUMMARY", "then How online works")
             press("Enter")
-            check(js("document.querySelector('#xml1-online-panel .ul-online-help').open === true"), "Enter opens it")
+            check(js("document.querySelector('#xml1-online-panel .ul-online-help details').open === true"), "Enter opens it")
             press("Enter")
             press("Tab", shift=True)
             check(focused() in ("ul-online-browse-refresh", "ul-online-room-join"), "Shift+Tab: back into Browse games")

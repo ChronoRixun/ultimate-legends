@@ -31,6 +31,10 @@ class Launcher:
         # Chromium rejects DevTools websockets that send an Origin header unless it's allow-listed.
         self.ws = websocket.create_connection(page["webSocketDebuggerUrl"], timeout=60, suppress_origin=True)
         self.ids = itertools.count(1)
+        # a launcher window in the background still counts as focused for the page (unattended runs)
+        self.call("Emulation.setFocusEmulationEnabled", {"enabled": True})
+        # hide real pads from the page: with focus emulation a connected pad (e.g. a drifting stick) would navigate the launcher; the suites bring their own pretend pads.
+        self.evaluate("Navigator.prototype.getGamepads = function () { return []; }; true")
 
     def evaluate(self, expression):
         message_id = next(self.ids)

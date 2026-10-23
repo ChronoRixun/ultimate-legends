@@ -35,7 +35,8 @@ function rectOf(element) {
     if (has('ul-online-copy')) return box(300, 120, 80, 36);
     if (has('ul-online-again')) return box(20, 220, 100, 36);
     if (has('ul-online-testmode-off')) return box(140, 220, 140, 36);
-    if (element.tagName === 'SUMMARY') return box(20, 620, 600, 24); // a block: the section's width
+    // The folds under How online works, one above the other: blocks the section's width.
+    if (element.tagName === 'SUMMARY') return element.closest('.ul-online-messages') ? box(20, 660, 600, 24) : box(20, 620, 600, 24);
     if (has('ul-online-ip-note')) return element.closest('.ul-online-browse') ? box(20, 290, 400, 18) : box(20, 135, 260, 18);
     return box(0, 0, 0, 0);
 }
@@ -81,18 +82,20 @@ async function openWithPad(options = {}) {
     return Object.assign(t, { press, at, nav: t.window.FocusNav });
 }
 
-test('S6: How online works is a control for FocusNav (tabindex and a native summary), with the ring; the notes never are', async () => {
+test('S6: How online works\' folds are controls for FocusNav (tabindex and a native summary), with the ring; the notes and steps never are', async () => {
     const t = await openWithPad();
-    const summary = t.$('.ul-online-help summary');
-    assert.equal(t.nav.isFocusable(summary), true, 'the help summary: D-pad reaches it');
+    const summary = t.$('.ul-online-good summary');
+    assert.equal(t.nav.isFocusable(summary), true, 'Good to know: D-pad reaches it');
+    assert.equal(t.nav.isFocusable(t.$('.ul-online-messages summary')), true, 'What the messages mean too');
     summary.removeAttribute('tabindex');
     assert.equal(t.nav.isFocusable(summary), true, 'a <details> summary without a tabindex too (native support)');
     summary.setAttribute('tabindex', '0');
     const loose = t.document.createElement('summary');
-    t.$('.ul-online-help-body').appendChild(loose);
+    t.$('.ul-online-good').appendChild(loose);
     assert.equal(t.nav.isFocusable(loose), false, 'not a summary that isn\'t its details\' own');
     loose.remove();
-    for (const note of t.document.querySelectorAll('#xml1-online-panel .ul-online-ip-note, #xml1-online-panel .ul-online-public-note, #xml1-online-panel .ul-online-help-notes li')) {
+    for (const note of t.document.querySelectorAll('#xml1-online-panel .ul-online-ip-note, #xml1-online-panel .ul-online-public-note, #xml1-online-panel .ul-online-help-notes li, ' +
+        '#xml1-online-panel .ul-online-howto-step, #xml1-online-panel .ul-online-howto-code, #xml1-online-panel .ul-online-howto-card svg')) {
         assert.equal(t.nav.isFocusable(note), false, `a note is text: ${note.className || note.dataset.note}`);
     }
     // The one ring covers it from the keyboard and from a pad (main.css).
@@ -127,11 +130,16 @@ test('S6: a pad walks the idle section: public toggle, room name, Host, the code
     await t.press('down');
     assert.equal(t.at(), 'ul-online-room-join', 'down: the row\'s Join');
     await t.press('down');
-    assert.equal(t.at(), 'summary', 'down: How online works');
-    let toggled = 0;
-    t.$('.ul-online-help summary').addEventListener('click', () => toggled++);
+    assert.equal(t.document.activeElement, t.$('.ul-online-good summary'), 'down: Good to know');
     await t.press('a');
-    assert.equal(toggled, 1, 'A opens it (the summary\'s click toggles its details)');
+    assert.equal(t.$('.ul-online-good').open, true, 'A opens it');
+    await t.press('down');
+    assert.equal(t.document.activeElement, t.$('.ul-online-messages summary'), 'down: What the messages mean');
+    await t.press('a');
+    assert.equal(t.$('.ul-online-messages').open, true, 'A opens it');
+    await t.press('a');
+    assert.equal(t.$('.ul-online-messages').open, false, 'A again closes it');
+    await t.press('up');
     await t.press('up');
     assert.equal(t.at(), 'ul-online-room-join', 'up: back in the list');
     assert.deepEqual(t.backend.launches, [], 'walking started nothing');

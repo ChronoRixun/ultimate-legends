@@ -23,14 +23,14 @@ test('online: Host a game and Join a game, with the help, on a built game', asyn
     assert.equal(t.text('.ul-online-join .ul-online-card-title'), 'Join a game');
     assert.equal(t.blockedText(), null, 'nothing in the way');
     t.controls().forEach(control => assert.equal(control.disabled, false));
-    assert.equal(t.$('.ul-online-help summary').textContent, 'How online works');
-    const help = t.text('.ul-online-help-body');
+    assert.equal(t.text('.ul-online-help-title'), 'How online works');
+    const help = t.text('.ul-online-help');
     assert.match(help, /port forwarding/);
     assert.match(help, /LAN and Connect by IP still work/);
-    assert.match(help, /Play Online → Host/);
-    assert.match(help, /Play Online → Join Game/);
+    assert.match(t.text('.ul-online-howto-card[data-card="host"]'), /In the game: Play Online, then Host/);
+    assert.match(t.text('.ul-online-howto-card[data-card="join"]'), /In the game: Play Online, then Join Game/);
     assert.equal(ERRORS.length, 10, 'contract v1.5: ten ids');
-    for (const id of ERRORS) assert.ok(t.$(`.ul-online-help-error[data-error="${id}"] dt`), `the help explains ${id}`);
+    for (const id of ERRORS) assert.ok(t.$(`.ul-online-messages .ul-online-help-error[data-error="${id}"] dt`), `the help explains ${id}`);
     assert.deepEqual(t.backend.launches, [], 'opening the page starts and writes nothing');
 });
 
@@ -444,7 +444,9 @@ test('online: the keyboard (or a controller mapped to it) reaches every control,
     for (const control of t.controls()) {
         assert.equal(control.hasAttribute('tabindex'), false, 'in the Tab order where it stands');
     }
-    assert.equal(t.$('.ul-online-help summary').getAttribute('tabindex'), '0', 'the help\'s summary too, for core/focus-nav.js');
+    for (const summary of t.document.querySelectorAll('#xml1-online-panel .ul-online-fold summary')) {
+        assert.equal(summary.getAttribute('tabindex'), '0', 'the help\'s fold summaries too, for core/focus-nav.js');
+    }
     for (const button of [t.$('.ul-online-host-button'), t.$('.ul-online-join-button')]) {
         assert.equal(button.tagName, 'BUTTON');
         assert.equal(button.getAttribute('type'), 'button');

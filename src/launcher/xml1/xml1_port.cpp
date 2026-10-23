@@ -3,6 +3,9 @@
 
 #include "display/xml2_display.hpp"
 #include "game_config.hpp"
+#include "updater/launcher_update.hpp"
+#include "updater/patch_channel.hpp"
+#include "updater/release_source.hpp"
 #include "updater/updater.hpp"
 
 #include <utils/finally.hpp>
@@ -43,6 +46,9 @@ namespace xml1_port
             bool not_published{};
             std::optional<tool_install::manifest> latest;
             std::string source; // where the last install came from: "download", or "zip" (one the player had)
+            release_channel::channel channel = release_channel::channel::stable; // the channel `latest` is of
+            bool from_cache{};       // Beta: GitHub couldn't be asked; `latest` is from the last release found
+            std::string cache_error; // why
         };
         builder_check check_;
 
@@ -73,6 +79,36 @@ namespace xml1_port
             }
 #endif
             return tool;
+        }
+
+        // The builder's manifest on the update channel (release_source: Stable, GitHub's latest release;
+        // Beta, pre-releases too), from the chosen release's tag, so the manifest and the zip next to it
+        // come from one release; the channel's last choice when GitHub can't be asked (`from_cache`,
+        // `error`). With no choice at all: into a PC without a builder, the latest release's manifest (as
+        // launcher 0.3 did; its zip is still checked by size and SHA-256); else false with `error`, and
+        // the installed builder stays.
+        bool channel_manifest(tool_install::tool& tool, const release_channel::channel channel, const bool has_builder, bool& from_cache,
+                              std::string& error)
+        {
+            from_cache = false;
+            if (tool.manifest_url != builder_manifest_url)
+            {
+                return true; // a Debug build's local stand-in
+            }
+            const auto outcome = release_source::resolve(release_source::builder_repo, channel, {builder_manifest_name});
+            error = outcome.error;
+            if (!outcome.chosen)
+            {
+                if (!has_builder)
+                {
+                    utils::logger::write("xml1-builder: the update channel can't be checked ({}); the latest release is used", error);
+                    return true;
+                }
+                return false;
+            }
+            from_cache = outcome.from_cache;
+            tool.manifest_url = release_source::file_url(release_source::builder_repo, *outcome.chosen, builder_manifest_name);
+            return true;
         }
 
         struct builder_exe
@@ -483,6 +519,22 @@ namespace xml1_port
                !utils::io::file_exists(folder / L"_build" / L"building.json");
     }
 
+    std::string stamp_requires_xml2fix(const std::filesystem::path& folder)
+    {
+        const auto stamp = read_json(folder / L"_build" / L"stamp.json");
+        if (!stamp || !stamp->IsObject())
+        {
+            return {};
+        }
+        const auto requires_member = stamp->FindMember("requires");
+        if (requires_member == stamp->MemberEnd() || !requires_member->value.IsObject())
+        {
+            return {};
+        }
+        const auto fix = requires_member->value.FindMember("xml2fix");
+        return fix != requires_member->value.MemberEnd() && fix->value.IsString() ? std::string(fix->value.GetString()) : std::string{};
+    }
+
     sizes disk_usage()
     {
         const auto folder_bytes = [](const std::filesystem::path& folder) -> std::optional<std::uint64_t>
@@ -872,7 +924,13 @@ namespace xml1_port
         return work_active_locked();
     }
 
-    bool check_builder(const bool install, const std::optional<std::filesystem::path>& zip)
+    std::string installed_builder_version()
+    {
+        const auto found = find_builder();
+        return found && !found->dev ? found->version : std::string{};
+    }
+
+    bool check_builder(const bool install, const std::optional<std::filesystem::path>& zip, const std::string& downgrade_to)
     {
         {
             std::lock_guard lock(mutex_);
@@ -887,19 +945,34 @@ namespace xml1_port
             check_.source.clear();
         }
 
-        std::thread([install, zip]
+        std::thread([install, zip, downgrade_to]
         {
-            const auto tool = builder_tool();
+            auto tool = builder_tool();
+            const auto channel = release_source::current_channel();
             std::string error;
+            std::string cache_error;
             bool not_published = false;
-            const auto latest = tool_install::fetch_manifest(tool, error, &not_published);
+            bool from_cache = false;
+            std::optional<tool_install::manifest> latest;
+            if (channel_manifest(tool, channel, find_builder().has_value(), from_cache, cache_error))
+            {
+                latest = tool_install::fetch_manifest(tool, error, &not_published);
+            }
+            else
+            {
+                not_published = cache_error == "No release has been published.";
+                error = cache_error;
+            }
             if (!latest)
             {
-                utils::logger::write("xml1-builder: manifest {}: {}", tool.manifest_url, error);
+                utils::logger::write("xml1-builder: manifest {} ({}): {}", tool.manifest_url, release_channel::channel_name(channel), error);
                 set_check([&](builder_check& check)
                 {
                     check.checking = false;
                     check.latest.reset(); // what an earlier check found no longer holds
+                    check.channel = channel;
+                    check.from_cache = false;
+                    check.cache_error.clear();
                     check.not_published = not_published;
                     // A zip the player has is checked against the release, so it needs the manifest too.
                     check.code = not_published ? "L_BUILDER_UNPUBLISHED" : zip ? "L_BUILDER_ZIP_OFFLINE" : "L_BUILDER_OFFLINE";
@@ -908,7 +981,8 @@ namespace xml1_port
                 return;
             }
 
-            const std::string launcher_version = VERSION_PRODUCT;
+            // The whole version (a beta launcher, 0.5.0-beta.1, is not yet the 0.5.0 a builder may need).
+            const auto launcher_version = launcher_update::running_version();
             if (!latest->min_launcher.empty() && launcher_version != "0.0.0" &&
                 tool_install::compare_versions(launcher_version, latest->min_launcher) < 0)
             {
@@ -916,19 +990,33 @@ namespace xml1_port
                 {
                     check.checking = false;
                     check.latest = latest;
+                    check.channel = channel;
+                    check.from_cache = from_cache;
+                    check.cache_error = from_cache ? cache_error : std::string{};
                     check.code = "L_LAUNCHER_TOO_OLD";
                     check.error = "This builder needs Ultimate Legends " + latest->min_launcher + " or newer.";
                 });
                 return;
             }
 
-            // A zip the player chose is always checked (and installed when it is the release's).
+            // A zip the player chose is always checked (and installed when it is the release's). Never an
+            // older builder than the one installed, unless the player chose Switch back to Stable to
+            // exactly this version, for this attempt.
             const auto installed = find_builder();
-            const auto wanted = zip || (install && (!installed || (!installed->dev && tool_install::compare_versions(latest->version, installed->version) > 0)));
+            const auto order = installed ? tool_install::compare_versions(latest->version, installed->version) : 1;
+            const auto approved = !downgrade_to.empty() && latest->version == downgrade_to && channel == release_channel::channel::stable;
+            const auto wanted = zip || (install && (!installed || (!installed->dev && (order > 0 || (approved && order < 0)))));
+            if (!downgrade_to.empty() && !approved)
+            {
+                utils::logger::write("xml1-builder: the switch back to {} was not done: the update channel offers {}", downgrade_to, latest->version);
+            }
             set_check([&](builder_check& check)
             {
                 check.checking = false;
                 check.latest = latest;
+                check.channel = channel;
+                check.from_cache = from_cache;
+                check.cache_error = from_cache ? cache_error : std::string{};
                 check.installing = wanted;
                 check.done = 0;
                 check.total = latest->size;
@@ -1108,10 +1196,19 @@ namespace xml1_port
             rapidjson::Value fix(rapidjson::kObjectType);
             const auto dll = folder ? *folder / L"dinput.dll" : std::filesystem::path{};
             const auto installed = folder && utils::io::file_exists(dll);
-            const auto version = installed ? file_version(dll) : std::string{};
+            // The release the launcher installed when the DLL is still that one (1.8.0-beta.2 reads 1.8.0).
+            auto version = installed ? file_version(dll) : std::string{};
+            if (installed)
+            {
+                if (const auto effective = patch_channel::installed_version(game, *folder); effective && release_channel::is_prerelease(*effective))
+                {
+                    version = *effective;
+                }
+            }
             auto required = required_fix;
             required.erase(0, required.find_first_of("0123456789") == std::string::npos ? required.size() : required.find_first_of("0123456789"));
-            const auto ok = installed && (required.empty() || (!version.empty() && tool_install::compare_versions(version, required) >= 0));
+            // requires.xml2fix as written (">=1.7.1"), pre-releases ordered: 1.8.0-beta.2 meets >=1.7.1, not >=1.8.0.
+            const auto ok = installed && (required.empty() || (!version.empty() && release_channel::satisfies(version, required_fix)));
             fix.AddMember("installed", installed, allocator);
             fix.AddMember("version", make_string(version, allocator), allocator);
             fix.AddMember("required", make_string(required, allocator), allocator);
@@ -1135,6 +1232,8 @@ namespace xml1_port
             builder.AddMember("version", make_string(found ? found->version : std::string{}, allocator), allocator);
             builder.AddMember("dev", found && found->dev, allocator);
             builder.AddMember("contentVersion", builder_content, allocator);
+            builder.AddMember("prerelease", found && !found->dev && release_channel::is_prerelease(found->version), allocator);
+            builder.AddMember("channel", rapidjson::StringRef(release_channel::channel_name(release_source::current_channel())), allocator);
 
             std::lock_guard lock(mutex_);
             builder.AddMember("checking", check_.checking, allocator);
@@ -1154,12 +1253,20 @@ namespace xml1_port
                 builder.AddMember("latest", latest, allocator);
                 builder.AddMember("updateAvailable", found && !found->dev && tool_install::compare_versions(check_.latest->version, found->version) > 0,
                                   allocator);
+                // On Stable, a beta builder newer than the latest release (it stays until Switch back to Stable).
+                builder.AddMember("aheadOfStable", found && !found->dev && check_.channel == release_channel::channel::stable &&
+                                                       release_channel::is_ahead_of(found->version, check_.latest->version),
+                                  allocator);
             }
             else
             {
                 builder.AddMember("latest", rapidjson::Value(rapidjson::kNullType), allocator);
                 builder.AddMember("updateAvailable", false, allocator);
+                builder.AddMember("aheadOfStable", false, allocator);
             }
+            builder.AddMember("latestChannel", rapidjson::StringRef(release_channel::channel_name(check_.channel)), allocator);
+            builder.AddMember("fromCache", check_.from_cache, allocator);
+            builder.AddMember("cacheError", make_string(check_.cache_error, allocator), allocator);
             out.AddMember("builder", builder, allocator);
         }
 

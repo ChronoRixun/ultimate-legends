@@ -1,8 +1,9 @@
 // The launcher's own update: a bar at the top of every page when a newer Ultimate Legends is
-// released, and a line under the version in Settings. The backend (updater/launcher_update.cpp)
-// checks GitHub's latest release, downloads and verifies the portable zip when the player says
-// Update, and installs it on the next start (Restart now does that at once). Development builds and
-// offline mode never check.
+// released, and a line under the version in Settings (with a Beta badge on a pre-release and the
+// update channel, app/update-channel.js). The backend (updater/launcher_update.cpp) checks the
+// channel's release (Stable: GitHub's latest; Beta: pre-releases too), downloads and verifies the
+// portable zip when the player says Update, and installs it on the next start (Restart now does that
+// at once). Development builds and offline mode never check.
 (function () {
     'use strict';
 
@@ -31,7 +32,7 @@
     const LauncherUpdate = {
         status: null,
         dismissed: '', // the version whose "available" bar the player closed this session
-        polling: false,
+        polling: null, // the poll under way (follow())
 
         async init() {
             const checkButton = el('launcher-update-check');
@@ -67,19 +68,22 @@
             return this.status;
         },
 
-        // Polls while the backend checks or downloads.
-        async follow() {
-            if (this.polling) return;
-            this.polling = true;
-            try {
-                for (;;) {
-                    const s = await this.refresh();
-                    if (!s || (s.state !== 'checking' && s.state !== 'downloading')) break;
-                    await sleep(s.state === 'downloading' ? 500 : 1000);
+        // Polls while the backend checks or downloads; the status it settles on. A second caller waits for
+        // the same poll (Switch back to Stable reads the result).
+        follow() {
+            if (this.polling) return this.polling;
+            this.polling = (async () => {
+                try {
+                    for (;;) {
+                        const s = await this.refresh();
+                        if (!s || (s.state !== 'checking' && s.state !== 'downloading')) return s;
+                        await sleep(s.state === 'downloading' ? 500 : 1000);
+                    }
+                } finally {
+                    this.polling = null;
                 }
-            } finally {
-                this.polling = false;
-            }
+            })();
+            return this.polling;
         },
 
         async check() {
@@ -107,7 +111,7 @@
             if (!s.canInstall) {
                 const manual = await window.showMessageBox(t('launcherUpdate.confirmTitle'),
                     t('launcherUpdate.confirmManual', { version: s.latest, current: s.current }),
-                    [t('launcherUpdate.download'), t('launcherUpdate.notNow')]);
+                    [t('launcherUpdate.download'), { label: t('launcherUpdate.notNow'), cancel: true }]);
                 if (manual === 0) this.openPage();
                 return;
             }
@@ -115,8 +119,9 @@
             const size = s.size ? formatBytes(s.size) : '';
             const choice = await window.showMessageBox(t('launcherUpdate.confirmTitle'),
                 t('launcherUpdate.confirmBody', { version: s.latest, current: s.current, size }),
-                [t('launcherUpdate.update'), t('launcherUpdate.notNow')]);
+                [t('launcherUpdate.update'), { label: t('launcherUpdate.notNow'), cancel: true }]);
             if (choice !== 0) return;
+            // (Never a switch back: that is asked for in Settings each time, update-channel.js.)
             await run('start-launcher-update');
             await this.follow();
         },
@@ -175,9 +180,13 @@
             const bar = this.barFor(s);
             switch (s.state) {
                 case 'checking': return t('launcherUpdate.checking');
-                case 'up-to-date': return t('launcherUpdate.upToDate');
+                case 'up-to-date':
+                    if (s.aheadOfStable) return t('launcherUpdate.aheadOfStable', { version: s.current, latest: s.latest });
+                    return s.fromCache ? t('launcherUpdate.upToDateCached', { error: s.cacheError }) : t('launcherUpdate.upToDate');
                 case 'check-failed': return t('launcherUpdate.checkFailed', { error: s.error });
-                case 'available': return t('launcherUpdate.available', { version: s.latest });
+                case 'available': return s.fromCache
+                    ? t('launcherUpdate.availableCached', { version: s.latest, error: s.cacheError })
+                    : t('launcherUpdate.available', { version: s.latest });
                 default: return bar ? bar.text : '';
             }
         },
@@ -205,6 +214,18 @@
 
             const line = el('launcher-update-status');
             if (line) line.textContent = this.statusLine(s);
+            // The version line: a Beta badge on a pre-release, and the update channel.
+            const badge = el('launcher-version-badge');
+            if (badge) {
+                badge.hidden = !(s && s.prerelease);
+                badge.textContent = t('updateChannel.badge');
+            }
+            const channel = el('launcher-update-channel');
+            if (channel) {
+                channel.textContent = s && s.enabled
+                    ? t('updateChannel.footer', { channel: t(s.channel === 'beta' ? 'updateChannel.beta' : 'updateChannel.stable') })
+                    : '';
+            }
             const checkButton = el('launcher-update-check');
             if (checkButton) {
                 checkButton.hidden = !s || !s.enabled;

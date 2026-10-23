@@ -4342,7 +4342,6 @@ html:not([data-color-uninstalled]) .library-card:not(.is-installed):not(.is-comi
 .ul-mod-switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform 0.15s; }
 .ul-mod-toggle input:checked + .ul-mod-switch { background: var(--accent-color, #ffc23d); }
 .ul-mod-toggle input:checked + .ul-mod-switch::after { transform: translateX(16px); }
-.ul-mod-toggle input:focus-visible + .ul-mod-switch { outline: 2px solid var(--accent-color, #ffc23d); outline-offset: 2px; }
 
 /* ---- Display section of a game's page (display-view.js) ---- */
 .detail-display { margin-top: 24px; }
@@ -4378,16 +4377,139 @@ html:not([data-color-uninstalled]) .library-card:not(.is-installed):not(.is-comi
 .detail-testmode { margin-top: 24px; }
 .ul-testmode .ul-testmode-online { margin-bottom: 2px; }
 .ul-testmode-row.is-disabled .ul-display-control { opacity: 0.55; }
-/* Keyboard and controller focus (Tab, Steam Input's desktop layout): drawn inside the button, where the
-   toggle group's rounded clip can't cut it off. */
-.ul-testmode .toggle-btn:focus-visible { outline: 2px solid var(--warn); outline-offset: -2px; }
 .ul-testmode-badge-host { margin: -8px 0 18px; }
 .ul-testmode-badge { display: inline-flex; align-items: center; gap: 12px; padding: 8px 10px 8px 14px; border-radius: 12px; background: rgba(255, 178, 63, 0.12); border: 1px solid rgba(255, 178, 63, 0.45); }
 .ul-testmode-badge-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 8px var(--warn); flex-shrink: 0; }
 .ul-testmode-badge-text { display: flex; flex-direction: column; min-width: 0; }
 .ul-testmode-badge-title { color: var(--warn); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
 .ul-testmode-badge-note { color: var(--text-muted); font-size: 12px; }
-.ul-testmode-off:focus-visible { outline: 2px solid var(--warn); outline-offset: 2px; }
+
+/* ---- Online section of the X-Men Legends page (online-view.js) ---- */
+.detail-online { margin-top: 24px; }
+.ul-online-blocked { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ul-online-idle { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.ul-online-card { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; background: var(--surface-lo); border: 1px solid var(--border); border-radius: 12px; }
+.ul-online-card.is-disabled .ul-online-card-title, .ul-online-card.is-disabled .ul-online-card-body { opacity: 0.55; }
+.ul-online-card-title { margin: 0; font-size: 14px; letter-spacing: 0.02em; }
+.ul-online-card-body { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--text-muted); }
+.ul-online-card-actions { display: flex; gap: 8px; align-items: center; margin-top: auto; }
+.ul-online-code-input { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 15px; letter-spacing: 0.12em; text-transform: uppercase; }
+.ul-online-code-input::placeholder { letter-spacing: 0.12em; color: var(--text-dim); }
+.ul-online-code-input.is-invalid { border-color: var(--danger); }
+.ul-online-code-input:disabled { opacity: 0.45; }
+.ul-online-code-error { font-size: 12.5px; color: #ff8a9a; }
+.ul-online-primary { min-height: 36px; padding: 8px 16px; border-radius: 10px; border: 1px solid transparent; background: var(--accent-grad); color: #fff; font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer; flex-shrink: 0; transition: box-shadow 0.2s var(--ease), transform 0.2s var(--ease); }
+.ul-online-primary:hover:not(:disabled) { box-shadow: 0 0 18px var(--accent-glow); transform: translateY(-1px); }
+.ul-online-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+/* Keyboard and controller focus (Tab, Steam Input's desktop layout). */
+.ul-online-primary:focus-visible, .ul-online .secondary-action:focus-visible, .ul-online-help summary:focus-visible { outline: 2px solid var(--warn); outline-offset: 2px; }
+.ul-online-session { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; background: var(--surface-lo); border: 1px solid var(--border-hi); border-radius: 12px; outline: none; }
+.ul-online-phase { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; }
+.ul-online-phase.is-error { color: #ff8a9a; }
+.ul-online-spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--accent-soft); border-top-color: var(--accent); animation: ul-online-spin 0.9s linear infinite; flex-shrink: 0; }
+@keyframes ul-online-spin { to { transform: rotate(360deg); } }
+html[data-reduce-motion] .ul-online-spinner { animation: none; }
+.ul-online-code-block { display: flex; flex-direction: column; gap: 6px; }
+.ul-online-code-label { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
+.ul-online-code-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.ul-online-code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 40px; font-weight: 500; letter-spacing: 0.14em; line-height: 1.1; user-select: all; }
+.ul-online-code-hint, .ul-online-join-code { margin: 0; font-size: 13px; line-height: 1.5; }
+.ul-online-players { margin: 0; font-size: 12.5px; color: var(--text-muted); }
+.ul-online-players.is-new { color: var(--play); }
+.ul-online-error-detail { margin-top: 6px; font-size: 11.5px; opacity: 0.75; font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+.ul-online-session-actions { display: flex; gap: 8px; }
+.ul-online-help { display: flex; flex-direction: column; gap: 10px; }
+.ul-online-help-title { margin: 6px 0 0; font-size: 14px; letter-spacing: 0.02em; }
+/* How online works: Host and Join side by side, stacked when the window is narrow (as the cards above). */
+.ul-online-howto { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.ul-online-howto-card { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; background: var(--surface-lo); border: 1px solid var(--border); border-radius: 12px; }
+.ul-online-howto-title { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13.5px; letter-spacing: 0.02em; }
+.ul-online-howto-title-icon { width: 18px; height: 18px; color: var(--accent); flex-shrink: 0; }
+.ul-online-howto-steps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; counter-reset: ul-howto; }
+.ul-online-howto-step { display: flex; align-items: flex-start; gap: 10px; counter-increment: ul-howto; }
+.ul-online-howto-step-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); flex-shrink: 0; }
+.ul-online-howto-step-icon::after { content: counter(ul-howto); position: absolute; top: -5px; right: -5px; min-width: 15px; height: 15px; border-radius: 999px; background: var(--accent-grad); color: #fff; font-size: 9.5px; font-weight: 700; line-height: 15px; text-align: center; }
+.ul-online-howto-glyph { width: 16px; height: 16px; }
+.ul-online-howto-step-text { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; padding-top: 5px; }
+.ul-online-howto-line { font-size: 13px; line-height: 1.4; }
+.ul-online-howto-detail { font-size: 12px; line-height: 1.45; color: var(--text-muted); }
+.ul-online-howto-code { padding: 2px 8px; border-radius: 6px; border: 1px dashed var(--border-hi); font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12.5px; letter-spacing: 0.12em; }
+/* The folds under the cards: Good to know, What the messages mean. Closed by default. */
+.ul-online-fold { border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; background: var(--surface-lo); }
+.ul-online-fold summary { cursor: pointer; font-size: 12.5px; font-weight: 600; }
+.ul-online-fold[open] summary { margin-bottom: 8px; }
+.ul-online-help-notes { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; line-height: 1.5; color: var(--text-muted); }
+.ul-online-help-errors { margin: 0; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; line-height: 1.5; }
+.ul-online-help-errors dt { font-weight: 600; }
+.ul-online-help-errors dd { margin: 0; color: var(--text-muted); }
+/* Host card: List my game publicly and the room name (contract v1.3). */
+.ul-online-public { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ul-online-public-label { font-size: 12.5px; font-weight: 600; }
+.ul-online-public-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--text-muted); }
+/* Public games connect players directly (their internet addresses show): one calm line, by the Public toggle and
+   under Browse games. Text only, never a focus stop. */
+.ul-online-ip-note { margin: 0; font-size: 12px; line-height: 1.5; color: var(--text-muted); }
+.ul-online-late-join { margin: 0; }
+.ul-online-public-toggle .toggle-btn:focus-visible { outline: 2px solid var(--warn); outline-offset: -2px; }
+.ul-online-room-name-input:disabled { opacity: 0.45; }
+.ul-online-room-name-input.is-invalid { border-color: var(--danger); }
+.ul-online-room-name-error { font-size: 12.5px; color: #ff8a9a; }
+/* The room card: Public / Private, the room's name, the code copied by itself. */
+.ul-online-room-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ul-online-visibility { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; border: 1px solid var(--border-hi); }
+.ul-online-visibility.is-public { color: var(--play); border-color: rgba(0, 210, 106, 0.45); }
+.ul-online-room-title { font-size: 13px; font-weight: 600; }
+.ul-online-visibility-note { font-size: 12px; color: var(--text-muted); }
+.ul-online-copied { margin: 0; font-size: 12px; color: var(--play); }
+/* Browse games (online-browse.js). */
+.ul-online-browse { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; background: var(--surface-lo); border: 1px solid var(--border); border-radius: 12px; }
+.ul-online-browse-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ul-online-browse-status { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--text-muted); }
+.ul-online-browse-status.is-error { color: #ff8a9a; }
+.ul-online-rooms { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.ul-online-room { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.ul-online-room.is-off .ul-online-room-main { opacity: 0.6; }
+.ul-online-room-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ul-online-room-name { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ul-online-room-host, .ul-online-room-where { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ul-online-room-meta { display: flex; align-items: center; gap: 10px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+.ul-online-room-players { font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.ul-online-room-badge { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; color: var(--warn); border: 1px solid rgba(255, 178, 63, 0.45); }
+.ul-online-room-reason { font-size: 12px; color: var(--text-muted); }
+
+/* The view hides parts with the hidden attribute; the display rules above would win over it. */
+.ul-online-blocked[hidden],
+.ul-online-offline[hidden],
+.ul-online-public[hidden],
+.ul-online-room-name-error[hidden],
+.ul-online-room-line[hidden],
+.ul-online-browse[hidden],
+.ul-online-browse-head[hidden],
+.ul-online-browse-status[hidden],
+.ul-online-rooms[hidden],
+.ul-online-room[hidden],
+.ul-online-room-main[hidden],
+.ul-online-room-meta[hidden],
+.ul-online-idle[hidden],
+.ul-online-card[hidden],
+.ul-online-card-actions[hidden],
+.ul-online-code-error[hidden],
+.ul-online-session[hidden],
+.ul-online-phase[hidden],
+.ul-online-code-block[hidden],
+.ul-online-code-row[hidden],
+.ul-online-session-actions[hidden],
+.ul-online-help[hidden],
+.ul-online-howto[hidden],
+.ul-online-howto-card[hidden],
+.ul-online-howto-title[hidden],
+.ul-online-howto-steps[hidden],
+.ul-online-howto-step[hidden],
+.ul-online-howto-step-icon[hidden],
+.ul-online-howto-step-text[hidden],
+.ul-online-help-notes[hidden],
+.ul-online-help-errors[hidden],
+.ul-online .secondary-action[hidden] { display: none; }
 
 /* ---- X-Men Legends (community port): Build section (xml1-view.js) and setup wizard (xml1-setup.js) ---- */
 .detail-build { margin-top: 24px; }
@@ -4568,3 +4690,97 @@ html:not([data-color-uninstalled]) .library-card:not(.is-installed):not(.is-comi
 
 .footer-update-check { font-size: 12px; color: var(--accent); }
 .footer-update-check:disabled { opacity: 0.5; cursor: default; }
+
+/* ---- Keyboard and controller focus (focus-nav.js) ----
+   One ring for every control, drawn inside it so that a clipping parent (a toggle group's rounded clip,
+   a card row, a popup's scroller) can't cut it off. html[data-nav="keys"] is set while the keyboard or a
+   pad is in use and cleared by the mouse or a touch; :focus-visible covers a Tab before focus-nav.js runs. */
+:root { --focus-ring: #ffffff; }
+:root[data-nav="keys"] :focus,
+:root :is(button, a, select, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
+}
+/* Cards, sidebar items, chips and Downloads rows also look as they do under the mouse. */
+:root[data-nav="keys"] .library-card:focus { transform: translateY(-5px); border-color: var(--card-hover-border); }
+:root[data-nav="keys"] .library-card:focus .library-card-art { transform: scale(1.06); filter: brightness(1.2) contrast(1.08); }
+:root[data-nav="keys"] .client-card:focus { transform: translateY(-4px); border-color: var(--accent-soft); }
+:root[data-nav="keys"] .client-card:focus .client-card-art { transform: scale(1.05); filter: brightness(1.16) contrast(1.06); }
+:root[data-nav="keys"] .client-card.has-overlay:focus .client-card-play { opacity: 1; }
+:root[data-nav="keys"] .nav-item:focus:not(.active),
+:root[data-nav="keys"] .game-item:focus:not(.active) { background: var(--surface-hi); color: #fff; }
+:root[data-nav="keys"] .chip:focus { border-color: var(--border-hi); color: #fff; }
+:root[data-nav="keys"] .download-row:focus { background: var(--surface-hi); border-color: var(--border-hi); }
+/* The mods' switches: the input is invisible, its switch shows the focus. */
+:root .ul-mod-toggle input:focus { outline: none; }
+:root[data-nav="keys"] .ul-mod-toggle input:focus + .ul-mod-switch,
+.ul-mod-toggle input:focus-visible + .ul-mod-switch { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+/* A <select> being picked (Enter, then Up / Down, Enter keeps it, Escape puts it back). */
+:root select.is-picking:focus { outline: 2px solid var(--accent); outline-offset: -2px; box-shadow: 0 0 0 4px var(--accent-soft); }
+
+/* ---- Update channel (update-channel.js): the items' versions, the Beta badge ---- */
+.beta-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    line-height: 1.5;
+    vertical-align: middle;
+}
+
+.beta-badge[hidden] { display: none; }
+
+.update-channel-versions {
+    display: grid;
+    gap: 6px;
+    margin: 4px 0 12px;
+}
+
+.update-channel-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+}
+
+.update-channel-version {
+    color: var(--text);
+    font-family: var(--font-mono, inherit);
+    text-align: right;
+}
+
+.update-channel-latest {
+    color: var(--accent);
+    margin-left: 6px;
+}
+
+.update-channel-note {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+.update-channel-note[hidden],
+#update-channel-switch-back[hidden] { display: none; }
+
+.settings-footer .footer-version-line {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+}
+
+.settings-footer .footer-channel {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+/* One line per repository the update channel could not check (update-channel.js note()). */
+.update-channel-note { white-space: pre-line; }

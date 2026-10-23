@@ -40,6 +40,30 @@ class CustomEvent extends Event {
     }
 }
 
+// A key as a keyboard (or focus-nav.js's press()) sends it; never trusted, like a script's.
+class KeyboardEvent extends Event {
+    constructor(type, init = {}) {
+        super(type, init);
+        this.key = init.key || '';
+        this.code = init.code || '';
+        this.shiftKey = !!init.shiftKey;
+        this.ctrlKey = !!init.ctrlKey;
+        this.altKey = !!init.altKey;
+        this.metaKey = !!init.metaKey;
+        this.repeat = !!init.repeat;
+        this.isTrusted = false;
+    }
+}
+
+class MouseEvent extends Event {
+    constructor(type, init = {}) {
+        super(type, init);
+        this.clientX = init.clientX || 0;
+        this.clientY = init.clientY || 0;
+        this.button = init.button || 0;
+    }
+}
+
 class Target {
     constructor() {
         this.listeners = [];
@@ -118,6 +142,13 @@ class Node extends Target {
         this.childNodes = this.childNodes.filter(child => child !== node);
         node.parentNode = null;
         return node;
+    }
+
+    contains(node) {
+        for (let current = node; current; current = current.parentNode) {
+            if (current === this) return true;
+        }
+        return false;
     }
 
     *descendants() {
@@ -324,6 +355,8 @@ class Element extends Node {
     set hidden(on) { this.toggleAttribute('hidden', !!on); }
     get disabled() { return this.hasAttribute('disabled'); }
     set disabled(on) { this.toggleAttribute('disabled', !!on); }
+    get open() { return this.hasAttribute('open'); }
+    set open(on) { this.toggleAttribute('open', !!on); }
     get checked() { return this.hasAttribute('checked'); }
     set checked(on) { this.toggleAttribute('checked', !!on); }
 
@@ -408,16 +441,32 @@ class Element extends Node {
 
     click() {
         if (this.disabled) return;
-        this.dispatchEvent(new Event('click', { bubbles: true }));
+        const event = new Event('click', { bubbles: true });
+        this.dispatchEvent(event);
+        // The browser's default action for a <details>' own summary (its first): open or close it.
+        const details = this.parentNode;
+        if (!event.defaultPrevented && this.tagName === 'SUMMARY' && details && details.tagName === 'DETAILS' &&
+            details.children.find(child => child.tagName === 'SUMMARY') === this) {
+            details.open = !details.open;
+            details.dispatchEvent(new Event('toggle'));
+        }
     }
 
-    // The focused element is document.activeElement (no focus events: no view listens for them).
+    // The focused element is document.activeElement; focusout and focusin bubble as in a browser.
     focus() {
-        if (!this.disabled) this.ownerDocument.activeElement = this;
+        const document = this.ownerDocument;
+        if (this.disabled || document.activeElement === this) return;
+        const previous = document.activeElement;
+        document.activeElement = this;
+        if (previous && previous !== document.body) previous.dispatchEvent(new Event('focusout', { bubbles: true }));
+        this.dispatchEvent(new Event('focusin', { bubbles: true }));
     }
 
     blur() {
-        if (this.ownerDocument.activeElement === this) this.ownerDocument.activeElement = this.ownerDocument.body;
+        const document = this.ownerDocument;
+        if (document.activeElement !== this) return;
+        document.activeElement = document.body;
+        this.dispatchEvent(new Event('focusout', { bubbles: true }));
     }
 
     scrollIntoView() {}
@@ -474,6 +523,10 @@ class Document extends Node {
         this.body = this.documentElement.appendChild(new Element(this, 'body'));
         this.head = new Element(this, 'head');
         this.activeElement = this.body;
+    }
+
+    hasFocus() {
+        return this.focused !== false;
     }
 
     createElement(tagName) {
@@ -585,6 +638,8 @@ function page({ scripts, backend, body = '', clock = new Clock(), offline = fals
         document,
         Event,
         CustomEvent,
+        KeyboardEvent,
+        MouseEvent,
         console: {
             log: (...args) => logs.push(['log', ...args]),
             info: (...args) => logs.push(['info', ...args]),
@@ -631,4 +686,4 @@ function test(name, run) {
     tests.push({ name, run });
 }
 
-module.exports = { Clock, Event, CustomEvent, page, settle, test, tests };
+module.exports = { Clock, Event, CustomEvent, KeyboardEvent, MouseEvent, page, settle, test, tests };

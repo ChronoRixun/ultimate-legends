@@ -30,11 +30,13 @@
         return value && !isNaN(value) ? value.toLocaleDateString() : '';
     }
 
-    function row(label, value, action) {
+    // `badge`: a Beta badge after the value (a pre-release builder or XML2 Fix, update-channel.js).
+    function row(label, value, action, badge) {
+        const beta = badge ? `<span class="beta-badge">${escapeHtml(t('updateChannel.badge'))}</span>` : '';
         return `
             <div class="install-info-row xml1-row">
                 <span class="install-info-label">${escapeHtml(label)}</span>
-                <span class="install-info-value xml1-row-value" title="${escapeHtml(value)}">${escapeHtml(value)}</span>
+                <span class="install-info-value xml1-row-value" title="${escapeHtml(value)}">${escapeHtml(value)}${beta}</span>
                 ${action || ''}
             </div>`;
     }
@@ -178,9 +180,10 @@
                 ${row(t('xml1.rowFolder'), s.install, s.exists ? button('open-folder', t('xml1.open')) : '')}
                 ${row(t('xml1.rowDisc'), discValue, button('change-disc', t('xml1.changeDisc'), working ? 'disabled' : ''))}
                 ${row(t('xml1.rowBuild'), buildValue)}
-                ${row(t('xml1.rowFix'), fixValue)}
+                ${row(t('xml1.rowFix'), fixValue, '', !!(s.fix && s.fix.installed && /-/.test(s.fix.version || '')))}
                 ${row(t('xml1.rowBuilder'), builderValue, !builder.installed && !builder.installing ? button('install-builder', t('xml1.installBuilder'))
-                    : builder.installed ? button('check-builder', t('xml1.checkUpdates'), builder.checking || builder.installing || working || window.IS_OFFLINE ? 'disabled' : '') : '')}
+                    : builder.installed ? button('check-builder', t('xml1.checkUpdates'), builder.checking || builder.installing || working || window.IS_OFFLINE ? 'disabled' : '') : '',
+                    !!(builder.installed && builder.prerelease))}
                 ${row(t('xml1.rowCache'), cacheValue, cache && cache.bytes > 0 ? button('free-cache', t('xml1.freeUp'), working ? 'disabled' : '') : '')}
             </div>` : '';
 
@@ -224,6 +227,19 @@
         });
     }
 
+    // Rebuild (this page, and the Online section when the build is older than the XML2 Fix): from the disc
+    // image the port remembers, after a confirmation; without one, setup asks for it.
+    async function rebuild() {
+        const port = window.Xml1Port;
+        if (!port.canRebuild()) {
+            window.Xml1Setup.show();
+            return;
+        }
+        const choice = await window.showMessageBox(t('xml1.rebuildTitle'), GameUtils.escapeHtml(t('xml1.rebuildBody')),
+            [t('common.cancel'), t('xml1.rebuild')]);
+        if (choice === 1) await port.resume();
+    }
+
     async function act(gameId, action) {
         const port = window.Xml1Port;
         const s = port.status;
@@ -236,16 +252,9 @@
             case 'resume':
                 await port.primaryAction();
                 break;
-            case 'rebuild': {
-                if (!port.canRebuild()) {
-                    window.Xml1Setup.show();
-                    break;
-                }
-                const choice = await window.showMessageBox(t('xml1.rebuildTitle'), GameUtils.escapeHtml(t('xml1.rebuildBody')),
-                    [t('common.cancel'), t('xml1.rebuild')]);
-                if (choice === 1) await port.resume();
+            case 'rebuild':
+                await rebuild();
                 break;
-            }
             case 'cancel-build':
                 await port.confirmCancel();
                 break;
@@ -332,6 +341,7 @@
 
     window.Xml1View = {
         supports: gameId => SUPPORTED.has(gameId),
-        render
+        render,
+        rebuild
     };
 })();

@@ -1,6 +1,8 @@
 #include "std_include.hpp"
 #include "tool_install.hpp"
 
+#include "updater/release_channel.hpp"
+
 // The parts of tool_install that only compare text and numbers (no files, no network), so the unit
 // tests (src/tests) build them on their own.
 namespace tool_install
@@ -30,44 +32,8 @@ namespace tool_install
 
     int compare_versions(const std::string& a, const std::string& b)
     {
-        const auto numbers = [](const std::string& text)
-        {
-            std::vector<long long> parts;
-            std::size_t start = 0;
-            while (start <= text.size())
-            {
-                const auto end = std::min(text.find('.', start), text.size());
-                const auto part = text.substr(start, end - start);
-                long long value = 0;
-                for (const auto c : part)
-                {
-                    if (!std::isdigit(static_cast<unsigned char>(c)))
-                    {
-                        break; // "1.2.0-beta" compares as 1.2.0
-                    }
-                    value = value * 10 + (c - '0');
-                }
-                parts.push_back(value);
-                start = end + 1;
-            }
-            return parts;
-        };
-
-        auto left = numbers(a);
-        auto right = numbers(b);
-        const auto size = std::max(left.size(), right.size());
-        left.resize(size);
-        right.resize(size);
-        for (std::size_t i = 0; i < size; ++i)
-        {
-            if (left[i] != right[i])
-            {
-                return left[i] < right[i] ? -1 : 1;
-            }
-        }
-        return 0;
+        return release_channel::compare(a, b);
     }
-
 
     std::string version_in_zip_name(const manifest& manifest, const std::string& name)
     {

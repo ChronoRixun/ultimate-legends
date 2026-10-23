@@ -5,10 +5,9 @@
 // and section of the file stays. While either is on the fix refuses online play, so the page says so,
 // and the badge next to Play shows it with a one-click Turn test mode off.
 //
-// The launcher has no controller navigation of its own: a controller drives it through what it maps
-// to (Steam Input's keyboard and mouse on a Steam Deck), or the touchscreen. So the toggles are plain
-// buttons, like the Discord section's: Tab / Shift+Tab reach them, Enter or Space switches them, and so
-// do a click or a tap; a focus ring shows where the keyboard is (main.css).
+// The toggles are plain buttons, like the Discord section's: Tab / Shift+Tab or the arrow keys (a
+// controller, through focus-nav.js) reach them, Left / Right, Enter or Space switch them, and so do a
+// click or a tap; the focus ring shows where the keyboard is (main.css).
 (function () {
     'use strict';
 
@@ -197,6 +196,8 @@
             showStatus(gameId, '');
         }
         renderBadge(gameId);
+        // The Online section is off while test mode is on (online-view.js).
+        window.dispatchEvent(new CustomEvent('ul-testmode-changed', { detail: { game: gameId } }));
     }
 
     // Next to Play: shown while either switch is on.
@@ -314,6 +315,9 @@
         supports: gameId => SUPPORTED.has(backendId(gameId)),
         render,
         reload: load,
-        turnOff
+        turnOff,
+        // Either switch on, as the section shows it (a change not saved yet included); null before it has
+        // read the file.
+        isOn: gameId => (getState(gameId).data ? anyOn(getState(gameId).data) : null)
     };
 })();

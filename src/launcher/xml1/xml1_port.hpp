@@ -22,7 +22,9 @@ namespace xml1_port
 {
     constexpr auto game_key = "xml1";
 
-    // Where the builder's release lives. The repo name is the design's working name (Q7).
+    // Where the builder's release lives. The repo name is the design's working name (Q7). Stable
+    // reads this; Beta the same file of the channel's release, by its tag (updater/release_source.hpp).
+    constexpr auto builder_manifest_name = "xml1-builder.json";
     constexpr auto builder_manifest_url = "https://github.com/ChronoRixun/legends-classic/releases/latest/download/xml1-builder.json";
 
     // A launcher-side failure, before or instead of a builder run: L_* codes (the UI translates them).
@@ -77,8 +79,14 @@ namespace xml1_port
     // missing or older: from the release's zip when it is already on this PC (tools\xml1-builder or
     // Downloads) and checks out, else downloaded. With `zip` (one the player chose), checks that zip
     // against the release and installs it, never downloading. Progress and errors show in
-    // write_status(). False when a check or install is already under way.
-    bool check_builder(bool install, const std::optional<std::filesystem::path>& zip = std::nullopt);
+    // write_status(). False when a check or install is already under way. The manifest is the update
+    // channel's (Stable: the latest release; Beta: pre-releases too), from that release's tag. Never an
+    // older builder than the installed one, unless `downgrade_to` names exactly the release offered
+    // (Switch back to Stable, approved for this attempt).
+    bool check_builder(bool install, const std::optional<std::filesystem::path>& zip = std::nullopt, const std::string& downgrade_to = {});
+
+    // The builder installed from a release ("" when none, or a Debug build's stand-in).
+    std::string installed_builder_version();
 
     // Everything the X-Men Legends page and the setup wizard show, as one JSON object.
     void write_status(rapidjson::Value& out, rapidjson::Document::AllocatorType& allocator);
@@ -86,6 +94,9 @@ namespace xml1_port
     // A finished build is in `folder`: its stamp is there and no build is under way or broken off
     // (_build\building.json, design 2.7), so the port may start from it.
     bool is_playable(const std::filesystem::path& folder);
+
+    // The build's _build\stamp.json requires.xml2fix (">=1.8.0-0"), "" when the stamp has none or can't be read.
+    std::string stamp_requires_xml2fix(const std::filesystem::path& folder);
 
     // What a folder holds, as a destination for a build. launcher_only: only what the launcher and
     // the player own (dinput.dll, xml2-fix.*, mods\ - the builder never touches them), so nothing

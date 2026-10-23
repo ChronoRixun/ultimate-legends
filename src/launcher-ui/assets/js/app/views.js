@@ -118,10 +118,10 @@
             : `client-card${stateCls}`;
         const statusAttr = status ? ` data-status="${escapeHtml(status)}"` : '';
         const overlay = status
-            ? `<div class="client-card-play"><button type="button" class="library-install-btn">${escapeHtml(homeActionLabel(status, busyKind, config.uiId))}</button></div>`
+            ? `<div class="client-card-play"><button type="button" class="library-install-btn" tabindex="-1">${escapeHtml(homeActionLabel(status, busyKind, config.uiId))}</button></div>`
             : '';
         return `
-            <article class="${cls}" data-game="${escapeHtml(config.uiId)}"${statusAttr}>
+            <article class="${cls}" data-game="${escapeHtml(config.uiId)}"${statusAttr} tabindex="0" role="button" aria-label="${escapeHtml(config.displayName)}">
                 <img class="client-card-art" src="${escapeHtml(config.capsulePath)}" alt="${escapeHtml(config.displayName)}" loading="lazy">
                 ${overlay}
                 <div class="client-card-label">
@@ -805,7 +805,7 @@
                        <span data-action-label>${escapeHtml(homeActionLabel('not-setup', null, config.uiId))}</span>
                    </button>`;
             return `
-            <article class="${cardCls}" data-game="${escapeHtml(config.uiId)}" data-status="not-setup" data-hidden="${isHidden(config.uiId) ? 'true' : 'false'}" data-search="${escapeHtml(`${config.displayName} ${config.client}`.toLowerCase())}">
+            <article class="${cardCls}" tabindex="0" role="button" aria-label="${escapeHtml(config.displayName)}" data-game="${escapeHtml(config.uiId)}" data-status="not-setup" data-hidden="${isHidden(config.uiId) ? 'true' : 'false'}" data-search="${escapeHtml(`${config.displayName} ${config.client}`.toLowerCase())}">
                 <img class="library-card-art" src="${escapeHtml(config.capsulePath)}" alt="${escapeHtml(config.displayName)}" loading="lazy">
                 ${comingSoon ? `<span class="library-card-soon-badge">${escapeHtml(t('common.comingSoon'))}</span>` : ''}
                 <div class="library-card-progress" aria-hidden="true">
@@ -1057,6 +1057,12 @@
                         ${descriptionSection}
                         ${actionsAside}
                     </div>
+                    ${!comingSoon && window.OnlineView && window.OnlineView.supports(config.uiId)
+                        ? `<section class="detail-online">
+                        <h3 class="detail-display-title">${escapeHtml(t('online.title'))}</h3>
+                        <div id="${escapeHtml(config.uiId)}-online-panel"></div>
+                    </section>`
+                        : ''}
                     ${!comingSoon && window.Xml1View && window.Xml1View.supports(config.uiId)
                         ? `<section class="detail-display detail-build">
                         <h3 class="detail-display-title">${escapeHtml(t('xml1.sectionTitle'))}</h3>
@@ -1120,6 +1126,12 @@
             GameUtils.getAllGameConfigs()
                 .filter(config => !config.comingSoon && window.TestModeView.supports(config.uiId))
                 .forEach(config => window.TestModeView.render(config.uiId));
+        }
+
+        if (window.OnlineView) {
+            GameUtils.getAllGameConfigs()
+                .filter(config => !config.comingSoon && window.OnlineView.supports(config.uiId))
+                .forEach(config => window.OnlineView.render(config.uiId));
         }
 
         if (window.PatchView) {
@@ -1243,7 +1255,7 @@
             const statusRow = entry.isActive ? '' : `<div class="download-row-status">${escapeHtml(status)}</div>`;
 
             return `
-                <div class="${cls}" data-game="${escapeHtml(entry.gameId)}" data-op="${escapeHtml(entry.op)}">
+                <div class="${cls}" data-game="${escapeHtml(entry.gameId)}" data-op="${escapeHtml(entry.op)}" tabindex="0" role="button" aria-label="${escapeHtml(displayName)}">
                     <div class="download-row-icon"></div>
                     <div class="download-row-body">
                         <div class="download-row-title">${escapeHtml(displayName)}</div>

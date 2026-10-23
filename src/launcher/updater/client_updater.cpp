@@ -2,6 +2,7 @@
 
 #include "client_updater.hpp"
 #include "client_store.hpp"
+#include "patch_channel.hpp"
 
 #include <utils/cryptography.hpp>
 #include <utils/http.hpp>
@@ -139,13 +140,27 @@ namespace client_updater
     }
 
     client_updater::client_updater(const game_config::game_config_t& config, updater::ui_progress_listener* listener,
-                                   const std::optional<std::filesystem::path>& install_path)
-        : install_path_(install_path ? *install_path : resolve_install_path(config)), client_id_(config.game_key),
-          update_manifest_url_(config.update_manifest_url), update_folder_url_(config.update_folder_url),
+                                   const std::optional<std::filesystem::path>& install_path,
+                                   const std::optional<patch_policy::consent>& consent)
+        : config_(config), install_path_(install_path ? *install_path : resolve_install_path(config)), client_id_(config.game_key),
           progress_listener_(listener)
     {
-        if (this->update_manifest_url_.empty() || this->update_folder_url_.empty())
+        if (config.update_manifest_url.empty() || config.update_folder_url.empty())
         {
+            return;
+        }
+
+        // The release the update channel takes (patch_channel.hpp); none when the patch in the folder
+        // stays as it is (a beta newer than what the channel offers).
+        const auto source = patch_channel::resolve(config, this->install_path_, consent);
+        this->update_manifest_url_ = source.manifest_url;
+        this->update_folder_url_ = source.folder_url;
+        this->release_version_ = source.version;
+        this->downgrade_ = source.downgrade;
+        this->note_ = source.note;
+        if (this->update_manifest_url_.empty())
+        {
+            this->kept_ = true;
             return;
         }
 
@@ -464,6 +479,15 @@ namespace client_updater
             return;
         }
 
+        // The release now in the folder, for its version (the fix's own resource is numeric).
+        for (const auto& file : this->manifest_files_)
+        {
+            if (file.name == this->config_.patch_file)
+            {
+                patch_channel::record(this->config_, this->install_path_, this->release_version_, file.hash);
+            }
+        }
+
         std::vector<std::string> names{};
         names.reserve(this->manifest_files_.size());
         for (const auto& file : this->manifest_files_)
@@ -501,6 +525,7 @@ namespace client_updater
         }
 
         utils::io::remove_file(client_store::manifest_cache_path(this->client_id_));
+        client_store::forget_release(this->client_id_);
 
         std::vector<updater::file_info> files_to_delete;
         for (const auto& file : candidates)

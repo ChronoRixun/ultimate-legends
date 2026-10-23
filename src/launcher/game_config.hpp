@@ -54,6 +54,9 @@ namespace game_config
         // installed, and the GitHub API address of the patch's latest release (updater/patch_status).
         std::string patch_file;
         std::string patch_release_url;
+        // The patch's GitHub repository ("owner/name") when it follows the update channel
+        // (updater/patch_channel.hpp: the XML2 Fix); empty: always its latest release.
+        std::string patch_repo;
 
         std::vector<std::string> valid_game_files;
         std::vector<std::string> check_running_exes;

@@ -130,7 +130,8 @@ namespace tool_install
     // Deletes every version folder not in `keep`, and leftovers of interrupted installs.
     void prune(const tool& tool, const std::vector<std::string>& keep);
 
-    // Compares dotted versions numerically ("1.10.0" > "1.9.2"); a missing part counts as 0.
+    // Compares versions by SemVer precedence ("1.10.0" > "1.9.2", "1.2.0-beta.1" < "1.2.0"); a missing
+    // part counts as 0 (release_channel::compare).
     int compare_versions(const std::string& a, const std::string& b);
 
     // Whether a version string is safe as a folder name (digits, letters, '.', '-', '+', '_').

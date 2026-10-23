@@ -1,0 +1,327 @@
+#include "std_include.hpp"
+#include "online_launch.hpp"
+
+#include "updater/release_channel.hpp"
+#include "updater/update_cancelled.hpp"
+
+#include <exception>
+
+namespace online_launch
+{
+    namespace
+    {
+        bool is_online(const request& request)
+        {
+            return request.mode != online_rules::mode::normal;
+        }
+
+        result refused(std::string reason, std::string error)
+        {
+            return {false, std::move(reason), std::move(error), {}};
+        }
+
+        // The four keys removed (online_rules::changes_for normal: only those present, so nothing is written to a
+        // file without them). "" when they are gone, else why not.
+        std::string disarm(const steps& steps)
+        {
+            std::string error;
+            try
+            {
+                const auto changes = online_rules::changes_for(online_rules::mode::normal, {}, steps.present());
+                if (changes.empty() || steps.write(changes, error))
+                {
+                    return {};
+                }
+            }
+            catch (const std::exception& e)
+            {
+                error = e.what();
+            }
+            return error.empty() ? std::string("the online settings could not be removed") : error;
+        }
+
+        // A refusal once the barrier is held: the keys removed (when `keys`), then the barrier released.
+        result give_up(const steps& steps, result outcome, const bool keys)
+        {
+            if (keys)
+            {
+                outcome.cleanup_error = disarm(steps);
+            }
+            steps.release_barrier();
+            return outcome;
+        }
+
+        // Why the folder's XML2 Fix can't host or join, or "".
+        std::string fix_reason(const fix_state state)
+        {
+            switch (state)
+            {
+            case fix_state::ok:
+                return {};
+            case fix_state::old:
+                return "fix_too_old";
+            case fix_state::unknown:
+                return "fix_unknown";
+            case fix_state::missing:
+                return "no_fix";
+            }
+            return "fix_unknown";
+        }
+
+        constexpr auto build_error = "This X-Men Legends build is older than the XML2 Fix: rebuild it to play online.";
+
+        std::string fix_error(const fix_state state, const std::optional<std::string>& version)
+        {
+            const auto need = std::string(required_fix);
+            switch (state)
+            {
+            case fix_state::old:
+                return "The XML2 Fix in the game folder is " + version.value_or("") + "; online play needs " + need + " or later.";
+            case fix_state::unknown:
+                return "The version of the XML2 Fix in the game folder can't be read; online play needs " + need + " or later.";
+            case fix_state::missing:
+                return "The XML2 Fix is not in the game folder.";
+            case fix_state::ok:
+                break;
+            }
+            return {};
+        }
+    }
+
+    fix_state check_fix(const std::optional<std::string>& version)
+    {
+        if (!version)
+        {
+            return fix_state::missing;
+        }
+        // A version resource has only numbers ("1.8.0", "1.8.0.2"); the release the launcher installed
+        // may be a pre-release ("1.8.0-beta.2"). Anything else isn't one to compare.
+        if (!release_channel::is_version(*version))
+        {
+            return fix_state::unknown;
+        }
+        // required_fix's own pre-releases count ("-0" is the lowest one): XML2 Fix 1.8.0 comes out as betas
+        // first (v1.8.0-beta.1, the Beta update channel), and those have the rooms. 1.7.x doesn't.
+        return release_channel::satisfies(*version, ">=" + std::string(required_fix) + "-0") ? fix_state::ok : fix_state::old;
+    }
+
+    bool build_supports_online(const std::string_view requires_xml2fix, const std::string_view game_version, const std::string_view broker)
+    {
+        const auto blank = [](const std::string_view text)
+        {
+            return text.find_first_not_of(" \t,") == std::string_view::npos;
+        };
+        if (blank(requires_xml2fix))
+        {
+            return !blank(game_version) && !blank(broker);
+        }
+        // The stamp's requirement alone. Each clause (separated by spaces or commas, as satisfies() reads them) that sets a lower bound.
+        const auto minimum = std::string(required_fix) + "-0";
+        std::string_view rest = requires_xml2fix;
+        while (!rest.empty())
+        {
+            const auto start = rest.find_first_not_of(" ,");
+            if (start == std::string_view::npos)
+            {
+                break;
+            }
+            rest.remove_prefix(start);
+            const auto end = std::min(rest.find_first_of(" ,"), rest.size());
+            auto clause = rest.substr(0, end);
+            rest.remove_prefix(end);
+
+            if (clause.starts_with(">="))
+            {
+                clause.remove_prefix(2);
+            }
+            else if (clause.starts_with('>'))
+            {
+                clause.remove_prefix(1);
+            }
+            else if (!clause.empty() && (clause.front() < '0' || clause.front() > '9'))
+            {
+                continue; // an upper bound or an exact one ("<2", "=1.8.0") says nothing about the rooms
+            }
+            if (release_channel::is_version(clause) && release_channel::compare(clause, minimum) >= 0)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    const char* fix_state_name(const fix_state state)
+    {
+        switch (state)
+        {
+        case fix_state::ok:
+            return "ok";
+        case fix_state::old:
+            return "old";
+        case fix_state::unknown:
+            return "unknown";
+        case fix_state::missing:
+            return "missing";
+        }
+        return "unknown";
+    }
+
+    update_result run_update(const update_steps& steps, std::string& error)
+    {
+        auto result = update_result::skipped;
+        if (!steps.skip)
+        {
+            try
+            {
+                result = steps.run() ? update_result::done : update_result::unreachable;
+            }
+            catch (const updater::update_cancelled&)
+            {
+                result = update_result::cancelled;
+            }
+            catch (const std::exception& e)
+            {
+                error = e.what();
+                result = update_result::failed;
+            }
+            catch (...)
+            {
+                error = "An unknown error occurred during the patch update.";
+                result = update_result::failed;
+            }
+        }
+        // Also after a normal return: a cancelled download returns quietly.
+        if (steps.cancelled())
+        {
+            result = update_result::cancelled;
+        }
+        steps.finished(result == update_result::cancelled);
+        return result;
+    }
+
+    result accept(const request& request, const steps& steps)
+    {
+        const auto online = is_online(request);
+        // Nothing is written before the barrier: another start may own the keys until then.
+        if (online && steps.offline())
+        {
+            return refused("offline", "The launcher is in offline mode.");
+        }
+        if (!steps.take_barrier())
+        {
+            return refused("already_running", "A game is already launching or running.");
+        }
+
+        if (online)
+        {
+            // The game running read the keys when it started (the fix removes them then): the file is left alone.
+            if (steps.game_running())
+            {
+                steps.release_barrier();
+                return refused("running", "The game is running.");
+            }
+            if (steps.test_mode_on())
+            {
+                return give_up(steps, refused("test_mode_on", "Test mode is on: the XML2 Fix refuses online play."), true);
+            }
+            if (steps.fix_version() == std::nullopt)
+            {
+                return give_up(steps, refused("no_fix", fix_error(fix_state::missing, std::nullopt)), true);
+            }
+            if (!steps.build_online())
+            {
+                return give_up(steps, refused("build_too_old", build_error), true);
+            }
+        }
+        else
+        {
+            std::string error;
+            const auto changes = online_rules::changes_for(online_rules::mode::normal, {}, steps.present());
+            if (!changes.empty() && !steps.write(changes, error))
+            {
+                steps.release_barrier();
+                return refused("write_failed", error);
+            }
+        }
+
+        // Every start: a status left by an earlier game would read as this one's.
+        std::string error;
+        if (!steps.clear_status(error))
+        {
+            return give_up(steps, refused("status_locked", error), online);
+        }
+        return {true, {}, {}, {}};
+    }
+
+    result finish(const request& request, const steps& steps)
+    {
+        const auto online = is_online(request);
+        try
+        {
+            std::string error;
+            const auto updated = steps.update(error);
+            if (updated == update_result::cancelled)
+            {
+                return give_up(steps, refused("update_cancelled", "The patch update was cancelled."), online);
+            }
+            // A normal start still starts after a failed update (the player has been told); an online one doesn't
+            // fall through to whatever DLL the failure left.
+            if (online && updated == update_result::failed)
+            {
+                return give_up(steps, refused("update_failed", error), true);
+            }
+
+            // A cancel that reached the tracker after the update returned: nothing written, nothing started.
+            if (steps.cancelled())
+            {
+                return give_up(steps, refused("update_cancelled", "The patch update was cancelled."), online);
+            }
+
+            if (online)
+            {
+                // The DLL that will run, after any update: at least required_fix.
+                const auto version = steps.fix_version();
+                const auto state = check_fix(version);
+                if (state != fix_state::ok)
+                {
+                    return give_up(steps, refused(fix_reason(state), fix_error(state, version)), true);
+                }
+                if (!steps.build_online())
+                {
+                    return give_up(steps, refused("build_too_old", build_error), true);
+                }
+
+                // Armed last, right before the process: the keys for this start, the others removed.
+                const auto changes = online_rules::changes_for(request.mode, request.code, steps.present(), request.host);
+                if (!steps.write(changes, error))
+                {
+                    return give_up(steps, refused("write_failed", error), true);
+                }
+            }
+
+            if (steps.cancelled())
+            {
+                return give_up(steps, refused("update_cancelled", "The start was cancelled."), online);
+            }
+            const auto process = steps.start_process();
+            if (!process.started)
+            {
+                return give_up(steps, refused(process.cancelled ? "launch_cancelled" : "launch_failed", process.error), online);
+            }
+            return {true, {}, {}, {}};
+        }
+        catch (const std::exception& e)
+        {
+            return give_up(steps, refused("launch_failed", e.what()), online);
+        }
+        catch (...)
+        {
+            return give_up(steps, refused("launch_failed", "An unknown error occurred during game launch."), online);
+        }
+    }
+
+    bool close_after_start(const bool setting_on, const online_rules::mode mode)
+    {
+        return setting_on && mode == online_rules::mode::normal;
+    }
+}

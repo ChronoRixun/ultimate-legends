@@ -392,6 +392,11 @@ async function initialize() {
                 window.LauncherUpdate.init();
             }
 
+            // The update channel (Settings > Updates; see update-channel.js).
+            if (window.UpdateChannel) {
+                window.UpdateChannel.init();
+            }
+
             handleStartupLaunchArg();
             handleStartupDeepLink();
         });
@@ -1462,7 +1467,7 @@ async function createGameButtons(gameId) {
         if (gameState.isRunning) {
             buttonGroup.innerHTML = `
                 <div class="left-buttons">
-                    <button class="stop-button" id="${gameId}-stop-button">
+                    <button class="stop-button" id="${gameId}-stop-button" data-autofocus>
                         <div class="stop-icon"></div>
                         ${t('common.stop')}
                     </button>
@@ -1473,7 +1478,7 @@ async function createGameButtons(gameId) {
         } else {
             buttonGroup.innerHTML = `
                 <div class="left-buttons">
-                    <button class="play-button" id="${gameId}-play-button">
+                    <button class="play-button" id="${gameId}-play-button" data-autofocus>
                         <div class="play-icon"></div>
                         ${t('common.play')}
                     </button>
@@ -1487,7 +1492,7 @@ async function createGameButtons(gameId) {
 
         buttonGroup.innerHTML = `
             <div class="left-buttons">
-                <button class="setup-button" id="${gameId}-setup-button" data-install-status="${gameState.installStatus}">
+                <button class="setup-button" id="${gameId}-setup-button" data-install-status="${gameState.installStatus}" data-autofocus>
                     ${buttonText}
                 </button>
             </div>
@@ -2322,6 +2327,9 @@ async function initializeSettingsPage() {
 
     syncConsoleButtonLabel();
     await loadVersion();
+    // The update channel's versions: asked when Settings opens, not at every start (GitHub limits checks).
+    if (window.UpdateChannel) window.UpdateChannel.refresh(true);
+    if (window.LauncherUpdate) window.LauncherUpdate.render();
     console.log('Settings page initialized');
 }
 

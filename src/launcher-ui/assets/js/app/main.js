@@ -392,6 +392,11 @@ async function initialize() {
                 window.LauncherUpdate.init();
             }
 
+            // The update channel (Settings > Updates; see update-channel.js).
+            if (window.UpdateChannel) {
+                window.UpdateChannel.init();
+            }
+
             handleStartupLaunchArg();
             handleStartupDeepLink();
         });
@@ -2322,6 +2327,9 @@ async function initializeSettingsPage() {
 
     syncConsoleButtonLabel();
     await loadVersion();
+    // The update channel's versions: asked when Settings opens, not at every start (GitHub limits checks).
+    if (window.UpdateChannel) window.UpdateChannel.refresh(true);
+    if (window.LauncherUpdate) window.LauncherUpdate.render();
     console.log('Settings page initialized');
 }
 

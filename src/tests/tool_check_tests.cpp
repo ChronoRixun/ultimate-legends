@@ -94,7 +94,9 @@ TEST(versions_compare_numerically)
 {
     CHECK(tool_install::compare_versions("1.10.0", "1.9.2") > 0);
     CHECK(tool_install::compare_versions("1.0", "1.0.0") == 0);
-    CHECK(tool_install::compare_versions("1.2.0-beta", "1.2.0") == 0);
+    // A pre-release is below its release (it used to compare equal: a beta builder never saw the final one).
+    CHECK(tool_install::compare_versions("1.2.0-beta", "1.2.0") < 0);
+    CHECK(tool_install::compare_versions("1.2.0-beta.2", "1.2.0-beta.1") > 0);
     CHECK(tool_install::compare_versions("0.9.0", "1.0.0") < 0);
     CHECK(tool_install::is_safe_version("1.0.0") && !tool_install::is_safe_version("../1") && !tool_install::is_safe_version(""));
 }

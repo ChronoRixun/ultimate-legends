@@ -312,18 +312,18 @@ test('S5: Close on launch closes the launcher after Play, never after Host / Joi
 
 // ---- S7: joining late ----
 
-test('S7: How online works explains Joined Game and the next level change, in en, fr and es, menu names in English', async () => {
+test('S7: How online works explains Joined Game and the next level, in en, fr and es, menu names in English', async () => {
     const expected = {
-        en: /Joining a campaign already in progress\? Wait on Joined Game\. You enter at the next level change; the party needs enough heroes for everyone\./,
-        fr: /campagne deja en cours \? Attendez sur Joined Game\. Vous entrez au prochain changement de niveau/,
-        es: /campana ya en curso\? Espera en Joined Game\. Entras en el proximo cambio de nivel/
+        en: /Game already running\? You join at the next level Wait on Joined Game until then\./,
+        fr: /Partie deja en cours \? Vous entrez au prochain niveau Attendez sur Joined Game jusque-la\./,
+        es: /¿Partida ya en marcha\? Entras en el proximo nivel Espera en Joined Game hasta entonces\./
     };
     for (const language of ['en', 'fr', 'es']) {
         const t = await open({ language });
-        const note = t.$('.ul-online-help-notes [data-note="lateJoin"]');
-        assert.match(note.textContent, expected[language], `${language}: the late join`);
-        assert.match(t.text('.ul-online-help-notes [data-note="soloSegment"]'), language === 'en' ? /solo story segment.*shared camera/ : /./);
-        assert.match(t.text('.ul-online-help-steps'), /Play Online → Join Game/, `${language}: the game's menus stay in English`);
+        assert.match(t.text('.ul-online-howto-card[data-card="join"] [data-step="late"]'), expected[language], `${language}: the late join`);
+        assert.match(t.text('.ul-online-help-notes [data-note="heroes"]'), /./, `${language}: enough heroes`);
+        assert.match(t.text('.ul-online-help-notes [data-note="soloSegment"]'), language === 'en' ? /solo story parts.*shared camera/ : /./);
+        assert.match(t.text('.ul-online-howto-card[data-card="join"] [data-step="inGame"]'), /Play Online.*Join Game/, `${language}: the game's menus stay in English`);
         assert.equal(t.$('.ul-online-help-error[data-error="room_full"] dd').textContent.includes('right now'), false, 'room_full is only a full room');
     }
 });

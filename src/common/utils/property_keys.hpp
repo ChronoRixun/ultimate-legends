@@ -14,10 +14,16 @@ namespace property_keys
     constexpr const char* PORTABLE_MODE = "launcher-portable-mode";
     constexpr const char* REDUCE_MOTION = "launcher-reduce-motion";
     constexpr const char* GRAYSCALE_UNINSTALLED = "launcher-grayscale-uninstalled";
+    // "stable" (the default) or "beta": which releases the launcher, the XML2 Fix and the X-Men
+    // Legends builder update to (updater/release_source.hpp).
+    constexpr const char* UPDATE_CHANNEL = "launcher-update-channel";
     // Debug builds only (tools/dev/launcher_update_cdp.py): the self-update's release JSON (the
     // shape of GitHub's releases/latest) and the version the launcher claims to be.
     constexpr const char* DEV_LAUNCHER_RELEASE = "dev-launcher-release";
     constexpr const char* DEV_LAUNCHER_VERSION = "dev-launcher-version";
+    // Debug builds only: a local server standing in for https://api.github.com (the Beta channel's
+    // releases lists).
+    constexpr const char* DEV_RELEASE_API = "dev-release-api";
 
     // Game property suffixes (used with game_config_t::get/set)
     constexpr const char* INSTALL = "install";

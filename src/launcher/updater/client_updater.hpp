@@ -1,6 +1,7 @@
 #pragma once
 
 #include "file_info.hpp"
+#include "patch_policy.hpp"
 #include "ui_progress_listener.hpp"
 #include <game_config.hpp>
 
@@ -11,24 +12,36 @@ namespace client_updater
     class client_updater
     {
     public:
+        // `consent`: Switch back to Stable approved for this attempt only (patch_policy.hpp).
         client_updater(const game_config::game_config_t& config, updater::ui_progress_listener* listener = nullptr,
-                       const std::optional<std::filesystem::path>& install_path = std::nullopt);
+                       const std::optional<std::filesystem::path>& install_path = std::nullopt,
+                       const std::optional<patch_policy::consent>& consent = std::nullopt);
 
         void run() const;
         void delete_client() const;
 
         // True when the game has a patch but its manifest could not be fetched or parsed.
         [[nodiscard]] bool manifest_fetch_failed() const { return this->manifest_fetch_failed_; }
+        // The update channel left the patch in the folder as it was (`note()` says why).
+        [[nodiscard]] bool kept() const { return this->kept_; }
+        [[nodiscard]] bool downgrade() const { return this->downgrade_; }
+        [[nodiscard]] const std::string& release_version() const { return this->release_version_; }
+        [[nodiscard]] const std::string& note() const { return this->note_; }
 
         [[nodiscard]] std::vector<updater::file_info> get_outdated_files(const std::vector<updater::file_info>& files) const;
 
         void update_files(const std::vector<updater::file_info>& outdated_files) const;
 
     private:
+        game_config::game_config_t config_;
         std::filesystem::path install_path_;
         std::string client_id_;
         std::string update_manifest_url_;
         std::string update_folder_url_;
+        std::string release_version_; // the release the manifest is of, when known (patch_channel)
+        bool downgrade_ = false;
+        bool kept_ = false;
+        std::string note_;
         std::vector<updater::file_info> manifest_files_;
         updater::ui_progress_listener* progress_listener_;
         bool manifest_fetch_failed_ = false;

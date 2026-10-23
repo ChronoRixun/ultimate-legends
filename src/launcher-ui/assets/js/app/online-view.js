@@ -19,12 +19,14 @@
 //   code flow with the row's code.
 // - Host and Join are off, with the reason, while the port is not built, a build or an XML2 Fix update
 //   holds the folder (Xml1Port, as for Display / Discord / Test mode), the folder's XML2 Fix is older than
-//   1.8.0 or its version can't be read (Verify Files), Test mode is on (the fix refuses online play then;
+//   requiredFix (on the Beta update channel Verify Files updates it; on Stable, which has no such fix until
+//   Legends Classic 0.3.0 is final, Open Update channel leads to Beta) or its version can't be read (Verify
+//   Files), Test mode is on (the fix refuses online play then;
 //   Turn test mode off is right there), or the game is already running. In offline mode they stay on, with
 //   a note, and ask to restart the launcher online (guardOnline) before anything is written or fetched.
 //
 // Like the rest of the page it has no controller navigation of its own (core/focus-nav.js drives it when
-// present): buttons, one text field and the help's summary in the Tab order, Enter in the field joins, a
+// present): buttons, one text field and the help's two fold summaries in the Tab order, Enter in the field joins, a
 // focus ring shows where the keyboard is (main.css), and the focus moves to what replaced a control that
 // went away (the code's Copy, Try again, Host / the field). Notes are plain text, never focus stops.
 (function () {
@@ -183,9 +185,15 @@
         if (!data.installed) return { key: 'online.blocked.notSetUp' };
         if (!data.playable) return { key: 'online.blocked.notBuilt' };
         if (!data.fixInstalled || data.fixState === 'missing') return { key: 'online.blocked.noFix', variables: { fix: data.fix || 'XML2 Fix' } };
-        // The DLL in the folder, read by the backend: too old for rooms, or no version to tell.
+        // The DLL in the folder, read by the backend: too old for rooms, or no version to tell. On Stable no
+        // release has rooms yet (until Legends Classic 0.3.0 is final): the way there is the Beta channel, not
+        // Verify Files. On Beta, Verify Files installs the beta fix.
+        if (data.fixState === 'old' && data.updateChannel === 'stable') return { key: 'online.blocked.needsBeta', action: 'open-update-channel' };
         if (data.fixState === 'old') return { key: 'online.blocked.fixOld', variables: { required: requiredFix(gameId), version: data.fixVersion || '' } };
         if (data.fixState !== 'ok') return { key: 'online.blocked.fixUnknown', variables: { required: requiredFix(gameId) } };
+        // The fix has rooms, the build doesn't: made by a builder from before online play (its stamp's
+        // requires.xml2fix below 1.8.0-0, no GameVersion). Only a rebuild gives it rooms.
+        if (data.buildOnline === false) return { key: 'online.blocked.rebuild', action: 'rebuild' };
         if (queue && typeof queue.isAnyBlockingActive === 'function' && queue.isAnyBlockingActive()) {
             return { key: 'online.blocked.otherUpdating' };
         }
@@ -196,34 +204,90 @@
 
     // ---- markup ----
 
-    // The help's notes, in order: joining a campaign under way, a solo story segment, public games and what
-    // they show of you, then the rest.
-    const HELP_NOTES = ['lateJoin', 'soloSegment', 'public', 'publicIp', 'noPorts', 'sameVersion', 'keepOpen', 'lan', 'testMode'];
+    // How online works: two cards (Host a game, Join a game) of three short steps, always shown, then two folds
+    // closed by default - Good to know (one line each) and What the messages mean (every status error). The
+    // game's own menus (Play Online, Host, Join Game, Joined Game) stay in English in every language. Icons are
+    // inline SVG in the launcher's outline style (24 x 24, round strokes), decoration only (aria-hidden).
+    const HELP_ICONS = {
+        crown: '<path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5z"/>',
+        people: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 4.8a3.2 3.2 0 0 1 0 6.4"/><path d="M18 14.4a6 6 0 0 1 3 5.6"/>',
+        play: '<circle cx="12" cy="12" r="9"/><path d="M10 8.5l5.5 3.5-5.5 3.5z"/>',
+        gamepad: '<path d="M7 7h10a5 5 0 0 1 4.9 6l-.8 3.6a2.4 2.4 0 0 1-4.1 1.1L14.5 15h-5L7 17.7a2.4 2.4 0 0 1-4.1-1.1L2.1 13A5 5 0 0 1 7 7z"/><path d="M7.5 9.5v4M5.5 11.5h4"/><path d="M15.5 10.5h.01M17.5 12.5h.01"/>',
+        copy: '<rect x="8" y="8" width="11" height="11" rx="1.5"/><path d="M5 16V6.5A1.5 1.5 0 0 1 6.5 5H16"/>',
+        clipboard: '<path d="M9 4.5H6.5A1.5 1.5 0 0 0 5 6v13.5A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H15"/><rect x="9" y="3" width="6" height="3" rx="1"/><path d="M8.5 11h7M8.5 15h5"/>',
+        door: '<path d="M4 21h16"/><path d="M7 21V4.5A1.5 1.5 0 0 1 8.5 3h7A1.5 1.5 0 0 1 17 4.5V21"/><path d="M13.5 12.5h.01"/>'
+    };
+    const HELP_CARDS = [
+        { id: 'host', icon: 'crown', steps: [['press', 'play'], ['inGame', 'gamepad'], ['share', 'copy']] },
+        { id: 'join', icon: 'people', steps: [['code', 'clipboard'], ['inGame', 'gamepad'], ['late', 'door']] }
+    ];
+    // Good to know, in order (the last three finish the cards' steps). Only two steps keep a grey second line:
+    // Join's paste step and its next-level step.
+    const HELP_NOTES = ['sameVersion', 'noPorts', 'public', 'publicIp', 'soloSegment', 'heroes', 'keepOpen', 'testMode', 'lan',
+        'roomOpens', 'shareCode', 'connected'];
+    const EXAMPLE_CODE = 'ABCD-EFGH';
 
-    // The help's body: drawn again when the number of the XML2 Fix it names arrives (the first status).
-    function helpBodyHTML(gameId) {
-        const steps = ['host', 'share', 'join', 'inGame'].map(step => `<li>${escapeHtml(t(`online.help.steps.${step}`))}</li>`).join('');
-        const notes = HELP_NOTES.map(note => `<li data-note="${escapeHtml(note)}">${escapeHtml(t(`online.help.${note}`, { required: requiredFix(gameId) }))}</li>`).join('');
-        const errors = ERRORS.map(id => `
+    function icon(name, className) {
+        return `<svg class="${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${HELP_ICONS[name]}</svg>`;
+    }
+
+    // The words a step or note names, as the launcher shows them.
+    function helpVariables() {
+        return {
+            button: '', browse: t('online.browse.title'), public: t('online.host.public'), connected: t('online.phase.joinInGame'),
+            setting: t('settings.closeLauncherAfterLaunch')
+        };
+    }
+
+    function helpCardHTML(card) {
+        const variables = Object.assign(helpVariables(), { button: t(`online.${card.id}.button`) });
+        const steps = card.steps.map(([step, glyph]) => {
+            const detailKey = `online.help.${card.id}.${step}Detail`;
+            const detail = has(detailKey) ? `<span class="ul-online-howto-detail">${escapeHtml(t(detailKey, variables))}</span>` : '';
+            const chip = step === 'share' ? `<span class="ul-online-howto-code">${EXAMPLE_CODE}</span>` : '';
+            return `
+                <li class="ul-online-howto-step" data-step="${step}">
+                    <span class="ul-online-howto-step-icon">${icon(glyph, 'ul-online-howto-glyph')}</span>
+                    <span class="ul-online-howto-step-text">
+                        <span class="ul-online-howto-line">${escapeHtml(t(`online.help.${card.id}.${step}`, variables))}</span>
+                        ${chip}${detail}
+                    </span>
+                </li>`;
+        }).join('');
+        return `
+            <div class="ul-online-howto-card" data-card="${card.id}">
+                <h4 class="ul-online-howto-title">${icon(card.icon, 'ul-online-howto-title-icon')}<span>${escapeHtml(t(`online.${card.id}.title`))}</span></h4>
+                <ol class="ul-online-howto-steps">${steps}</ol>
+            </div>`;
+    }
+
+    // The error list: drawn again when the number of the XML2 Fix it names arrives (the first status).
+    function helpErrorsHTML(gameId) {
+        return ERRORS.map(id => `
             <div class="ul-online-help-error" data-error="${escapeHtml(id)}">
                 <dt>${escapeHtml(t(`online.errors.${id}.title`))}</dt>
                 <dd>${escapeHtml(t(`online.errors.${id}.body`, { required: requiredFix(gameId) }))}</dd>
             </div>`).join('');
-        return `
-                    <ol class="ul-online-help-steps">${steps}</ol>
-                    <ul class="ul-online-help-notes">${notes}</ul>
-                    <h4 class="ul-online-help-heading">${escapeHtml(t('online.help.errorsTitle'))}</h4>
-                    <dl class="ul-online-help-errors">${errors}</dl>`;
     }
 
     function helpHTML(gameId) {
-        // (tabindex: a summary is focusable by itself in Chromium, but core/focus-nav.js only moves to the
-        // controls it knows; Enter / Space / a pad's A open and close it.)
+        const variables = helpVariables();
+        const notes = HELP_NOTES.map(note => `<li data-note="${escapeHtml(note)}">${escapeHtml(t(`online.help.${note}`, variables))}</li>`).join('');
+        // (tabindex on each summary: a summary is focusable by itself in Chromium, but core/focus-nav.js only
+        // moves to the controls it knows; Enter / Space / a pad's A open and close it.)
         return `
-            <details class="ul-online-help">
-                <summary tabindex="0">${escapeHtml(t('online.help.title'))}</summary>
-                <div class="ul-online-help-body" data-required="${escapeHtml(requiredFix(gameId))}">${helpBodyHTML(gameId)}</div>
-            </details>`;
+            <div class="ul-online-help">
+                <h4 class="ul-online-help-title">${escapeHtml(t('online.help.title'))}</h4>
+                <div class="ul-online-howto">${HELP_CARDS.map(helpCardHTML).join('')}</div>
+                <details class="ul-online-fold ul-online-good">
+                    <summary tabindex="0">${escapeHtml(t('online.help.goodToKnow'))}</summary>
+                    <ul class="ul-online-help-notes">${notes}</ul>
+                </details>
+                <details class="ul-online-fold ul-online-messages">
+                    <summary tabindex="0">${escapeHtml(t('online.help.errorsTitle'))}</summary>
+                    <dl class="ul-online-help-errors" data-required="${escapeHtml(requiredFix(gameId))}">${helpErrorsHTML(gameId)}</dl>
+                </details>
+            </div>`;
     }
 
     function render(gameId) {
@@ -238,6 +302,8 @@
                 <div class="xml1-note is-warn ul-online-blocked" role="status" hidden>
                     <span class="ul-online-blocked-text"></span>
                     <button type="button" class="secondary-action xml1-small ul-online-testmode-off" hidden>${escapeHtml(t('testMode.turnOff'))}</button>
+                    <button type="button" class="secondary-action xml1-small ul-online-open-channel" hidden>${escapeHtml(t('online.openUpdateChannel'))}</button>
+                    <button type="button" class="secondary-action xml1-small ul-online-rebuild" hidden>${escapeHtml(t('online.rebuild'))}</button>
                 </div>
                 <p class="xml1-note ul-online-offline" hidden>${escapeHtml(t('online.offline'))}</p>
                 <div class="ul-online-idle">
@@ -296,6 +362,12 @@
             if (checked.code) input.value = displayCode(checked.code);
         });
         host.querySelector('.ul-online-testmode-off').addEventListener('click', () => turnTestModeOff(gameId));
+        host.querySelector('.ul-online-open-channel').addEventListener('click', () => {
+            if (window.UpdateChannel) window.UpdateChannel.openSetting();
+        });
+        host.querySelector('.ul-online-rebuild').addEventListener('click', () => {
+            if (window.Xml1View && typeof window.Xml1View.rebuild === 'function') window.Xml1View.rebuild();
+        });
         host.querySelector('.ul-online-public-toggle').addEventListener('click', event => {
             const button = event.target.closest && event.target.closest('.toggle-btn');
             if (!button || button.disabled) return;
@@ -496,6 +568,10 @@
         const off = host.querySelector('.ul-online-testmode-off');
         off.hidden = !(reason && reason.action === 'test-mode-off');
         off.disabled = !!(port() && (port().starting || port().isBuilding()));
+        host.querySelector('.ul-online-open-channel').hidden = !(reason && reason.action === 'open-update-channel');
+        const rebuildButton = host.querySelector('.ul-online-rebuild');
+        rebuildButton.hidden = !(reason && reason.action === 'rebuild');
+        rebuildButton.disabled = off.disabled;
         host.querySelectorAll('.ul-online-host-button, .ul-online-join-button, .ul-online-code-input, .ul-online-public-toggle .toggle-btn').forEach(control => {
             control.disabled = !!reason;
         });
@@ -512,10 +588,10 @@
 
         // Offline mode: Host, Join and Refresh stay, and ask to restart the launcher online first.
         host.querySelector('.ul-online-offline').hidden = !offline() || live;
-        const helpBody = host.querySelector('.ul-online-help-body');
-        if (helpBody && helpBody.dataset.required !== requiredFix(gameId)) {
-            helpBody.innerHTML = helpBodyHTML(gameId);
-            helpBody.dataset.required = requiredFix(gameId);
+        const helpErrors = host.querySelector('.ul-online-help-errors');
+        if (helpErrors && helpErrors.dataset.required !== requiredFix(gameId)) {
+            helpErrors.innerHTML = helpErrorsHTML(gameId);
+            helpErrors.dataset.required = requiredFix(gameId);
         }
 
         const focused = document.activeElement;
@@ -621,6 +697,9 @@
             if (outcome.reason === 'test_mode_on') {
                 body += `<button type="button" class="secondary-action xml1-small ul-online-testmode-off">${escapeHtml(t('testMode.turnOff'))}</button>`;
             }
+            if (outcome.reason === 'build_too_old') {
+                body += `<button type="button" class="secondary-action xml1-small ul-online-rebuild">${escapeHtml(t('online.rebuild'))}</button>`;
+            }
         } else if (outcome) {
             kind = outcome.kind === 'not_started' ? 'error' : 'info';
             line = t(`online.phase.${outcome.kind === 'not_started' ? 'notStarted' : outcome.kind}`);
@@ -696,6 +775,7 @@
         if (target.classList.contains('ul-online-copy')) copy(gameId);
         else if (target.classList.contains('ul-online-again')) back(gameId);
         else if (target.classList.contains('ul-online-testmode-off')) turnTestModeOff(gameId);
+        else if (target.classList.contains('ul-online-rebuild') && window.Xml1View && typeof window.Xml1View.rebuild === 'function') window.Xml1View.rebuild();
     }
 
     // Back to Host / Join (the code typed for a join is still in its field), with what the game and the

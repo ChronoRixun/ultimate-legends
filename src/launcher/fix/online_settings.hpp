@@ -49,6 +49,7 @@ namespace online_settings
         std::string host;
         std::string pin;
         std::string version_token;
+        std::string broker; // Broker as the ini has it ("" when it has none)
     };
     browse_target target(const std::optional<std::filesystem::path>& ini, const fix_ini::fix* fix);
 

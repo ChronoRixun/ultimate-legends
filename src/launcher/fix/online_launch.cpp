@@ -1,7 +1,7 @@
 #include "std_include.hpp"
 #include "online_launch.hpp"
 
-#include "tools/tool_install.hpp"
+#include "updater/release_channel.hpp"
 #include "updater/update_cancelled.hpp"
 
 #include <exception>
@@ -68,6 +68,8 @@ namespace online_launch
             return "fix_unknown";
         }
 
+        constexpr auto build_error = "This X-Men Legends build is older than the XML2 Fix: rebuild it to play online.";
+
         std::string fix_error(const fix_state state, const std::optional<std::string>& version)
         {
             const auto need = std::string(required_fix);
@@ -92,16 +94,60 @@ namespace online_launch
         {
             return fix_state::missing;
         }
-        // A version resource has only numbers ("1.8.0", "1.8.0.2"); anything else isn't one to compare.
-        if (version->empty() || !std::isdigit(static_cast<unsigned char>(version->front())) ||
-            !std::all_of(version->begin(), version->end(), [](const char c)
-            {
-                return std::isdigit(static_cast<unsigned char>(c)) || c == '.';
-            }))
+        // A version resource has only numbers ("1.8.0", "1.8.0.2"); the release the launcher installed
+        // may be a pre-release ("1.8.0-beta.2"). Anything else isn't one to compare.
+        if (!release_channel::is_version(*version))
         {
             return fix_state::unknown;
         }
-        return tool_install::compare_versions(*version, std::string(required_fix)) >= 0 ? fix_state::ok : fix_state::old;
+        // required_fix's own pre-releases count ("-0" is the lowest one): XML2 Fix 1.8.0 comes out as betas
+        // first (v1.8.0-beta.1, the Beta update channel), and those have the rooms. 1.7.x doesn't.
+        return release_channel::satisfies(*version, ">=" + std::string(required_fix) + "-0") ? fix_state::ok : fix_state::old;
+    }
+
+    bool build_supports_online(const std::string_view requires_xml2fix, const std::string_view game_version, const std::string_view broker)
+    {
+        const auto blank = [](const std::string_view text)
+        {
+            return text.find_first_not_of(" \t,") == std::string_view::npos;
+        };
+        if (blank(requires_xml2fix))
+        {
+            return !blank(game_version) && !blank(broker);
+        }
+        // The stamp's requirement alone. Each clause (separated by spaces or commas, as satisfies() reads them) that sets a lower bound.
+        const auto minimum = std::string(required_fix) + "-0";
+        std::string_view rest = requires_xml2fix;
+        while (!rest.empty())
+        {
+            const auto start = rest.find_first_not_of(" ,");
+            if (start == std::string_view::npos)
+            {
+                break;
+            }
+            rest.remove_prefix(start);
+            const auto end = std::min(rest.find_first_of(" ,"), rest.size());
+            auto clause = rest.substr(0, end);
+            rest.remove_prefix(end);
+
+            if (clause.starts_with(">="))
+            {
+                clause.remove_prefix(2);
+            }
+            else if (clause.starts_with('>'))
+            {
+                clause.remove_prefix(1);
+            }
+            else if (!clause.empty() && (clause.front() < '0' || clause.front() > '9'))
+            {
+                continue; // an upper bound or an exact one ("<2", "=1.8.0") says nothing about the rooms
+            }
+            if (release_channel::is_version(clause) && release_channel::compare(clause, minimum) >= 0)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     const char* fix_state_name(const fix_state state)
@@ -182,6 +228,10 @@ namespace online_launch
             {
                 return give_up(steps, refused("no_fix", fix_error(fix_state::missing, std::nullopt)), true);
             }
+            if (!steps.build_online())
+            {
+                return give_up(steps, refused("build_too_old", build_error), true);
+            }
         }
         else
         {
@@ -235,6 +285,10 @@ namespace online_launch
                 if (state != fix_state::ok)
                 {
                     return give_up(steps, refused(fix_reason(state), fix_error(state, version)), true);
+                }
+                if (!steps.build_online())
+                {
+                    return give_up(steps, refused("build_too_old", build_error), true);
                 }
 
                 // Armed last, right before the process: the keys for this start, the others removed.

@@ -37,7 +37,52 @@
                 busyTitle: 'Not yet',
                 busyBody: 'Wait for the X-Men Legends build or the patch download to finish, or close the launcher: the update installs the next time it starts.',
                 restarting: 'Restarting to install the update…',
-                updated: 'Ultimate Legends was updated to {{version}}.'
+                updated: 'Ultimate Legends was updated to {{version}}.',
+                availableCached: 'Update available: Ultimate Legends {{version}} (the last beta found; GitHub could not be reached: {{error}})',
+                upToDateCached: 'Ultimate Legends is up to date (the last beta found; GitHub could not be reached: {{error}}).',
+                aheadOfStable: 'You are on the beta {{version}}, newer than the latest release ({{latest}}).'
+            },
+            updateChannel: {
+                section: 'Updates',
+                label: 'Update channel',
+                help: 'Beta gets test versions early; they may have bugs. You can switch back to Stable any time.',
+                stable: 'Stable',
+                beta: 'Beta',
+                badge: 'Beta',
+                footer: 'Update channel: {{channel}}',
+                itemLauncher: 'Ultimate Legends',
+                itemFixXml2: 'XML2 Fix (X-Men Legends II)',
+                itemFixXml1: 'XML2 Fix (X-Men Legends)',
+                itemBuilder: 'Legends Classic builder',
+                devBuild: '{{version}} (development build)',
+                betaAvailable: '{{version}} available',
+                checking: 'Checking the channel…',
+                offline: 'Offline mode: the channel is not checked.',
+                fromCache: 'GitHub could not be reached ({{error}}). Using the last beta found ({{version}}).',
+                aheadNote: 'You are on a beta ({{current}}), newer than the latest release ({{stable}}). It stays until you switch back.',
+                nowBeta: 'Update channel: Beta. Test versions install like updates.',
+                nowStable: 'Update channel: Stable.',
+                switchBackTitle: 'You are on a beta',
+                switchBackBody: "You're on a beta ({{current}}). Switch back to {{stable}}?",
+                switchBackDetail: 'Switch back reinstalls the stable versions; your settings, games, mods and builds are kept. Keep the beta changes nothing until a newer release comes out.',
+                switchBackYes: 'Switch back',
+                keepBeta: 'Keep the beta',
+                switchBackButton: 'Switch back to Stable',
+                rebuildTitle: 'Rebuild X-Men Legends?',
+                rebuildBody: 'X-Men Legends was built with the beta. Rebuild it now with the stable builder and XML2 Fix? Your saves and mods are kept.',
+                repoFix: 'XML2 Fix',
+                fromCacheRepo: '{{name}}: GitHub could not be reached ({{error}}). Using the last result ({{version}}).',
+                checkFailedRepo: '{{name}}: could not check ({{error}}), and there is no earlier result to use. Nothing was changed; it is checked again later.',
+                resultTitle: 'Switch back to Stable',
+                resultIntro: 'Not everything switched back:',
+                resultDone: '{{name}}: now {{version}}.',
+                resultLauncherReady: '{{name}} {{version}}: downloaded; it installs when the launcher restarts ({{button}}).',
+                resultFailed: '{{name}}: still {{version}} ({{reason}}).',
+                resultRetry: 'What did not switch back is as it was. Switch back to Stable here asks again when you want to retry.',
+                resultAllDone: 'Switched back to Stable.',
+                reasonCancelled: 'cancelled',
+                reasonBusy: 'it could not start now',
+                reasonUnknown: 'it did not finish'
             },
             nav: {
                 home: 'Home',
@@ -373,6 +418,8 @@
             // XML2 Fix's online service, and what each of its states and errors means.
             online: {
                 title: 'Online',
+                openUpdateChannel: 'Open Update channel',
+                rebuild: 'Rebuild',
                 intro: 'Play X-Men Legends online with friends: one player hosts, the others join with the code the host gets. No port forwarding, no settings to edit.',
                 loading: 'Loading online play…',
                 host: {
@@ -434,6 +481,8 @@
                     notBuilt: 'Build the game first (Build section below) to play online.',
                     noFix: 'Install the {{fix}} first (Verify Files on this page) to play online.',
                     fixOld: 'Online play needs XML2 Fix {{required}} or later; this folder has {{version}}. Use Verify Files on this page to update it, then host or join.',
+                    needsBeta: 'Online play arrives with Legends Classic 0.3.0. Want to try it now? Switch Update channel to Beta in Settings.',
+                    rebuild: 'Rebuild to play online: this build is older than your XML2 Fix.',
                     fixUnknown: 'The version of the XML2 Fix in this folder can’t be read, and online play needs {{required}} or later. Use Verify Files on this page to reinstall it, then host or join.',
                     building: 'A build is running: host or join when it has finished.',
                     updating: 'The XML2 Fix is being installed or updated: host or join when it has finished.',
@@ -458,6 +507,7 @@
                     update_cancelled: 'The XML2 Fix update was cancelled, so the game was not started.',
                     fix_too_old: 'The XML2 Fix in the game folder is too old for online play (it needs {{required}} or later). Use Verify Files on this page, then try again.',
                     fix_unknown: 'The version of the XML2 Fix in the game folder can’t be read (online play needs {{required}} or later). Use Verify Files on this page, then try again.',
+                    build_too_old: 'This build is older than your XML2 Fix: rebuild it (Rebuild, on this page) to play online.',
                     launch_cancelled: 'The game did not start: it needs administrator permission, and the prompt was declined.',
                     launch_failed: 'The game could not be started: {{error}}',
                     cleanup: "The online settings of this start could not be removed ({{error}}). Press Play here once before you start the game from Steam or its exe, so that it doesn't open or join that room."
@@ -548,21 +598,31 @@
                 done: 'OK',
                 help: {
                     title: 'How online works',
-                    steps: {
-                        host: 'One player presses Host a game. Once the game is up, open Play Online in it: the room opens then, and this page shows a code like ABCD-EFGH.',
-                        share: 'The host sends the code to the friends who play (a chat message is fine). Copy puts it on the clipboard.',
-                        join: 'Each friend types or pastes the code under Join a game and presses Join. Lower case, spaces and dashes are fine.',
-                        inGame: 'In the game, the host picks Play Online → Host, then a new or saved campaign as usual. Friends open Play Online → Join Game and select the host’s game. Once you are together, this page says Connected – playing together.'
+                    host: {
+                        press: 'Press {{button}}',
+                        inGame: 'In the game: Play Online, then Host',
+                        share: 'Send friends your code (it’s already copied)'
                     },
-                    public: 'Public games: turn on List my game publicly when you host, and your game shows in Browse games for everyone with the launcher, who can join it there. Off, only friends with the code can join.',
-                    lateJoin: 'Joining a campaign already in progress? Wait on Joined Game. You enter at the next level change; the party needs enough heroes for everyone.',
-                    soloSegment: 'During a solo story segment, players without a hero stay connected and watch the shared camera; they rejoin when the party grows again.',
+                    join: {
+                        code: 'Paste the code and press {{button}}, or pick a game in {{browse}}',
+                        codeDetail: 'Lower case, spaces and dashes are fine.',
+                        inGame: 'In the game: Play Online, then Join Game',
+                        late: 'Game already running? You join at the next level',
+                        lateDetail: 'Wait on Joined Game until then.'
+                    },
+                    goodToKnow: 'Good to know',
+                    sameVersion: 'Everyone needs the same version: Rebuild (Build section) when it says an update is available.',
+                    noPorts: 'No port forwarding or router setup needed: the online service connects you.',
+                    public: '{{public}} puts your game in {{browse}} for everyone with the launcher; off, only friends with the code can join.',
                     publicIp: 'Public games connect you directly to other players, so they can see your internet address. Share a private code to play only with friends.',
-                    keepOpen: 'Host and Join keep the launcher open while you play, even with Close launcher after game launch on: it shows and copies your code and follows the game. Play still closes it.',
-                    noPorts: 'Nothing needs port forwarding or router settings: the online service connects you.',
-                    sameVersion: 'Everyone needs the same version of the game: keep it up to date on this page (Rebuild in the Build section when it says an update is available).',
-                    lan: 'On the same network, LAN and Connect by IP still work: press Play as usual. Play never opens a room.',
+                    soloSegment: 'In solo story parts, players without a hero stay connected and watch the shared camera, then rejoin when the party grows.',
+                    heroes: 'The party needs enough heroes for everyone.',
+                    keepOpen: 'Host and Join keep the launcher open while you play, to show your code and follow the game, even with {{setting}} on. Play still closes it.',
                     testMode: 'Test mode turns online play off: turn it off to host or join.',
+                    lan: 'On the same network, LAN and Connect by IP still work with Play, which never opens a room.',
+                    roomOpens: 'Your room opens when you pick Play Online, then Host in the game; start a new or saved campaign as usual.',
+                    shareCode: 'Send the code any way you like (a chat message is fine); Copy copies it again.',
+                    connected: 'In Join Game, select the host’s game; this page then says “{{connected}}”',
                     errorsTitle: 'What the messages mean'
                 }
             },
@@ -926,6 +986,53 @@
             app: {
                 title: 'Ultimate Legends'
             },
+            updateChannel: {
+                section: 'Mises a jour',
+                label: 'Canal de mise a jour',
+                help: "Beta recoit les versions de test en avance ; elles peuvent contenir des bugs. Vous pouvez revenir a Stable a tout moment.",
+                stable: 'Stable',
+                beta: 'Beta',
+                badge: 'Beta',
+                footer: 'Canal de mise a jour : {{channel}}',
+                itemLauncher: 'Ultimate Legends',
+                itemFixXml2: 'XML2 Fix (X-Men Legends II)',
+                itemFixXml1: 'XML2 Fix (X-Men Legends)',
+                itemBuilder: 'Constructeur Legends Classic',
+                devBuild: '{{version}} (version de developpement)',
+                betaAvailable: '{{version}} disponible',
+                checking: 'Verification du canal…',
+                offline: "Mode hors ligne : le canal n'est pas verifie.",
+                fromCache: "GitHub n'a pas pu etre contacte ({{error}}). Derniere beta trouvee utilisee ({{version}}).",
+                aheadNote: "Vous etes sur une beta ({{current}}), plus recente que la derniere version ({{stable}}). Elle reste jusqu'a ce que vous reveniez a Stable.",
+                nowBeta: 'Canal de mise a jour : Beta. Les versions de test s\'installent comme des mises a jour.',
+                nowStable: 'Canal de mise a jour : Stable.',
+                switchBackTitle: 'Vous etes sur une beta',
+                switchBackBody: 'Vous etes sur une beta ({{current}}). Revenir a {{stable}} ?',
+                switchBackDetail: "Revenir reinstalle les versions stables ; vos parametres, jeux, mods et builds sont conserves. Garder la beta ne change rien jusqu'a la prochaine version.",
+                switchBackYes: 'Revenir',
+                keepBeta: 'Garder la beta',
+                switchBackButton: 'Revenir a Stable',
+                rebuildTitle: 'Reconstruire X-Men Legends ?',
+                rebuildBody: 'X-Men Legends a ete construit avec la beta. Le reconstruire maintenant avec le constructeur et le XML2 Fix stables ? Vos sauvegardes et mods sont conserves.',
+                repoFix: 'XML2 Fix',
+                fromCacheRepo: "{{name}} : GitHub n'a pas pu etre contacte ({{error}}). Dernier resultat utilise ({{version}}).",
+                checkFailedRepo: "{{name}} : verification impossible ({{error}}), et aucun resultat precedent n'est disponible. Rien n'a change ; une nouvelle verification aura lieu plus tard.",
+                resultTitle: 'Revenir a Stable',
+                resultIntro: "Tout n'est pas revenu a Stable :",
+                resultDone: '{{name}} : maintenant {{version}}.',
+                resultLauncherReady: "{{name}} {{version}} : telecharge ; il s'installe au redemarrage du lanceur ({{button}}).",
+                resultFailed: '{{name}} : toujours {{version}} ({{reason}}).',
+                resultRetry: "Ce qui n'est pas revenu reste tel quel. Revenir a Stable, ici, redemande quand vous voulez reessayer.",
+                resultAllDone: 'Revenu a Stable.',
+                reasonCancelled: 'annule',
+                reasonBusy: "impossible de demarrer maintenant",
+                reasonUnknown: "ne s'est pas termine"
+            },
+            launcherUpdate: {
+                availableCached: 'Mise a jour disponible : Ultimate Legends {{version}} (derniere beta trouvee ; GitHub injoignable : {{error}})',
+                upToDateCached: "Ultimate Legends est a jour (derniere beta trouvee ; GitHub injoignable : {{error}}).",
+                aheadOfStable: 'Vous utilisez la beta {{version}}, plus recente que la derniere version ({{latest}}).'
+            },
             window: {
                 minimize: 'Reduire',
                 maximize: 'Agrandir',
@@ -1260,6 +1367,8 @@
             },
             online: {
                 title: 'En ligne',
+                openUpdateChannel: 'Ouvrir le canal de mise a jour',
+                rebuild: 'Reconstruire',
                 intro: "Jouez a X-Men Legends en ligne avec vos amis : un joueur heberge, les autres rejoignent avec le code qu'il recoit. Pas de redirection de ports, aucun reglage a modifier.",
                 loading: 'Chargement du jeu en ligne…',
                 host: {
@@ -1320,6 +1429,8 @@
                     notBuilt: "Construisez d'abord le jeu (section Build plus bas) pour jouer en ligne.",
                     noFix: "Installez d'abord le {{fix}} (Verifier les fichiers sur cette page) pour jouer en ligne.",
                     fixOld: 'Le jeu en ligne demande le XML2 Fix {{required}} ou plus recent ; ce dossier a la version {{version}}. Utilisez Verifier les fichiers sur cette page pour le mettre a jour, puis hebergez ou rejoignez.',
+                    needsBeta: 'Le jeu en ligne arrive avec Legends Classic 0.3.0. Envie de l\'essayer maintenant ? Passez le canal de mise a jour sur Beta dans les Parametres.',
+                    rebuild: 'Reconstruisez pour jouer en ligne : cette construction est plus ancienne que votre XML2 Fix.',
                     fixUnknown: 'La version du XML2 Fix de ce dossier ne peut pas etre lue, et le jeu en ligne demande la {{required}} ou plus recente. Utilisez Verifier les fichiers sur cette page pour le reinstaller, puis hebergez ou rejoignez.',
                     building: 'Une construction est en cours : hebergez ou rejoignez quand elle sera terminee.',
                     updating: "Le XML2 Fix est en cours d'installation ou de mise a jour : hebergez ou rejoignez quand ce sera fini.",
@@ -1344,6 +1455,7 @@
                     update_cancelled: "La mise a jour du XML2 Fix a ete annulee, le jeu n'a donc pas ete lance.",
                     fix_too_old: 'Le XML2 Fix du dossier du jeu est trop ancien pour le jeu en ligne (il faut la {{required}} ou plus recente). Utilisez Verifier les fichiers sur cette page, puis reessayez.',
                     fix_unknown: 'La version du XML2 Fix du dossier du jeu ne peut pas etre lue (le jeu en ligne demande la {{required}} ou plus recente). Utilisez Verifier les fichiers sur cette page, puis reessayez.',
+                    build_too_old: 'Cette construction est plus ancienne que votre XML2 Fix : reconstruisez-la (Reconstruire, sur cette page) pour jouer en ligne.',
                     launch_cancelled: "Le jeu n'a pas demarre : il demande les droits administrateur, et la demande a ete refusee.",
                     launch_failed: "Le jeu n'a pas pu etre lance : {{error}}",
                     cleanup: "Les reglages en ligne de ce lancement n'ont pas pu etre retires ({{error}}). Appuyez une fois sur Jouer ici avant de lancer le jeu depuis Steam ou son exe, pour qu'il n'ouvre ni ne rejoigne cette salle."
@@ -1434,21 +1546,31 @@
                 done: 'OK',
                 help: {
                     title: 'Comment fonctionne le jeu en ligne',
-                    steps: {
-                        host: "Un joueur appuie sur Heberger une partie. Une fois le jeu lance, ouvrez Play Online : la salle s'ouvre alors, et cette page affiche un code comme ABCD-EFGH.",
-                        share: "L'hote envoie le code aux amis qui jouent (un message suffit). Copier le met dans le presse-papiers.",
-                        join: 'Chaque ami tape ou colle le code sous Rejoindre une partie et appuie sur Rejoindre. Minuscules, espaces et tirets sont acceptes.',
-                        inGame: "Dans le jeu, l'hote choisit Play Online → Host, puis une nouvelle campagne ou une sauvegarde comme d'habitude. Les amis ouvrent Play Online → Join Game et selectionnent la partie de l'hote. Une fois ensemble, cette page affiche Connecte – vous jouez ensemble."
+                    host: {
+                        press: 'Appuyez sur {{button}}',
+                        inGame: 'Dans le jeu : Play Online, puis Host',
+                        share: 'Envoyez votre code a vos amis (il est deja copie)'
                     },
-                    public: "Parties publiques : activez Rendre ma partie publique quand vous hebergez, et votre partie apparait dans Parcourir les parties pour tous les joueurs du lanceur, qui peuvent la rejoindre. Desactive, seuls les amis qui ont le code peuvent rejoindre.",
-                    lateJoin: 'Vous rejoignez une campagne deja en cours ? Attendez sur Joined Game. Vous entrez au prochain changement de niveau ; le groupe doit avoir assez de heros pour tout le monde.',
-                    soloSegment: "Pendant un passage d'histoire en solo, les joueurs sans heros restent connectes et regardent la camera commune ; ils reviennent quand le groupe s'agrandit.",
-                    publicIp: 'Les parties publiques vous connectent directement aux autres joueurs, qui peuvent donc voir votre adresse internet. Partagez un code prive pour jouer seulement avec vos amis.',
-                    keepOpen: 'Heberger et Rejoindre gardent le lanceur ouvert pendant la partie, meme avec Fermer le launcher apres le lancement du jeu active : il affiche et copie votre code et suit la partie. Jouer le ferme toujours.',
+                    join: {
+                        code: 'Collez le code et appuyez sur {{button}}, ou choisissez une partie dans {{browse}}',
+                        codeDetail: 'Minuscules, espaces et tirets sont acceptes.',
+                        inGame: 'Dans le jeu : Play Online, puis Join Game',
+                        late: 'Partie deja en cours ? Vous entrez au prochain niveau',
+                        lateDetail: 'Attendez sur Joined Game jusque-la.'
+                    },
+                    goodToKnow: 'Bon a savoir',
+                    sameVersion: 'Tout le monde doit avoir la meme version : Rebuild (section Build) quand une mise a jour est disponible.',
                     noPorts: 'Aucune redirection de ports ni reglage du routeur : le service en ligne vous connecte.',
-                    sameVersion: "Tout le monde doit avoir la meme version du jeu : tenez-le a jour sur cette page (Rebuild dans la section Build quand une mise a jour est disponible).",
-                    lan: "Sur le meme reseau, le LAN et Connect by IP fonctionnent toujours : appuyez sur Jouer comme d'habitude. Jouer n'ouvre jamais de salle.",
+                    public: '{{public}} affiche votre partie dans {{browse}} pour tous les joueurs du lanceur ; desactive, seuls les amis qui ont le code peuvent rejoindre.',
+                    publicIp: 'Les parties publiques vous connectent directement aux autres joueurs, qui peuvent donc voir votre adresse internet. Partagez un code prive pour jouer seulement avec vos amis.',
+                    soloSegment: "Pendant les passages d'histoire en solo, les joueurs sans heros restent connectes et regardent la camera commune, puis reviennent quand le groupe s'agrandit.",
+                    heroes: 'Le groupe doit avoir assez de heros pour tout le monde.',
+                    keepOpen: 'Heberger et Rejoindre gardent le lanceur ouvert pendant la partie, pour afficher votre code et suivre la partie, meme avec {{setting}} active. Jouer le ferme toujours.',
                     testMode: 'Le mode test desactive le jeu en ligne : desactivez-le pour heberger ou rejoindre.',
+                    lan: "Sur le meme reseau, le LAN et Connect by IP fonctionnent toujours avec Jouer, qui n'ouvre jamais de salle.",
+                    roomOpens: "Votre salle s'ouvre quand vous choisissez Play Online, puis Host dans le jeu ; lancez une nouvelle campagne ou une sauvegarde comme d'habitude.",
+                    shareCode: 'Envoyez le code comme vous voulez (un message suffit) ; Copier le copie a nouveau.',
+                    connected: "Dans Join Game, selectionnez la partie de l'hote ; cette page affiche alors « {{connected}} »",
                     errorsTitle: 'Ce que veulent dire les messages'
                 }
             }
@@ -1456,6 +1578,53 @@
         es: {
             app: {
                 title: 'Ultimate Legends'
+            },
+            updateChannel: {
+                section: 'Actualizaciones',
+                label: 'Canal de actualizacion',
+                help: 'Beta recibe versiones de prueba antes; pueden tener errores. Puedes volver a Estable cuando quieras.',
+                stable: 'Estable',
+                beta: 'Beta',
+                badge: 'Beta',
+                footer: 'Canal de actualizacion: {{channel}}',
+                itemLauncher: 'Ultimate Legends',
+                itemFixXml2: 'XML2 Fix (X-Men Legends II)',
+                itemFixXml1: 'XML2 Fix (X-Men Legends)',
+                itemBuilder: 'Constructor de Legends Classic',
+                devBuild: '{{version}} (version de desarrollo)',
+                betaAvailable: '{{version}} disponible',
+                checking: 'Comprobando el canal…',
+                offline: 'Modo sin conexion: el canal no se comprueba.',
+                fromCache: 'No se pudo contactar con GitHub ({{error}}). Se usa la ultima beta encontrada ({{version}}).',
+                aheadNote: 'Estas en una beta ({{current}}), mas nueva que la ultima version ({{stable}}). Se queda hasta que vuelvas a Estable.',
+                nowBeta: 'Canal de actualizacion: Beta. Las versiones de prueba se instalan como actualizaciones.',
+                nowStable: 'Canal de actualizacion: Estable.',
+                switchBackTitle: 'Estas en una beta',
+                switchBackBody: 'Estas en una beta ({{current}}). ¿Volver a {{stable}}?',
+                switchBackDetail: 'Volver reinstala las versiones estables; tus ajustes, juegos, mods y compilaciones se conservan. Mantener la beta no cambia nada hasta la proxima version.',
+                switchBackYes: 'Volver',
+                keepBeta: 'Mantener la beta',
+                switchBackButton: 'Volver a Estable',
+                rebuildTitle: '¿Reconstruir X-Men Legends?',
+                rebuildBody: 'X-Men Legends se construyo con la beta. ¿Reconstruirlo ahora con el constructor y el XML2 Fix estables? Tus partidas guardadas y mods se conservan.',
+                repoFix: 'XML2 Fix',
+                fromCacheRepo: '{{name}}: no se pudo contactar con GitHub ({{error}}). Se usa el ultimo resultado ({{version}}).',
+                checkFailedRepo: '{{name}}: no se pudo comprobar ({{error}}) y no hay un resultado anterior. No se cambio nada; se volvera a comprobar mas tarde.',
+                resultTitle: 'Volver a Estable',
+                resultIntro: 'No todo volvio a Estable:',
+                resultDone: '{{name}}: ahora {{version}}.',
+                resultLauncherReady: '{{name}} {{version}}: descargado; se instala cuando el launcher se reinicie ({{button}}).',
+                resultFailed: '{{name}}: sigue en {{version}} ({{reason}}).',
+                resultRetry: 'Lo que no volvio queda como estaba. Volver a Estable, aqui, vuelve a preguntar cuando quieras reintentarlo.',
+                resultAllDone: 'Has vuelto a Estable.',
+                reasonCancelled: 'cancelado',
+                reasonBusy: 'no se pudo iniciar ahora',
+                reasonUnknown: 'no termino'
+            },
+            launcherUpdate: {
+                availableCached: 'Actualizacion disponible: Ultimate Legends {{version}} (ultima beta encontrada; GitHub no responde: {{error}})',
+                upToDateCached: 'Ultimate Legends esta actualizado (ultima beta encontrada; GitHub no responde: {{error}}).',
+                aheadOfStable: 'Usas la beta {{version}}, mas nueva que la ultima version ({{latest}}).'
             },
             window: {
                 minimize: 'Minimizar',
@@ -1791,6 +1960,8 @@
             },
             online: {
                 title: 'En linea',
+                openUpdateChannel: 'Abrir el canal de actualizacion',
+                rebuild: 'Reconstruir',
                 intro: 'Juega a X-Men Legends en linea con amigos: un jugador aloja la partida y los demas se unen con el codigo que recibe. Sin abrir puertos ni editar ajustes.',
                 loading: 'Cargando el juego en linea…',
                 host: {
@@ -1851,6 +2022,8 @@
                     notBuilt: 'Primero construye el juego (seccion Build, abajo) para jugar en linea.',
                     noFix: 'Primero instala el {{fix}} (Verificar archivos en esta pagina) para jugar en linea.',
                     fixOld: 'El juego en linea necesita el XML2 Fix {{required}} o posterior; esta carpeta tiene la version {{version}}. Usa Verificar archivos en esta pagina para actualizarlo y luego aloja o unete.',
+                    needsBeta: 'El juego en linea llega con Legends Classic 0.3.0. ¿Quieres probarlo ya? Cambia el canal de actualizacion a Beta en Ajustes.',
+                    rebuild: 'Reconstruye para jugar en linea: esta compilacion es mas antigua que tu XML2 Fix.',
                     fixUnknown: 'No se puede leer la version del XML2 Fix de esta carpeta, y el juego en linea necesita la {{required}} o posterior. Usa Verificar archivos en esta pagina para reinstalarlo y luego aloja o unete.',
                     building: 'Hay una construccion en curso: aloja o unete cuando termine.',
                     updating: 'Se esta instalando o actualizando el XML2 Fix: aloja o unete cuando termine.',
@@ -1875,6 +2048,7 @@
                     update_cancelled: 'Se cancelo la actualizacion del XML2 Fix, asi que el juego no se inicio.',
                     fix_too_old: 'El XML2 Fix de la carpeta del juego es demasiado antiguo para el juego en linea (necesita la {{required}} o posterior). Usa Verificar archivos en esta pagina y vuelve a intentarlo.',
                     fix_unknown: 'No se puede leer la version del XML2 Fix de la carpeta del juego (el juego en linea necesita la {{required}} o posterior). Usa Verificar archivos en esta pagina y vuelve a intentarlo.',
+                    build_too_old: 'Esta compilacion es mas antigua que tu XML2 Fix: reconstruyela (Reconstruir, en esta pagina) para jugar en linea.',
                     launch_cancelled: 'El juego no se inicio: necesita permisos de administrador y se rechazo la solicitud.',
                     launch_failed: 'No se pudo iniciar el juego: {{error}}',
                     cleanup: 'No se pudieron quitar los ajustes en linea de este inicio ({{error}}). Pulsa Jugar aqui una vez antes de iniciar el juego desde Steam o su exe, para que no abra ni se una a esa sala.'
@@ -1965,21 +2139,31 @@
                 done: 'Aceptar',
                 help: {
                     title: 'Como funciona el juego en linea',
-                    steps: {
-                        host: 'Un jugador pulsa Alojar una partida. Cuando el juego este en marcha, abre Play Online: la sala se abre entonces, y esta pagina muestra un codigo como ABCD-EFGH.',
-                        share: 'El anfitrion envia el codigo a los amigos que juegan (un mensaje basta). Copiar lo pone en el portapapeles.',
-                        join: 'Cada amigo escribe o pega el codigo en Unirse a una partida y pulsa Unirse. Valen minusculas, espacios y guiones.',
-                        inGame: 'En el juego, el anfitrion elige Play Online → Host y luego una campana nueva o guardada, como siempre. Los amigos abren Play Online → Join Game y seleccionan la partida del anfitrion. Cuando esteis juntos, esta pagina dice Conectado – jugando juntos.'
+                    host: {
+                        press: 'Pulsa {{button}}',
+                        inGame: 'En el juego: Play Online y luego Host',
+                        share: 'Envia tu codigo a tus amigos (ya esta copiado)'
                     },
-                    public: 'Partidas publicas: activa Hacer publica mi partida al alojar, y tu partida aparece en Explorar partidas para todos los que tienen el lanzador, que pueden unirse desde alli. Desactivado, solo los amigos con el codigo pueden unirse.',
-                    lateJoin: '¿Te unes a una campana ya en curso? Espera en Joined Game. Entras en el proximo cambio de nivel; el grupo necesita heroes suficientes para todos.',
-                    soloSegment: 'Durante un tramo de historia en solitario, los jugadores sin heroe siguen conectados viendo la camara compartida; vuelven cuando el grupo crece de nuevo.',
-                    publicIp: 'Las partidas publicas te conectan directamente con los demas jugadores, asi que pueden ver tu direccion de internet. Comparte un codigo privado para jugar solo con amigos.',
-                    keepOpen: 'Alojar y Unirse mantienen el lanzador abierto mientras juegas, incluso con Cerrar el launcher al iniciar el juego activado: muestra y copia tu codigo y sigue la partida. Jugar lo sigue cerrando.',
+                    join: {
+                        code: 'Pega el codigo y pulsa {{button}}, o elige una partida en {{browse}}',
+                        codeDetail: 'Valen minusculas, espacios y guiones.',
+                        inGame: 'En el juego: Play Online y luego Join Game',
+                        late: '¿Partida ya en marcha? Entras en el proximo nivel',
+                        lateDetail: 'Espera en Joined Game hasta entonces.'
+                    },
+                    goodToKnow: 'Conviene saber',
+                    sameVersion: 'Todos necesitan la misma version: Rebuild (seccion Build) cuando haya una actualizacion.',
                     noPorts: 'No hace falta abrir puertos ni tocar el router: el servicio en linea os conecta.',
-                    sameVersion: 'Todos necesitan la misma version del juego: mantenlo actualizado en esta pagina (Rebuild en la seccion Build cuando haya una actualizacion).',
-                    lan: 'En la misma red, LAN y Connect by IP siguen funcionando: pulsa Jugar como siempre. Jugar nunca abre una sala.',
+                    public: '{{public}} muestra tu partida en {{browse}} a todos los que tienen el lanzador; desactivado, solo los amigos con el codigo pueden unirse.',
+                    publicIp: 'Las partidas publicas te conectan directamente con los demas jugadores, asi que pueden ver tu direccion de internet. Comparte un codigo privado para jugar solo con amigos.',
+                    soloSegment: 'En los tramos de historia en solitario, los jugadores sin heroe siguen conectados viendo la camara compartida y vuelven cuando el grupo crece.',
+                    heroes: 'El grupo necesita heroes suficientes para todos.',
+                    keepOpen: 'Alojar y Unirse mantienen el lanzador abierto mientras juegas, para mostrar tu codigo y seguir la partida, incluso con {{setting}} activado. Jugar lo sigue cerrando.',
                     testMode: 'El modo de prueba desactiva el juego en linea: desactivalo para alojar o unirte.',
+                    lan: 'En la misma red, LAN y Connect by IP siguen funcionando con Jugar, que nunca abre una sala.',
+                    roomOpens: 'Tu sala se abre al elegir Play Online y luego Host en el juego; empieza una campana nueva o guardada, como siempre.',
+                    shareCode: 'Envia el codigo como quieras (basta con un mensaje); Copiar lo copia de nuevo.',
+                    connected: 'En Join Game, selecciona la partida del anfitrion; esta pagina dice entonces «{{connected}}»',
                     errorsTitle: 'Que significan los mensajes'
                 }
             }

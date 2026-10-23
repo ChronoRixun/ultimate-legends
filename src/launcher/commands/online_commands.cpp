@@ -6,7 +6,8 @@
 #include "fix/online_settings.hpp"
 #include "fix/online_status.hpp"
 #include "online/public_rooms.hpp"
-#include "updater/patch_status.hpp"
+#include "updater/patch_channel.hpp"
+#include "updater/release_source.hpp"
 #include "xml1/xml1_port.hpp"
 
 #include <utils/flags.hpp>
@@ -56,12 +57,13 @@ namespace commands::online_commands
 
     void register_commands(cef::cef_ui& cef_ui, command_context& ctx)
     {
-        // { supported, installed, fixInstalled, fixVersion, fixState, requiredFix, playable, running, testMode,
+        // { supported, installed, fixInstalled, fixVersion, fixState, requiredFix, playable, buildOnline, running, testMode,
         //   offline, fix, file, ini, values: { Host, Public, RoomName, JoinCode },
         //   status: <online-status.json's object> | null, statusUnreadable }.
         // fixVersion: the XML2 Fix DLL's file version ("" when it has none that reads, null without the DLL);
         // fixState: ok | old | unknown | missing against requiredFix (online_launch::required_fix, the one number
         // the page shows; launch-game checks the DLL again right before an online start's process).
+        // updateChannel: stable | beta (Settings > Update channel; on Stable a fix too old points to Beta).
         // The Online section polls it (about every 500 ms) while the game it started runs. Host and Join start
         // with launch-game { online: { mode, code, public, roomName } } (game_commands.cpp).
         cef_ui.add_command("get-online-status", [&ctx](const rapidjson::Value& value, rapidjson::Document& response)
@@ -81,13 +83,22 @@ namespace commands::online_commands
             std::optional<std::string> fix_version;
             if (installed)
             {
-                fix_version = patch_status::installed_version(*where.game_dir / where.info->dll);
+                fix_version = patch_channel::installed_version(*config, *where.game_dir);
             }
             response.AddMember("fixVersion", fix_version ? make_string(*fix_version, allocator) : rapidjson::Value(rapidjson::kNullType), allocator);
             response.AddMember("fixState", rapidjson::StringRef(online_launch::fix_state_name(online_launch::check_fix(fix_version))), allocator);
             response.AddMember("requiredFix", make_string(std::string(online_launch::required_fix), allocator), allocator);
+            // Stable has no XML2 Fix with rooms until Legends Classic 0.3.0 is final: the page points there to Beta.
+            response.AddMember("updateChannel", rapidjson::StringRef(release_channel::channel_name(release_source::current_channel())), allocator);
             response.AddMember("offline", utils::flags::has_flag("offline"), allocator);
-            response.AddMember("playable", installed && playable(where), allocator);
+            const auto is_playable = installed && playable(where);
+            response.AddMember("playable", is_playable, allocator);
+            // The build was made for online play (online_launch::build_supports_online: the stamp's requirement,
+            // else the ini's GameVersion and Broker): false asks for a rebuild (a build from an older builder has
+            // no rooms, whatever the XML2 Fix).
+            const auto settings = online_settings::target(where.fix_installed ? where.ini() : std::nullopt, where.info);
+            response.AddMember("buildOnline", is_playable && online_launch::build_supports_online(
+                xml1_port::stamp_requires_xml2fix(*where.game_dir), settings.version_token, settings.broker), allocator);
             response.AddMember("running", is_supported && game_config::is_game_process_running(config->id, 1000), allocator);
             if (is_supported)
             {

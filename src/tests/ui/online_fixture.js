@@ -22,11 +22,11 @@ const ERRORS = ['broker_unreachable', 'broker_rejected', 'code_not_found', 'code
 const REQUIRED_FIX = '1.8.0';
 const LAUNCH_KEYS = ['Host', 'Public', 'RoomName', 'JoinCode'];
 
-// online_launch::check_fix.
+// online_launch::check_fix: at least REQUIRED_FIX, whose own pre-releases count (1.8.0-beta.1, >=1.8.0-0).
 function fixState(version) {
     if (version === null || version === undefined) return 'missing';
-    if (!/^[0-9][0-9.]*$/.test(version)) return 'unknown';
-    const a = version.split('.').map(Number);
+    if (!/^[0-9]+(\.[0-9]+)*(-[0-9A-Za-z.-]+)?$/.test(version)) return 'unknown';
+    const a = version.split('-')[0].split('.').map(Number);
     const b = REQUIRED_FIX.split('.').map(Number);
     for (let i = 0; i < Math.max(a.length, b.length); i++) {
         if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0) ? 'ok' : 'old';
@@ -38,12 +38,17 @@ class Backend {
     constructor(options = {}) {
         this.installed = options.installed !== false;
         this.playable = options.playable !== false;
+        // The build's _build\stamp.json requires.xml2fix ('' for a stamp without one): with the ini's GameVersion
+        // and Broker, what buildSupportsOnline() reads.
+        this.stampRequires = options.stampRequires === undefined ? '>=1.8.0-0' : options.stampRequires;
         this.fixInstalled = options.fixInstalled !== false;
         // The DLL's file version (null: none that reads; the DLL missing: fixInstalled false).
         this.fixVersion = options.fixVersion === undefined ? '1.8.0' : options.fixVersion;
         this.running = !!options.running;
         this.testMode = !!options.testMode;
         this.offline = !!options.offline;
+        // Settings > Update channel. The tests before it was there expect Verify Files for an old fix: Beta's way.
+        this.updateChannel = options.updateChannel || 'beta';
         this.closeOnLaunch = !!options.closeOnLaunch;
         this.launcherClosed = false;
         // The port's xml2-fix.ini [Online]: the builder's keys and whatever the launcher wrote.
@@ -70,6 +75,24 @@ class Backend {
         this.fetches = 0;
         this.fetching = false;
         this.lastRooms = null;
+    }
+
+    // online_launch::build_supports_online: the stamp decides whenever it has a requirement (a lower bound of
+    // 1.8.0-0 or later); a stamp without one falls back to the ini's GameVersion and Broker, both needed.
+    buildOnline() {
+        const blank = text => !String(text || '').replace(/[\s,]/g, '');
+        if (blank(this.stampRequires)) return !blank(this.online.GameVersion) && !blank(this.online.Broker);
+        return String(this.stampRequires).split(/[\s,]+/).some(clause => {
+            const bound = clause.startsWith('>=') ? clause.slice(2) : clause.startsWith('>') ? clause.slice(1) : /^[0-9]/.test(clause) ? clause : null;
+            if (!bound) return false;
+            const [core, pre] = bound.split('-');
+            const n = core.split('.').map(Number);
+            if (n.some(Number.isNaN)) return false;
+            for (const [i, need] of [1, 8, 0].entries()) {
+                if ((n[i] || 0) !== need) return (n[i] || 0) > need;
+            }
+            return pre === undefined || pre !== '';
+        });
     }
 
     write(status) {
@@ -116,6 +139,7 @@ class Backend {
                 return this.refused(reason, `refused: ${reason}`, true);
             }
             if (this.testMode) return this.refused('test_mode_on', 'test mode', true);
+            if (!this.buildOnline()) return this.refused('build_too_old', 'This X-Men Legends build is older than the XML2 Fix: rebuild it to play online.', true);
         } else {
             this.disarm();
         }
@@ -182,8 +206,9 @@ class Backend {
                     supported: true, installed: this.installed, fixInstalled: this.installed && this.fixInstalled,
                     fixVersion: this.installed && this.fixInstalled ? (this.fixVersion === null ? '' : this.fixVersion) : null,
                     fixState: fixState(this.installed && this.fixInstalled ? (this.fixVersion === null ? '' : this.fixVersion) : null),
-                    requiredFix: REQUIRED_FIX, offline: this.offline,
-                    playable: this.installed && this.playable, running: this.running, testMode: this.testMode,
+                    requiredFix: REQUIRED_FIX, updateChannel: this.updateChannel, offline: this.offline,
+                    playable: this.installed && this.playable, buildOnline: this.installed && this.playable && this.buildOnline(),
+                    running: this.running, testMode: this.testMode,
                     fix: 'XML2 Fix', file: 'xml2-fix.ini', ini: `${FOLDER}\\xml2-fix.ini`,
                     values: Object.fromEntries(LAUNCH_KEYS.map(key => [key, this.online[key] === undefined ? null : this.online[key]])),
                     status: this.status === null ? null : JSON.parse(JSON.stringify(this.status)),

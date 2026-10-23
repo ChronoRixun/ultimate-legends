@@ -36,6 +36,7 @@ namespace
         bool running = false;
         bool test_mode = false;
         std::optional<std::string> fix_version = std::string("1.8.0");
+        bool build_online = true; // the build's stamp / GameVersion (online_launch::build_supports_online)
         bool update_replaces_fix = false; // the update leaves fix_after_update (nullopt: no DLL)
         std::optional<std::string> fix_after_update{};
         bool status_file = true;
@@ -70,6 +71,7 @@ namespace
             s.game_running = [this] { return running; };
             s.test_mode_on = [this] { return test_mode; };
             s.fix_version = [this] { return fix_version; };
+            s.build_online = [this] { return build_online; };
             s.clear_status = [this](std::string& error)
             {
                 log.push_back("clear-status");
@@ -213,7 +215,15 @@ TEST(the_fix_online_play_needs_is_1_8_0)
     CHECK(online_launch::check_fix(std::string("0.9.0")) == online_launch::fix_state::old);
     CHECK(online_launch::check_fix(std::string("")) == online_launch::fix_state::unknown);
     CHECK(online_launch::check_fix(std::string("beta")) == online_launch::fix_state::unknown);
-    CHECK(online_launch::check_fix(std::string("1.8.0-rc1")) == online_launch::fix_state::unknown);
+    // 1.8.0's own pre-releases have the rooms (XML2 Fix 1.8.0 comes out as betas first, on the Beta
+    // update channel); 1.7.x's don't.
+    CHECK(online_launch::check_fix(std::string("1.8.0-rc1")) == online_launch::fix_state::ok);
+    CHECK(online_launch::check_fix(std::string("1.8.0-beta.1")) == online_launch::fix_state::ok);
+    CHECK(online_launch::check_fix(std::string("1.8.0-beta.2")) == online_launch::fix_state::ok);
+    CHECK(online_launch::check_fix(std::string("1.7.9-beta.1")) == online_launch::fix_state::old);
+    CHECK(online_launch::check_fix(std::string("1.7.99")) == online_launch::fix_state::old);
+    CHECK(online_launch::check_fix(std::string("1.8.1-beta.1")) == online_launch::fix_state::ok);
+    CHECK(online_launch::check_fix(std::string("1.8.0 beta")) == online_launch::fix_state::unknown);
     CHECK(online_launch::check_fix(std::nullopt) == online_launch::fix_state::missing);
     CHECK(std::string(online_launch::fix_state_name(online_launch::fix_state::ok)) == "ok");
     CHECK(std::string(online_launch::fix_state_name(online_launch::fix_state::old)) == "old");
@@ -760,4 +770,63 @@ TEST(run_update_reads_the_cancel_after_every_way_the_updater_returns)
     steps.skip = false;
     error.clear();
     CHECK(online_launch::run_update(steps, error) == online_launch::update_result::failed && error == "disk full");
+}
+
+TEST(online_play_needs_a_build_made_for_it)
+{
+    using online_launch::build_supports_online;
+    const auto broker = "broker.example:7777";
+    // The stamp's requires.xml2fix from a 0.3.0 builder: stable ">=1.8", beta / rc ">=1.8.0-0".
+    CHECK(build_supports_online(">=1.8", "", ""));
+    CHECK(build_supports_online(">=1.8.0-0", "", ""));
+    CHECK(build_supports_online(">=1.8.0", "", "") && build_supports_online("1.9", "", "") && build_supports_online(">1.8.0-0", "", ""));
+    CHECK(build_supports_online(">=1.8.0-0, <2", "", ""));
+    // An older builder's stamp (0.2.x: ">=1.7.1"), or a requirement with no lower bound: rebuild.
+    CHECK(!build_supports_online(">=1.7.1", "", ""));
+    CHECK(!build_supports_online(">=1.7.1-0", "", "") && !build_supports_online("<2", "", ""));
+    CHECK(!build_supports_online(">=1.7.9 <2", "", "") && !build_supports_online("=1.8.0", "", "") && !build_supports_online("not-a-version", "", ""));
+    // The stamp wins whenever it has a requirement: 0.2.4 / 0.2.5 builds have a GameVersion (LC31 / LC32) and a
+    // Broker too, and still no rooms.
+    CHECK(!build_supports_online(">=1.7.1", "LC32", broker));
+    CHECK(!build_supports_online(">=1.7.1", "LC31", broker));
+    CHECK(!build_supports_online("<2", "LC33", broker));
+    CHECK(build_supports_online(">=1.8.0-0", "", "")); // (and a 0.3.0 stamp needs nothing from the ini)
+    // No requirement in the stamp at all: the ini's [Online] needs both a GameVersion and a Broker.
+    CHECK(build_supports_online("", "LC33", broker));
+    CHECK(!build_supports_online("", "LC33", "") && !build_supports_online("", "LC33", "  "));
+    CHECK(!build_supports_online("", "", broker) && !build_supports_online("", "  ", broker));
+    CHECK(!build_supports_online("", "", "") && !build_supports_online(" ", "", ""));
+
+    // Host and Join refuse an old build before the update (nothing armed) and again right before arming.
+    for (const auto& request : {host_request(), join_request()})
+    {
+        fake f;
+        stale_keys(f);
+        f.build_online = false;
+        const auto result = start(f, request);
+        CHECK(!result.ok && result.reason == "build_too_old");
+        CHECK(result.error.find("rebuild") != std::string::npos);
+        CHECK(!f.armed() && f.builder_keys_kept() && !f.barrier_held);
+        CHECK(std::find(f.log.begin(), f.log.end(), "update") == f.log.end());
+    }
+    {
+        fake f;
+        f.build_online = false;
+        const auto accepted = online_launch::accept(host_request(), f.steps());
+        CHECK(!accepted.ok && accepted.reason == "build_too_old");
+    }
+    // The check right before arming (a rebuild that broke off between the click and the update's end).
+    {
+        fake f;
+        CHECK(online_launch::accept(host_request(), f.steps()).ok);
+        f.build_online = false;
+        const auto finished = online_launch::finish(host_request(), f.steps());
+        CHECK(!finished.ok && finished.reason == "build_too_old" && !f.armed() && !f.barrier_held);
+    }
+    // A normal start never asks.
+    {
+        fake f;
+        f.build_online = false;
+        CHECK(start(f, {}).ok);
+    }
 }

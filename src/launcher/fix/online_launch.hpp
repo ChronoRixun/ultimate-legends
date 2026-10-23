@@ -30,8 +30,9 @@
 // gives it the real steps.
 namespace online_launch
 {
-    // The first XML2 Fix with broker rooms, Legends Classic 0.3.0's (1.7.x has none). The one number: the
-    // Online section shows the one get-online-status sends.
+    // The first XML2 Fix with broker rooms, Legends Classic 0.3.0's (1.7.x has none); its pre-releases
+    // (1.8.0-beta.1, on the Beta update channel) count too. The one number: the Online section shows the
+    // one get-online-status sends.
     constexpr std::string_view required_fix = "1.8.0";
 
     enum class fix_state
@@ -48,6 +49,14 @@ namespace online_launch
 
     // "ok", "old", "unknown", "missing".
     const char* fix_state_name(fix_state state);
+
+    // The build in the folder was made for online play. The stamp decides whenever it has a requirement: its
+    // _build\stamp.json `requires.xml2fix` must have a lower bound of 1.8.0-0 or later (">=1.8" from a stable
+    // 0.3.0 builder, ">=1.8.0-0" from a beta or rc one). A ">=1.7.1" stamp is an older builder's, whose build has
+    // no rooms whatever XML2 Fix is in the folder - even with a GameVersion (0.2.4 wrote LC31, 0.2.5 LC32): the
+    // player rebuilds it. Only a stamp with no requirement at all falls back to the ini: its [Online] needs both
+    // a GameVersion and a Broker (as written, not blank).
+    bool build_supports_online(std::string_view requires_xml2fix, std::string_view game_version, std::string_view broker);
 
     struct request
     {
@@ -94,6 +103,7 @@ namespace online_launch
         std::function<bool()> game_running;
         std::function<bool()> test_mode_on;
         std::function<std::optional<std::string>()> fix_version;
+        std::function<bool()> build_online; // build_supports_online for the folder's build
         std::function<bool(std::string& error)> clear_status;
         // Which of online_rules::keys() the [Online] section has now, and writing changes to it.
         std::function<std::vector<std::string>()> present;
@@ -109,7 +119,7 @@ namespace online_launch
         bool ok{};
         // Why not, for the page (online-view.js words each): offline, already_running, running, test_mode_on,
         // status_locked, write_failed, update_cancelled, update_failed, no_fix, fix_too_old, fix_unknown,
-        // launch_cancelled, launch_failed.
+        // build_too_old, launch_cancelled, launch_failed.
         std::string reason{};
         std::string error{};         // English, for the log and the details line
         std::string cleanup_error{}; // the four keys could not be removed after the refusal

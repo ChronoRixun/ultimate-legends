@@ -446,7 +446,7 @@ def make_fake_xml2(folder, exe_source=None):
     return folder
 
 
-def make_package(folder, *, version="1.0.0", content_version=3, shim, python=None, zip_name=None, base_url=""):
+def make_package(folder, *, version="1.0.0", content_version=3, shim, python=None, zip_name=None, base_url="", requires_xml2fix=""):
     """Lays out the fake builder like the real release (xml1-builder.exe + _internal/) in `folder`,
     zips it and writes xml1-builder.json next to the zip. Returns (zip path, manifest path)."""
     folder = pathlib.Path(folder)
@@ -458,7 +458,7 @@ def make_package(folder, *, version="1.0.0", content_version=3, shim, python=Non
     shutil.copy2(__file__, stage / "_internal" / "xml1-builder.py")
     (stage / "_internal" / "python.txt").write_text(python or sys.executable, encoding="utf-8")
     (stage / "_internal" / "fake-builder.json").write_text(json.dumps(
-        {"version": version, "content_version": content_version, "commit": "fake" + version.replace(".", "")}), encoding="utf-8")
+        {"version": version, "content_version": content_version, "commit": "fake" + version.replace(".", ""), "requires_xml2fix": requires_xml2fix}), encoding="utf-8")
     zip_name = zip_name or f"xml1-builder-{version}-win64.zip"
     archive = folder / zip_name
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as z:
@@ -1056,7 +1056,7 @@ def old_fix_keys(out):
 def version_info():
     data = read_json(HERE / "fake-builder.json", {}) or {}
     return {"version": data.get("version", "1.0.0"), "content_version": int(data.get("content_version", 3)),
-            "commit": data.get("commit", "fake000")}
+            "commit": data.get("commit", "fake000"), "requires_xml2fix": data.get("requires_xml2fix", "")}
 
 
 def free_bytes(path):
@@ -1634,7 +1634,7 @@ def run_build(args, out, version, cancel, iso, xml2, target, cache, movies, spee
                             "digest": iso["digest"], "disc_id": iso["disc_id"], "known": iso["dump"] or False},
                    "xml2": {"exe_md5": xml2["exe_md5"], "exe": xml2["exe"], "base_digest": xml2["base_digest"], "base_files": xml2["base_files"],
                             "modified": xml2["modified"], "modified_count": xml2["modified_count"]}},
-        "requires": {"xml2fix": f">={REQUIRED_XML2FIX}", "ini": PORT_INI},
+        "requires": {"xml2fix": version.get("requires_xml2fix") or f">={REQUIRED_XML2FIX}", "ini": PORT_INI},
         "outputs": {"files": len(files), "bytes": sum(e["size"] for e in files.values()), "built_files": built,
                     "base_files": len(files) - built, "manifest_sha1": digest, "registry_sha1": digest},
         "result": {"errors": 0, "warnings": total_warnings, "seconds": seconds, "repaired": 0},

@@ -15,6 +15,8 @@
 #include "updater/folder_work.hpp"
 #include "mods/game_mods.hpp"
 #include "updater/client_updater.hpp"
+#include "updater/patch_channel.hpp"
+#include "updater/patch_policy.hpp"
 #include "updater/patch_status.hpp"
 #include "updater/game_updater.hpp"
 #include "updater/ui_progress_listener.hpp"
@@ -23,6 +25,8 @@
 #include "fix/online_launch.hpp"
 #include "fix/online_settings.hpp"
 #include "fix/online_status.hpp"
+
+#include <map>
 
 namespace commands::game_commands
 {
@@ -45,6 +49,52 @@ namespace commands::game_commands
         {
             auto* barrier = get_launch_barrier();
             barrier->store(false);
+        }
+
+        // Switch back to Stable's patch updates (verify-game { downgrade }): what each one really did, for
+        // get-patch-attempt. A started update is not an installed release.
+        struct patch_attempt
+        {
+            std::string state = "running"; // running, done (the approved release is in the folder), kept, cancelled, failed
+            std::string installed;          // the fix's version in the folder afterwards
+            std::string error;
+        };
+
+        std::mutex attempts_mutex_;
+        std::map<int, patch_attempt> attempts_;
+        int next_attempt_ = 1;
+
+        int begin_attempt()
+        {
+            std::lock_guard lock(attempts_mutex_);
+            const auto id = next_attempt_++;
+            attempts_[id] = {};
+            while (attempts_.size() > 32)
+            {
+                attempts_.erase(attempts_.begin());
+            }
+            return id;
+        }
+
+        void end_attempt(const int id, const std::string& state, const std::string& installed, const std::string& error)
+        {
+            std::lock_guard lock(attempts_mutex_);
+            attempts_[id] = {state, installed, error};
+        }
+
+        // { downgrade: { from, to } }: an older release approved for this one attempt (patch_policy::consent).
+        std::optional<patch_policy::consent> downgrade_consent(const rapidjson::Value& value)
+        {
+            if (!value.IsObject() || !value.HasMember("downgrade") || !value["downgrade"].IsObject())
+            {
+                return std::nullopt;
+            }
+            const auto& downgrade = value["downgrade"];
+            if (!downgrade.HasMember("from") || !downgrade["from"].IsString() || !downgrade.HasMember("to") || !downgrade["to"].IsString())
+            {
+                return std::nullopt;
+            }
+            return patch_policy::consent{downgrade["from"].GetString(), downgrade["to"].GetString()};
         }
 
         // Monotonic launch id; each launch reserves a fresh one so an older launch's exit watchdog can't release a newer launch's barrier.
@@ -344,6 +394,10 @@ namespace commands::game_commands
                 {
                     return std::optional<std::string>{};
                 };
+                steps.build_online = []
+                {
+                    return true;
+                };
                 steps.clear_status = [](std::string&)
                 {
                     return true;
@@ -366,9 +420,15 @@ namespace commands::game_commands
             {
                 return online_settings::test_mode_on(ini, *fix);
             };
-            steps.fix_version = [dll = folder / fix->dll]
+            // The release the launcher installed when the DLL is still that one (a beta's resource is numeric).
+            steps.fix_version = [config, folder]
             {
-                return patch_status::installed_version(dll);
+                return patch_channel::installed_version(config, folder);
+            };
+            steps.build_online = [folder, ini, fix]
+            {
+                const auto settings = online_settings::target(ini, fix);
+                return online_launch::build_supports_online(xml1_port::stamp_requires_xml2fix(folder), settings.version_token, settings.broker);
             };
             steps.clear_status = [folder](std::string& error)
             {
@@ -750,32 +810,60 @@ namespace commands::game_commands
         });
 
         // Installs or updates the game's patch files; the game's own files are never touched.
-        cef_ui.add_command("verify-game", [&cef_ui, &ctx](const rapidjson::Value& value, auto&)
+        // { game, downgrade?: { from, to } } -> { accepted, attempt?, reason? }. `downgrade`: Switch back to
+        // Stable approved for this one attempt (update-channel.js); get-patch-attempt says what it did.
+        cef_ui.add_command("verify-game", [&cef_ui, &ctx](const rapidjson::Value& value, rapidjson::Document& response)
         {
             const auto config = ctx.get_game_config_from_request(value);
             if (!config)
             {
                 return;
             }
+            const auto consent = downgrade_consent(value);
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
 
             // Patch work in the game's folder until the worker's last line (never during a built game's build).
             std::shared_ptr<updater::folder_work> work;
             if (!begin_patch_work(*config, work))
             {
                 cef_ui.show_toast(folder_held(*config, "Verify its files when the build has finished."), "error");
+                response.AddMember("accepted", false, allocator);
+                response.AddMember("reason", "busy", allocator);
                 return;
             }
 
             // Shared, not a local: this handler returns while the detached worker still reports progress.
             const auto progress_listener = std::make_shared<updater::ui_progress_listener>();
             progress_listener->reset(true);
+            const auto attempt = consent ? begin_attempt() : 0;
+            response.AddMember("accepted", true, allocator);
+            if (attempt)
+            {
+                response.AddMember("attempt", attempt, allocator);
+            }
 
             // Run verification in a separate thread with progress tracking
-            std::thread([config = *config, progress_listener, &cef_ui, work = std::move(work)]()
+            std::thread([config = *config, progress_listener, &cef_ui, work = std::move(work), consent, attempt]()
             {
+                // An attempt's result: the approved release in the folder, read from the disk afterwards.
+                const auto finish = [&](const std::string& state, const std::string& error)
+                {
+                    if (!attempt)
+                    {
+                        return;
+                    }
+                    const auto folder = config.get_install_path();
+                    const auto installed = folder ? patch_channel::installed_version(config, *folder).value_or("") : std::string{};
+                    end_attempt(attempt, state == "done" && installed != consent->to ? "failed" : state, installed,
+                                state == "done" && installed != consent->to ? "The folder still has " + installed + "." : error);
+                };
                 try
                 {
-                    const auto patch_fetched = client_updater::run(config, progress_listener.get());
+                    const auto result = client_updater::run_attempt(config, progress_listener.get(), std::nullopt, consent);
+                    const auto patch_fetched = result.fetched;
+                    finish(progress_listener->is_update_cancelled() ? "cancelled" : !result.fetched ? "failed" : result.kept ? "kept" : "done",
+                           !result.fetched ? "The update could not be reached." : result.note);
 
                     // Installed means the patch files are in place (and, for a built game, that
                     // the build in its folder finished: Verify Files also runs on an unfinished one,
@@ -800,6 +888,7 @@ namespace commands::game_commands
                 }
                 catch (const updater::update_cancelled&)
                 {
+                    finish("cancelled", "Cancelled.");
                     progress_listener->cancel_update();
                     progress_listener->done_update();
                     printf("Update cancelled by user\n");
@@ -807,6 +896,7 @@ namespace commands::game_commands
                 }
                 catch (const std::exception& e)
                 {
+                    finish("failed", e.what());
                     // Set error in progress tracker and show error popup in UI
                     progress_listener->cancel_update();
                     progress_listener->done_update();
@@ -815,6 +905,7 @@ namespace commands::game_commands
                 }
                 catch (...)
                 {
+                    finish("failed", "An unknown error occurred during update");
                     // Set generic error for unknown exceptions
                     progress_listener->cancel_update();
                     progress_listener->done_update();
@@ -822,6 +913,31 @@ namespace commands::game_commands
                     cef_ui.show_message_box("Update Error", "An unknown error occurred during update");
                 }
             }).detach();
+        });
+
+        // { attempt } -> { state: running | done | kept | cancelled | failed, installed, error }; null when unknown.
+        cef_ui.add_command("get-patch-attempt", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetNull();
+            if (!value.IsObject() || !value.HasMember("attempt") || !value["attempt"].IsInt())
+            {
+                return;
+            }
+            patch_attempt found;
+            {
+                std::lock_guard lock(attempts_mutex_);
+                const auto it = attempts_.find(value["attempt"].GetInt());
+                if (it == attempts_.end())
+                {
+                    return;
+                }
+                found = it->second;
+            }
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+            response.AddMember("state", make_string(found.state, allocator), allocator);
+            response.AddMember("installed", make_string(found.installed, allocator), allocator);
+            response.AddMember("error", make_string(found.error, allocator), allocator);
         });
 
         // Removes the launcher's patch files and forgets the install; the game itself stays put.

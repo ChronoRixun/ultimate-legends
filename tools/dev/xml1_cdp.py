@@ -69,7 +69,10 @@ HERE = pathlib.Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 XML1_PROPS = ["install", "is-installed", "iso", "movies", "keep-cache", "link-base", "cache", "builder-version",
               "builder-content", "builder-manifest", "builder-exe", "patch-manifest"]
-DEBUG_TOOLS = pathlib.Path(os.environ["LOCALAPPDATA"]) / "ultimate-legends_debug" / "tools" / "xml1-builder"
+# The launcher data root whose tools/xml1-builder this suite empties: a PORTABLE throwaway launcher sets
+# XML1_CDP_DATA_ROOT to its own data folder, so a developer's real Debug builder cache is never deleted.
+DEBUG_TOOLS = (pathlib.Path(os.environ["XML1_CDP_DATA_ROOT"]) if os.environ.get("XML1_CDP_DATA_ROOT")
+               else pathlib.Path(os.environ["LOCALAPPDATA"]) / "ultimate-legends_debug") / "tools" / "xml1-builder"
 DEV_BUILDER = HERE / "xml1-builder-src.cmd"
 # Real mode's inputs (read only): your own disc image, your XML2 install and a warm prepare cache, from the
 # environment (XML1_REAL_ISO, XML1_REAL_XML2, XML1_REAL_CACHE) or the --iso / --xml2 / --cache options.
@@ -567,6 +570,7 @@ def main():
                                  (fake.make_fake_iso(isos / "truncated.iso", truncated=True), "E_ISO_READ", "could not be read to the end"),
                                  (fake.make_fake_iso(isos / "demo.iso", incomplete=True), "E_ISO_INCOMPLETE", "Missing: z/assetsfb.zip"),
                                  (isos / "gone.iso", "E_ISO_NOT_FOUND", "was not found")):
+            wait_for(lambda: test.exists(".xml1-setup [data-field='iso']"), 10)  # the wizard re-renders after Back
             test.set_input(".xml1-setup [data-field='iso']", str(iso))
             test.click(".xml1-setup [data-act='check']")
             wait_for(lambda: test.exists(".xml1-setup .xml1-error") or test.exists(".xml1-setup [data-act='build']"), 120 if real else 20)

@@ -414,6 +414,136 @@
                 turnOff: 'Turn test mode off',
                 saveFailed: 'The test mode setting could not be saved.'
             },
+            // The X-Men Legends page's Character models section (models-view.js): optional model mods the
+            // legends-models tool builds on this PC from games the player owns.
+            models: {
+                title: 'Character models',
+                intro: 'Optional new looks for the heroes, made on this PC from games you own. The port keeps its own animations and gameplay, so co-op and saves are unaffected. Turn it off any time for the original look.',
+                loading: 'Loading character models…',
+                toolMissing: 'The character-model tool is not installed yet. When it is published, the launcher downloads it here the way it gets the builder.',
+                buildFirst: 'Build X-Men Legends first, then choose its character models here.',
+                gameRunning: 'X-Men Legends is running: close it to change its character models.',
+                buildRunning: 'A build is running: change the character models when it has finished.',
+                appearance: 'Appearance',
+                suggested: 'Suggested',
+                more: 'More',
+                mode: {
+                    off: 'Off',
+                    community: 'Community pack',
+                    upgraded: 'Upgraded',
+                    sharpen: 'Sharpened classic',
+                    xml2: 'XML2 look'
+                },
+                modeBody: {
+                    off: 'The original models. Apply removes the character-model mods this page made (your other mods stay).',
+                    community: 'Community-made skins for every hero, credited to their authors. Needs nothing else: the skins are downloaded from the author’s links (or the mirror below) and fitted to the port on this PC.',
+                    upgraded: 'Per hero the best model your games can give: Marvel: Ultimate Alliance 2, then Marvel: Ultimate Alliance, then the community pack.',
+                    sharpen: 'The port’s own models with sharpened textures. The meshes are unchanged.',
+                    xml2: 'X-Men Legends II’s own models where the port has them.'
+                },
+                upgradedNeeds: 'Upgraded needs Marvel: Ultimate Alliance or Marvel: Ultimate Alliance 2: set one of them up in the launcher to enable it.',
+                installedNone: 'Installed: none (the original models).',
+                installedOn: 'Installed: {{name}}, {{count}} heroes.',
+                installedOff: 'Installed but turned off in the Mods list: {{name}}, {{count}} heroes.',
+                col: {
+                    hero: 'Hero',
+                    source: 'Source',
+                    costume: 'Costume',
+                    status: 'Status'
+                },
+                tier: {
+                    mua2: 'MUA2',
+                    mua1: 'MUA1',
+                    xml2: 'XML2',
+                    community: 'Community',
+                    sharpen: 'Sharpened',
+                    stock: 'Original'
+                },
+                credit: {
+                    by: 'by {{author}}',
+                    mua2: 'From your Marvel: Ultimate Alliance 2 install',
+                    mua1: 'From your Marvel: Ultimate Alliance install',
+                    xml2: 'X-Men Legends II model, already in the port',
+                    community: 'Community skin, credited below',
+                    sharpen: 'The port’s own textures, sharpened'
+                },
+                status: {
+                    stock: 'Original',
+                    planned: 'Planned',
+                    changes: 'Planned',
+                    changesOnApply: 'Changes when you Apply',
+                    converting: 'Converting…',
+                    trying: 'Trying the next source…',
+                    passed: 'Checked',
+                    built: 'Built',
+                    failed: 'Failed',
+                    refused: 'It did not pass the checks.',
+                    gateFailed: 'The {{tier}} model did not pass the checks.'
+                },
+                noCostume: '—',
+                costumeFor: 'Costume for {{hero}}',
+                costumeCount: '{{count}} costumes',
+                noPlan: 'No plan yet.',
+                apply: 'Apply',
+                reapply: 'Rebuild',
+                applyOff: 'Turn off',
+                remove: 'Remove',
+                verify: 'Verify',
+                openMods: 'Open mods folder',
+                cancel: 'Cancel',
+                keepGoing: 'Keep going',
+                cancelling: 'Cancelling…',
+                starting: 'Starting…',
+                heroesDone: '{{done}} of {{total}} heroes',
+                cancelTitle: 'Cancel the character models?',
+                cancelBody: 'The models you had before stay as they were.',
+                cancelled: 'Cancelled. The models you had before are unchanged.',
+                removeTitle: 'Remove the character models?',
+                removeBody: 'The heroes go back to their original models. Your other mods stay.',
+                removed: 'Removed. The heroes have their original models.',
+                applied: '{{count}} heroes have their new models. Restart the game to see them.',
+                appliedPartial: '{{count}} heroes have their new models; {{stock}} kept the original (see Status). Restart the game to see them.',
+                restartNote: 'The game reads its mods when it starts: restart it after a change.',
+                verifyOk: 'The character models are intact ({{count}} files).',
+                verifyFailed: '{{count}} files of the character models are missing or changed. Rebuild to repair them.',
+                details: 'Details',
+                downloads: 'Downloads',
+                downloadSource: {
+                    mirror: 'from the mirror',
+                    author: 'from the author’s link'
+                },
+                credits: 'Credits',
+                creditsAfterApply: 'The community skins are made by their authors. Their full credits appear here once the pack is built.',
+                mirror: 'Download source',
+                mirrorBody: 'Community skins are downloaded from this mirror first, then from the author’s own MediaFire links. Every file is checked against its SHA-256 before it is used.',
+                mirrorDefault: 'Default mirror (not published yet): the author’s links',
+                mirrorSave: 'Save',
+                mirrorSaved: 'Mirror saved.',
+                mirrorReset: 'Back to the default download source.',
+                mirrorInvalid: 'The mirror must be an https:// address.',
+                saveFailed: 'The choice could not be saved.',
+                exit: {
+                    ok: 'Done.',
+                    partial: 'Some heroes kept their original models.',
+                    nothing: 'No hero passed the checks, so nothing was changed.',
+                    missing_input: 'Something the tool needs is missing.',
+                    download: 'A community skin could not be downloaded or did not match its checksum.',
+                    verify_mismatch: 'Some files are missing or changed.',
+                    unsafe: 'The tool refused to write into a folder it did not make.',
+                    usage: 'The tool refused the request.',
+                    bug: 'The tool stopped with an error.',
+                    cancelled: 'Cancelled.',
+                    unknown: 'The tool stopped unexpectedly (exit code {{code}}).'
+                },
+                errors: {
+                    L_TOOL_MISSING: 'The character-model tool is not installed.',
+                    L_NOT_BUILT: 'Build X-Men Legends first.',
+                    L_GAME_RUNNING: 'Close X-Men Legends first.',
+                    L_BUILD_RUNNING: 'Wait for the X-Men Legends build to finish.',
+                    L_BUSY: 'The character-model tool is already running.',
+                    L_USAGE: 'That choice is not valid.'
+                }
+            },
             // The X-Men Legends page's Online section (online-view.js): hosting and joining through the
             // XML2 Fix's online service, and what each of its states and errors means.
             online: {

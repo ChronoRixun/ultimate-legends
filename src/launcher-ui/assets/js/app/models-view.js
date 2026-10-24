@@ -336,6 +336,7 @@
         if (s.refreshing) return s.refreshing;
         s.refreshing = (async () => {
             s.loading = true;
+            if (!(s.job && s.job.active)) s.outcome = null;
             render(gameId);
             await loadStatus(gameId);
             if (ready(s) && !(s.job && s.job.active) && !s.status.busy) {
@@ -417,12 +418,22 @@
         }).map(row => row.name || row.hero);
     }
 
+    function portRefused(s) {
+        const port = s.scan && s.scan.installs && s.scan.installs.port;
+        return !!(port && port.found === false);
+    }
+
     function blockedReason(s) {
         if (!s.status) return t('models.loading');
         if (!s.status.tool || !s.status.tool.found) return t('models.toolMissing');
         if (!s.status.port || !s.status.port.built) return t('models.buildFirst');
         if (s.status.port.running) return t('models.gameRunning');
         if (s.status.xml1Busy || (window.Xml1Port && window.Xml1Port.isWorking && window.Xml1Port.isWorking())) return t('models.buildRunning');
+        const port = s.scan && s.scan.installs && s.scan.installs.port;
+        if (port && port.found === false) {
+            const problems = Array.isArray(port.problems) ? port.problems.filter(Boolean).join('; ') : '';
+            return t('models.portRefused', { problems: problems || t('models.portRefusedUnknown') });
+        }
         return '';
     }
 
@@ -866,7 +877,7 @@
                     ${verifyHTML(s)}
                     ${downloadsHTML(s.job)}
                     ${warningsHTML(s.job)}
-                    ${mode !== 'off' ? (s.plan ? tableHTML(s, disabled) : `<div class="ul-display-empty">${escapeHtml(s.loading ? t('models.loading') : t('models.noPlan'))}</div>`) : ''}
+                    ${mode !== 'off' && !portRefused(s) ? (s.plan ? tableHTML(s, disabled) : `<div class="ul-display-empty">${escapeHtml(s.loading ? t('models.loading') : t('models.noPlan'))}</div>`) : ''}
                     <p class="ul-models-note is-muted">${escapeHtml(t('models.restartNote'))}</p>
                     ${creditsHTML(s)}
                     ${mirrorHTML(s, working)}

@@ -460,6 +460,27 @@ test('models: offline mode - skins already downloaded are fine', async () => {
     assert.ok(!p.document.querySelector('[data-act="apply"]').disabled);
 });
 
+test("models: the tool's own refusal of the port folder is shown, with no table and no Apply", async () => {
+    const backend = new Backend();
+    const scan = backend.script.bind(backend);
+    backend.script = request => {
+        if (request.command !== 'scan') return scan(request);
+        const result = scanResult();
+        result.installs.port = { found: false, path: PORT, flavour: '', problems: ['not a Legends Classic build (missing stock skins for beast)'] };
+        return { lines: [ev('result', result)], exit: 0 };
+    };
+    const p = page({ scripts: ['core/utils.js', 'core/i18n.js', 'app/models-view.js'], body: '<div id="xml1-models-panel"></div>', backend });
+    p.window.ModelsView.render('xml1');
+    p.window.ModelsView.refresh('xml1');
+    await p.clock.until(() => !p.window.ModelsView._state('xml1').refreshing, 20000, 'refresh');
+    const note = p.document.querySelector('.ul-models-blocked');
+    assert.ok(note);
+    assert.match(note.textContent, /missing stock skins for beast/);
+    assert.match(note.textContent, /Rebuild the game/);
+    assert.equal(p.document.querySelector('.ul-models-table'), null);
+    assert.ok(p.document.querySelector('[data-act="apply"]').disabled);
+});
+
 test('models: nothing writes while the game runs', async () => {
     const p = await open({ running: true });
     assert.ok(p.$('.ul-models-blocked'));

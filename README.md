@@ -150,7 +150,8 @@ Ultimate Legends sends no telemetry. It only connects to the internet in these c
   writes the new game folder on your PC.
 - When you Apply the **Community pack** (or Upgraded, for heroes that use it) under Character models, the
   legends-models tool downloads those community skins from the author's own links, or from the mirror set under
-  **Download source**, and checks each file's SHA-256. The other appearances download nothing.
+  **Download source**, and checks each file's SHA-256. The other appearances download nothing. With `-offline`,
+  Apply waits while a planned community skin is not downloaded yet.
 - When the launcher starts (and every six hours while it runs, or when you press Check for updates in Settings), it
   asks GitHub's API for the latest [Ultimate Legends release](https://github.com/ChronoRixun/ultimate-legends/releases).
   It downloads that release only when you press Update. `-offline` turns the check off.

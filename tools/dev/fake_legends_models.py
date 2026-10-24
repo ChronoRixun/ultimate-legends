@@ -134,6 +134,11 @@ def costumes_of(args):
     return out
 
 
+def archive_cache(args, hero, costume):
+    """Where a "downloaded" community archive is remembered (<work>\\community-cache, like the tool's)."""
+    return Path(args.work or '.') / 'community-cache' / 'archives' / f'{hero}-{costume.replace(" ", "_")}.fake'
+
+
 def cmd_scan(args):
     inst = installs(args)
     heroes = {}
@@ -147,7 +152,7 @@ def cmd_scan(args):
             if tier == 'community' and costumes:
                 item['author'] = AUTHOR
                 item['costume_info'] = [dict(id=c, label=c, author=AUTHOR) for c in costumes]
-                item['cached'] = {c: False for c in costumes}
+                item['cached'] = {c: archive_cache(args, key, c).is_file() for c in costumes}
             entry[tier] = item
         heroes[key] = dict(name=name, skin=skin, tiers=entry)
     emit('result', installs=inst, steam_libraries=[], helpers=dict(python=sys.executable, python_modules={}, sampler=None,
@@ -290,8 +295,10 @@ def cmd_build(args):
         for attempt in order:
             src = source if attempt == tier else tiers[attempt][0]
             emit('stage', stage='convert', message=f'{name}: {attempt} {src}', hero=hero, tier=attempt, source=src)
-            if attempt == 'community':
+            if attempt == 'community' and not archive_cache(args, hero, src).is_file():
                 data = f'fake archive {hero} {src}'.encode()
+                archive_cache(args, hero, src).parent.mkdir(parents=True, exist_ok=True)
+                archive_cache(args, hero, src).write_bytes(data)
                 emit('download', archive=f'{name.replace(" ", "")}-{src.replace(" ", "")}.rar', source='mirror' if args.mirror else 'author',
                      bytes=1048576 + 4096 * i, sha256=hashlib.sha256(data).hexdigest())
             emit('engine', engine=attempt, script='fake', log=str(work / f'{hero}-{attempt}.log'))

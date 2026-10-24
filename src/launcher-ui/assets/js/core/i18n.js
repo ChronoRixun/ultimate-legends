@@ -504,6 +504,7 @@
                 applied: '{{count}} heroes have their new models. Restart the game to see them.',
                 appliedPartial: '{{count}} heroes have their new models; {{stock}} kept the original (see Status). Restart the game to see them.',
                 restartNote: 'The game reads its mods when it starts: restart it after a change.',
+                offlineNeedsDownload: 'Offline mode: {{count}} of the community skins planned here are not downloaded yet. Turn offline mode off to Apply, or pick another appearance.',
                 verifyOk: 'The character models are intact ({{count}} files).',
                 verifyFailed: '{{count}} files of the character models are missing or changed. Rebuild to repair them.',
                 details: 'Details',

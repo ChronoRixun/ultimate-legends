@@ -405,6 +405,18 @@
 
     // ---- actions ----
 
+    // In offline mode (-offline), the planned community skins the tool has not downloaded yet (scan:
+    // tiers.community.cached per costume). Apply waits for those to be none: the tool would download them.
+    function missingDownloads(s) {
+        if (!window.IS_OFFLINE || !s.plan || !s.scan || !s.scan.heroes) return [];
+        return (s.plan.rows || []).filter(row => {
+            if (row.tier !== 'community') return false;
+            const tiers = s.scan.heroes[row.hero] && s.scan.heroes[row.hero].tiers;
+            const cached = tiers && tiers.community && tiers.community.cached;
+            return !(cached && cached[row.source] === true);
+        }).map(row => row.name || row.hero);
+    }
+
     function blockedReason(s) {
         if (!s.status) return t('models.loading');
         if (!s.status.tool || !s.status.tool.found) return t('models.toolMissing');
@@ -443,6 +455,7 @@
         if (blockedReason(s) || (s.job && s.job.active)) return;
         const mode = currentMode(s);
         if (mode === 'off') return removeAll(gameId, false);
+        if (missingDownloads(s).length) return;
 
         s.outcome = null;
         s.job = newRun('build', { mode });
@@ -468,6 +481,9 @@
         }
         s.chosen = null;
         await loadStatus(gameId);
+        // What is downloaded now (scan: community cached) changed with the build.
+        const scan = await runTool(gameId, newRun('scan'));
+        if (resultOf(scan)) s.scan = resultOf(scan);
         await verifyInstalled(gameId, false);
         await loadCredits(gameId);
         render(gameId);
@@ -829,7 +845,8 @@
             actions.push(button('cancel', t('models.cancel'), s.job.cancelRequested));
         } else {
             const applyLabel = mode === 'off' ? t('models.applyOff') : group && group.enabled && group.mode === mode ? t('models.reapply') : t('models.apply');
-            actions.push(button('apply', applyLabel, disabled || (mode === 'off' && !allGroups(s).length), ' data-primary="true"'));
+            const offlineWait = mode !== 'off' && missingDownloads(s).length > 0;
+            actions.push(button('apply', applyLabel, disabled || offlineWait || (mode === 'off' && !allGroups(s).length), ' data-primary="true"'));
             if (allGroups(s).length) actions.push(button('remove', t('models.remove'), disabled));
             if (group) actions.push(button('verify', t('models.verify'), disabled));
             if (s.status.modsFolder) actions.push(button('open-mods', t('models.openMods'), false));
@@ -843,6 +860,7 @@
                     <div class="ul-models-installed">${escapeHtml(installedLine)}</div>
                     ${modesHTML(s, disabled)}
                     <div class="xml1-actions ul-models-actions">${actions.join('')}</div>
+                    ${mode !== 'off' && missingDownloads(s).length ? `<div class="xml1-note is-warn ul-models-offline">${escapeHtml(t('models.offlineNeedsDownload', { count: missingDownloads(s).length }))}</div>` : ''}
                     ${progressHTML(s.job)}
                     ${outcomeHTML(s)}
                     ${verifyHTML(s)}

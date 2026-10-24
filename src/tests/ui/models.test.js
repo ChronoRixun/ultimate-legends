@@ -201,10 +201,10 @@ class Backend {
     }
 }
 
-async function open(options = {}, { refresh = true } = {}) {
+async function open(options = {}, { refresh = true, offline = false } = {}) {
     const backend = new Backend(options);
     const body = '<div id="xml1-page"><div id="xml1-models-panel"></div></div>';
-    const p = page({ scripts: ['core/utils.js', 'core/i18n.js', 'app/models-view.js'], body, backend });
+    const p = page({ scripts: ['core/utils.js', 'core/i18n.js', 'app/models-view.js'], body, backend, offline });
     p.window.ModelsView.render('xml1');
     await p.clock.advance(0);
     if (refresh) {
@@ -425,6 +425,39 @@ test('models: Off and Remove take every legends-models group out, after a confir
     assert.deepEqual(p.backend.saves.pop(), { mode: 'off' });
     assert.match(p.$('.ul-models-installed').textContent, /none/);
     assert.equal(p.act('remove'), null);
+});
+
+test('models: offline mode - Apply waits while community skins are not downloaded yet', async () => {
+    const p = await open({}, { offline: true });
+    assert.ok(p.$('.ul-models-offline'), 'the offline note');
+    assert.match(p.$('.ul-models-offline').textContent, /2 of the community skins/);
+    assert.ok(p.act('apply').disabled);
+    p.act('apply').click();
+    await p.settle();
+    assert.equal(p.backend.commands('build').length, 0, 'nothing downloads');
+    // Sharpened classic downloads nothing: Apply works offline
+    p.$('.ul-models-mode[data-mode="sharpen"]').click();
+    await p.settle();
+    assert.equal(p.$('.ul-models-offline'), null);
+    assert.ok(!p.act('apply').disabled);
+});
+
+test('models: offline mode - skins already downloaded are fine', async () => {
+    const backend = new Backend();
+    const scan = backend.script.bind(backend);
+    backend.script = request => {
+        if (request.command !== 'scan') return scan(request);
+        const result = scanResult();
+        result.heroes.beast.tiers.community.cached = { Classic: true };
+        result.heroes.wolverine.tiers.community.cached = { Original: true, 'Ultimate XML1': false };
+        return { lines: [ev('result', result)], exit: 0 };
+    };
+    const p = page({ scripts: ['core/utils.js', 'core/i18n.js', 'app/models-view.js'], body: '<div id="xml1-models-panel"></div>', backend, offline: true });
+    p.window.ModelsView.render('xml1');
+    p.window.ModelsView.refresh('xml1');
+    await p.clock.until(() => !p.window.ModelsView._state('xml1').refreshing, 20000, 'refresh');
+    assert.equal(p.document.querySelector('.ul-models-offline'), null);
+    assert.ok(!p.document.querySelector('[data-act="apply"]').disabled);
 });
 
 test('models: nothing writes while the game runs', async () => {

@@ -41,6 +41,7 @@ def main():
 
     launcher = Launcher()
     failures = 0
+    offline = False
 
     def check(ok, label):
         nonlocal failures
@@ -120,6 +121,11 @@ def main():
             launcher.command("set-game-property", {"game": "xml1", "suffix": suffix, "value": value})
         launcher.command("set-game-property", {"game": "mua", "suffix": "install", "value": ""})
 
+        # The launcher may run with -offline (the sandbox does): the page's offline rule is checked on its
+        # own below; the rest runs as online.
+        offline = js("!!window.IS_OFFLINE")
+        js("window.IS_OFFLINE = false; true")
+
         print("the tool not installed")
         open_page()
         status = launcher.command("get-models-status")
@@ -130,6 +136,7 @@ def main():
         shot("tool-missing")
         knobs_file = pathlib.Path(status["workFolder"]) / "fake-knobs.json"
         knobs_file.parent.mkdir(parents=True, exist_ok=True)
+        shutil.rmtree(knobs_file.parent / "community-cache", ignore_errors=True)  # a clean run: nothing downloaded yet
         knobs(DELAY=0.05)
 
         print("the Community pack, suggested")
@@ -182,6 +189,15 @@ def main():
         click('.ul-models-mode[data-mode="community"]')
         time.sleep(0.3)
         idle()
+
+        print("offline mode")
+        js("window.IS_OFFLINE = true; window.ModelsView.refresh('xml1'); true")
+        idle()
+        check(q(".ul-models-offline") and "not downloaded yet" in (text(".ul-models-offline") or ""), "offline: the note")
+        check(q('[data-act="apply"]', "el.disabled"), "offline: Apply waits for the downloads")
+        js("window.IS_OFFLINE = false; window.ModelsView.refresh('xml1'); true")
+        idle()
+        check(not q(".ul-models-offline"), "online again: no note")
 
         print("a costume")
         q('.ul-models-row[data-hero="wolverine"] select', "(el.value = 'Variant 07', el.dispatchEvent(new Event('change', {bubbles: true})), true)")
@@ -297,6 +313,7 @@ def main():
         time.sleep(0.4)
         check(launcher.command("get-game-property", {"game": "xml1", "suffix": "models-mirror"}) == "https://mirror.example/legends-models/", "https saved")
         knobs(DELAY=0.02, LOG="")
+        shutil.rmtree(knobs_file.parent / "community-cache", ignore_errors=True)  # downloaded again, from the mirror
         click('[data-act="apply"]')
         time.sleep(0.5)
         idle(60)
@@ -321,6 +338,13 @@ def main():
         shot("download-failed")
         knobs(DELAY=0.02)
 
+        print("offline mode, skins already downloaded")
+        js("window.IS_OFFLINE = true; window.ModelsView.refresh('xml1'); true")
+        idle()
+        check(not q(".ul-models-offline") and not q('[data-act="apply"]', "el.disabled"), "nothing to download: Apply works offline")
+        js(f"window.IS_OFFLINE = {'true' if offline else 'false'}; window.ModelsView.refresh('xml1'); true")
+        idle()
+
         print("Off")
         click('.ul-models-mode[data-mode="off"]')
         time.sleep(0.3)
@@ -339,11 +363,14 @@ def main():
         check(launcher.command("get-game-property", {"game": "xml1", "suffix": "models-mode"}) == "off", "mode off stored")
         shot("off")
     finally:
+        js(f"window.IS_OFFLINE = {'true' if offline else 'false'}; true")
         for suffix, value in originals.items():
             launcher.command("set-game-property", {"game": "xml1", "suffix": suffix, "value": value or ""})
         launcher.command("set-game-property", {"game": "mua", "suffix": "install", "value": original_mua or ""})
         if knobs_file and knobs_file.exists():
             knobs_file.unlink()
+            shutil.rmtree(knobs_file.parent / "community-cache", ignore_errors=True)
+            shutil.rmtree(knobs_file.parent / "ports", ignore_errors=True)
         shutil.rmtree(root, ignore_errors=True)
 
     print(f"\n{'PASSED' if not failures else 'FAILED'} ({failures} failure{'s' if failures != 1 else ''})")

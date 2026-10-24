@@ -336,7 +336,10 @@
         if (s.refreshing) return s.refreshing;
         s.refreshing = (async () => {
             s.loading = true;
-            if (!(s.job && s.job.active)) s.outcome = null;
+            if (!(s.job && s.job.active)) {
+                s.outcome = null;
+                s.job = null;
+            }
             render(gameId);
             await loadStatus(gameId);
             if (ready(s) && !(s.job && s.job.active) && !s.status.busy) {
@@ -443,12 +446,14 @@
         if (s.job && s.job.active) return;
         s.chosen = mode;
         s.outcome = null;
+        s.job = null; // the last run's statuses belong to the plan it ran
         render(gameId);
         await plan(gameId);
     }
 
     async function chooseCostume(gameId, hero, tier, costume) {
         const s = getState(gameId);
+        if (s.job && !s.job.active) s.job = null;
         const costumes = Object.assign({}, (s.status && s.status.settings && s.status.settings.costumes) || {});
         costumes[hero] = tier ? `${tier}:${costume}` : costume;
         try {

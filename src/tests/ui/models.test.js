@@ -364,6 +364,17 @@ test('models: Apply builds with progress, per-hero statuses, downloads and credi
     assert.equal(p.$('[data-act="apply"]').textContent.trim(), 'Rebuild');
 });
 
+test("models: after a build, another appearance's plan shows its own statuses, not the build's", async () => {
+    const p = await open();
+    p.act('apply').click();
+    await p.settle();
+    assert.equal(p.statusOf('wolverine'), 'failed');
+    p.$('.ul-models-mode[data-mode="sharpen"]').click();
+    await p.settle();
+    assert.equal(p.statusOf('wolverine'), 'planned', 'the Sharpened plan, not the community build');
+    assert.equal(p.$('.ul-models-downloads'), null);
+});
+
 test('models: Cancel asks, then kills the run; the previous models stay', async () => {
     const p = await open();
     p.backend.hold = true;

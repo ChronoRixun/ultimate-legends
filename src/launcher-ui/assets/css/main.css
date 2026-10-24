@@ -4562,7 +4562,7 @@ html[data-reduce-motion] .ul-online-spinner { animation: none; }
 .ul-models-installed { font-size: 12.5px; color: var(--text-muted); }
 .ul-models-modes { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
 .ul-display .toggle-group.ul-models-mode-group { width: auto; }
-.ul-display .toggle-btn.ul-models-mode { display: inline-flex; align-items: center; gap: 8px; min-width: 0; padding: 8px 14px; }
+.ul-display .toggle-btn.ul-models-mode { flex: none; display: inline-flex; align-items: center; gap: 8px; min-width: 0; padding: 8px 14px; white-space: nowrap; font-size: 12px; }
 .ul-display .toggle-btn.ul-models-mode:disabled { opacity: 0.4; cursor: default; }
 .ul-models-mode-tag { padding: 1px 7px; border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; background: rgba(0, 210, 106, 0.16); color: #6ff0a8; }
 .ul-models-more { display: flex; align-items: center; }
@@ -4573,7 +4573,7 @@ html[data-reduce-motion] .ul-online-spinner { animation: none; }
 .ul-models-note.is-muted { color: var(--text-muted); }
 .ul-models-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; background: var(--surface-lo); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
 .ul-models-table th { text-align: left; padding: 8px 12px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border); }
-.ul-models-table td { padding: 8px 12px; vertical-align: middle; border-bottom: 1px solid var(--border); }
+.ul-models-table td { padding: 6px 12px; vertical-align: middle; border-bottom: 1px solid var(--border); }
 .ul-models-table tr:last-child td { border-bottom: none; }
 .ul-models-hero { color: #fff; font-weight: 600; white-space: nowrap; }
 .ul-models-tier, .ul-models-status-td { display: table-cell; }
@@ -4589,6 +4589,7 @@ html[data-reduce-motion] .ul-online-spinner { animation: none; }
 .ul-models-costume-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .ul-display .setting-select.ul-models-costume { min-width: 200px; padding-top: 6px; padding-bottom: 6px; }
 .ul-models-count { font-size: 11px; color: var(--text-dim); }
+.ul-models-costume-meta { display: flex; flex-wrap: wrap; gap: 0 8px; align-items: baseline; }
 .ul-models-credit { font-size: 11.5px; color: var(--text-muted); }
 .ul-models-costume-name { color: #fff; }
 .ul-models-none { color: var(--text-dim); }

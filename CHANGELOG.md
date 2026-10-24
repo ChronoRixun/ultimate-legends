@@ -3,6 +3,20 @@
 The launcher's version comes from its release tag (`v0.3.2`): premake reads it with `git describe` when it
 generates the project, so a release only needs this entry and the tag.
 
+## Unreleased
+
+### Added
+- **Character models for X-Men Legends (Legends Classic port).** A Character models section on the port's page runs
+  the legends-models tool (LAUNCHER-API v1) against the player's own installs: Off / Community pack (suggested) /
+  Upgraded (greyed until Marvel: Ultimate Alliance or Marvel: Ultimate Alliance 2 is set up) and, under More,
+  Sharpened classic / XML2 look; a per-hero table (source tier and why, a costume dropdown with its author or source,
+  status planned / built / failed with the reason / original); Apply with a per-hero progress bar, downloads with
+  file, size, source and SHA-256, and a plain-words outcome; Cancel; Remove / Off; Verify when the page opens; the
+  built pack's CREDITS.md whenever community skins are used; a Download source (mirror) field. The tool is found in
+  `toolsegends-models` like the builder (it is not published yet: the page says so); Debug builds take a
+  `models-tool` property (`tools/dev/fake-legends-models.cmd` for the tests). While it runs, a port build, Uninstall
+  and the Mods list's changes wait; it refuses to write while the game or a build runs.
+
 ## 0.4.0 (2026-10-23)
 
 A normal stable release with the Online section and the Beta update channel (below). Online play needs XML2 Fix 1.8.0

@@ -290,6 +290,19 @@ test('models: Upgraded is greyed with a reason until MUA1 or MUA2 is set up', as
     assert.match(q.row('wolverine').querySelector('.ul-models-credit').textContent, /Marvel: Ultimate Alliance install/);
 });
 
+test('models: setting up MUA1 later scans again on the next open, and Upgraded comes on', async () => {
+    const p = await open();
+    assert.ok(p.$('.ul-models-mode[data-mode="upgraded"]').disabled);
+    p.window.ModelsView.refresh('xml1');
+    await p.settle();
+    assert.equal(p.backend.commands('scan').length, 1, 'nothing changed: no second scan');
+    p.backend.mua1 = true;
+    p.window.ModelsView.refresh('xml1');
+    await p.settle();
+    assert.equal(p.backend.commands('scan').length, 2, 'the MUA1 folder is new: scanned again');
+    assert.ok(!p.$('.ul-models-mode[data-mode="upgraded"]').disabled);
+});
+
 test('models: More holds Sharpened classic and XML2 look', async () => {
     const p = await open();
     const more = p.$('details.ul-models-more');
@@ -439,6 +452,24 @@ test('models: the mirror field takes an https address only', async () => {
     await p.settle();
     assert.deepEqual(p.backend.saves.pop(), { mirror: 'https://example.com/packs/' });
     assert.equal(p.$('.ul-models-mirror-input').value, 'https://example.com/packs/');
+});
+
+test('models: per-hero CREDITS.md files are shown as one text, each opening once', async () => {
+    const installed = ['Beast', 'Storm'].map(name => ({ folder: `Community-${name}`, group: 'Models-Community', mode: 'community', listed: true,
+        enabled: true, credits: true, characters: [{ hero: name.toLowerCase(), tier: 'community', source: 'Classic' }] }));
+    const p = await open({ installed }, { refresh: false });
+    p.backend.handle = (orig => (command, data) => command === 'get-models-credits'
+        ? { credits: [
+            { folder: 'Community-Beast', text: '# Credits\r\n\r\nCommunity skins: BaconWizard17.\r\n\r\n## Beast\r\n\r\n- Raven Software: XML1/XML2 Beast assets\r\n' },
+            { folder: 'Community-Storm', text: '# Credits\n\nCommunity skins: BaconWizard17.\n\n## Storm\n\n- Teancum: Storm skin\n' }] }
+        : orig.call(p.backend, command, data))(p.backend.handle);
+    p.window.ModelsView.refresh('xml1');
+    await p.settle();
+    const texts = p.$$('.ul-models-credits-text');
+    assert.equal(texts.length, 1);
+    const text = texts[0].textContent;
+    assert.equal(text.split('# Credits').length - 1, 1, 'the opening once');
+    assert.match(text, /## Beast[\s\S]*Raven Software[\s\S]*## Storm[\s\S]*Teancum/);
 });
 
 test('models: events of an unexpected shape are ignored, an other API version is noticed', async () => {

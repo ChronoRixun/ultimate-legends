@@ -113,7 +113,7 @@ namespace commands::models_commands
     void register_commands(cef::cef_ui& cef_ui, command_context&)
     {
         // { tool: {found, version, dev, path}, port: {path, built, running}, installs: {mua1, mua2},
-        //   settings: {mode, mirror, costumes}, defaultMirror, modsFolder, installed: [{folder, group,
+        //   settings: {mode, mirror, costumes}, defaultMirror, workFolder, modsFolder, installed: [{folder, group,
         //   mode, enabled, listed, credits, characters: [{hero, tier, source}]}], busy, xml1Busy, job }
         cef_ui.add_command("get-models-status", [](const rapidjson::Value&, rapidjson::Document& response)
         {
@@ -145,6 +145,7 @@ namespace commands::models_commands
             write_settings(models_tool::read_settings(), settings, allocator);
             response.AddMember("settings", settings, allocator);
             response.AddMember("defaultMirror", make_string(models_tool::default_mirror(), allocator), allocator);
+            response.AddMember("workFolder", make_string(utils::string::path_to_utf8(models_tool::work_folder()), allocator), allocator);
             response.AddMember("modsFolder", port ? make_string(utils::string::path_to_utf8(*port / L"mods"), allocator)
                                                   : rapidjson::Value(rapidjson::kNullType), allocator);
 

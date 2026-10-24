@@ -55,6 +55,8 @@
                 outcome: null,     // the last build / remove: { kind, text, details }
                 loading: false,
                 refreshing: null,
+                runs: 0,           // tool runs in flight (plan / verify / ... included)
+                acting: 0,         // player actions in flight (handle())
                 mirrorOpen: false
             };
         }
@@ -236,6 +238,15 @@
     // Starts `command` and feeds its events to `job` until it ends. Resolves the finished job.
     async function runTool(gameId, job, payload) {
         const s = getState(gameId);
+        s.runs++;
+        try {
+            return await runToolOnce(gameId, s, job, payload);
+        } finally {
+            s.runs--;
+        }
+    }
+
+    async function runToolOnce(gameId, s, job, payload) {
         let started;
         try {
             started = await run('models-run', Object.assign({ command: job.command }, payload || {}));
@@ -328,9 +339,12 @@
             render(gameId);
             await loadStatus(gameId);
             if (ready(s) && !(s.job && s.job.active) && !s.status.busy) {
-                if (!s.scan || rescan) {
+                // Scan again when the folders the tool reads changed (MUA1 / MUA2 set up or moved, another port).
+                const inputs = JSON.stringify([s.status.port && s.status.port.path, s.status.installs]);
+                if (!s.scan || rescan || s.scanInputs !== inputs) {
                     const scan = await runTool(gameId, newRun('scan'));
                     s.scan = resultOf(scan) || s.scan;
+                    if (resultOf(scan)) s.scanInputs = inputs;
                     if (!resultOf(scan)) s.outcome = { kind: 'error', text: failureText(scan) };
                 }
                 await plan(gameId, false);
@@ -457,6 +471,12 @@
         await verifyInstalled(gameId, false);
         await loadCredits(gameId);
         render(gameId);
+        refreshModsList(gameId);
+    }
+
+    // The Mods list below shows the folders the tool wrote or removed.
+    function refreshModsList(gameId) {
+        if (window.ModsView && window.ModsView.supports(gameId) && document.getElementById(`${gameId}-mods-panel`)) window.ModsView.render(gameId);
     }
 
     // Off: every legends-models group removed (folders and load-order lines), the stock look back.
@@ -495,6 +515,7 @@
         await loadStatus(gameId);
         await plan(gameId, false);
         render(gameId);
+        refreshModsList(gameId);
     }
 
     async function cancel(gameId) {
@@ -583,11 +604,23 @@
             ? `<select class="setting-select ul-models-costume" data-hero="${escapeHtml(row.hero)}" data-tier="${escapeHtml(row.tier)}" data-focus="costume-${escapeHtml(row.hero)}"
                     aria-label="${escapeHtml(t('models.costumeFor', { hero: row.name || row.hero }))}"${disabled ? ' disabled' : ''}>
                     ${costumes.map(item => `<option value="${escapeHtml(item.id)}"${item.id === current.id ? ' selected' : ''}>${escapeHtml(item.label || item.id)}${item.author ? ` · ${escapeHtml(item.author)}` : ''}</option>`).join('')}
-               </select>
-               <span class="ul-models-count">${escapeHtml(t('models.costumeCount', { count: costumes.length }))}</span>`
+               </select>`
             : `<span class="ul-models-costume-name">${escapeHtml(current.label || current.id)}</span>`;
+        const meta = [
+            costumes.length > 1 ? `<span class="ul-models-count">${escapeHtml(t('models.costumeCount', { count: costumes.length }))}</span>` : '',
+            credit ? `<span class="ul-models-credit">${escapeHtml(credit)}</span>` : ''
+        ].join('');
         return `<div class="ul-models-costume-cell">${preview}<div class="ul-models-costume-body">${control}
-                    ${credit ? `<span class="ul-models-credit">${escapeHtml(credit)}</span>` : ''}</div></div>`;
+                    ${meta ? `<div class="ul-models-costume-meta">${meta}</div>` : ''}</div></div>`;
+    }
+
+    // Why this tier, where it matters: a hero that fell back from the mode's first source (the tiers it
+    // skipped and why). The tool's full reason is the badge's tooltip.
+    function whyHTML(s, row) {
+        const skipped = Array.isArray(row.skipped) ? row.skipped.filter(item => item && item.tier && item.reason) : [];
+        if (row.tier === 'stock' || !skipped.length) return '';
+        const text = skipped.map(item => `${tierName(item.tier)}: ${item.reason}`).join(' · ');
+        return `<span class="ul-models-reason">${escapeHtml(text)}</span>`;
     }
 
     function tableHTML(s, disabled) {
@@ -604,8 +637,8 @@
                 <tbody>${rows.map(row => `
                     <tr class="ul-models-row" data-hero="${escapeHtml(row.hero)}" data-tier="${escapeHtml(row.tier)}">
                         <td class="ul-models-hero">${escapeHtml(row.name || row.hero)}</td>
-                        <td class="ul-models-tier"><span class="ul-models-tier-name is-${escapeHtml(row.tier)}">${escapeHtml(tierName(row.tier))}</span>
-                            ${row.tier !== 'stock' && row.reason ? `<span class="ul-models-reason">${escapeHtml(row.reason)}</span>` : ''}</td>
+                        <td class="ul-models-tier"><span class="ul-models-tier-name is-${escapeHtml(row.tier)}" title="${escapeHtml(row.reason || '')}">${escapeHtml(tierName(row.tier))}</span>
+                            ${whyHTML(s, row)}</td>
                         <td class="ul-models-costume-td">${costumeHTML(s, row, disabled)}</td>
                         <td class="ul-models-status-td">${statusHTML(statusOf(s, row))}</td>
                     </tr>`).join('')}
@@ -698,6 +731,25 @@
         return `<div class="xml1-note ${kind} ul-models-outcome">${escapeHtml(outcome.text)}${details}</div>`;
     }
 
+    // Per-hero folders each carry a CREDITS.md: the same opening lines, then that hero's "## Hero" section.
+    // Shown as one text: each distinct opening once, then every section (in folder order).
+    function mergeCredits(entries) {
+        const heads = [];
+        const sections = [];
+        entries.forEach(entry => {
+            const text = String((entry && entry.text) || '').replace(/\r\n/g, '\n').trim();
+            if (!text) return;
+            const at = text.search(/^## /m);
+            const head = (at < 0 ? text : text.slice(0, at)).trim();
+            const rest = at < 0 ? '' : text.slice(at).trim();
+            if (head && !heads.includes(head)) heads.push(head);
+            rest.split(/\n(?=## )/).map(part => part.trim()).filter(Boolean).forEach(part => {
+                if (!sections.includes(part)) sections.push(part);
+            });
+        });
+        return heads.length || sections.length ? [heads.concat(sections).join('\n\n')] : [];
+    }
+
     // Community tier in use (planned or built): its credits, from the built pack's CREDITS.md.
     function communityInUse(s) {
         const rows = (s.plan && s.plan.rows) || [];
@@ -708,9 +760,9 @@
 
     function creditsHTML(s) {
         if (!communityInUse(s)) return '';
-        const credits = s.credits || [];
+        const credits = mergeCredits(s.credits || []);
         const body = credits.length
-            ? credits.map(entry => `<div class="ul-models-credits-text" data-folder="${escapeHtml(entry.folder)}">${escapeHtml(entry.text)}</div>`).join('')
+            ? credits.map(text => `<div class="ul-models-credits-text">${escapeHtml(text)}</div>`).join('')
             : `<div class="ul-models-note is-muted">${escapeHtml(t('models.creditsAfterApply'))}</div>`;
         return `
             <section class="ul-models-credits">
@@ -790,13 +842,13 @@
                 ${tool.found && s.status.port && s.status.port.built ? `
                     <div class="ul-models-installed">${escapeHtml(installedLine)}</div>
                     ${modesHTML(s, disabled)}
+                    <div class="xml1-actions ul-models-actions">${actions.join('')}</div>
                     ${progressHTML(s.job)}
                     ${outcomeHTML(s)}
                     ${verifyHTML(s)}
-                    ${mode !== 'off' ? (s.plan ? tableHTML(s, disabled) : `<div class="ul-display-empty">${escapeHtml(s.loading ? t('models.loading') : t('models.noPlan'))}</div>`) : ''}
                     ${downloadsHTML(s.job)}
                     ${warningsHTML(s.job)}
-                    <div class="xml1-actions ul-models-actions">${actions.join('')}</div>
+                    ${mode !== 'off' ? (s.plan ? tableHTML(s, disabled) : `<div class="ul-display-empty">${escapeHtml(s.loading ? t('models.loading') : t('models.noPlan'))}</div>`) : ''}
                     <p class="ul-models-note is-muted">${escapeHtml(t('models.restartNote'))}</p>
                     ${creditsHTML(s)}
                     ${mirrorHTML(s, working)}
@@ -804,13 +856,13 @@
             </div>`;
 
         host.querySelectorAll('.ul-models-mode').forEach(element => {
-            element.addEventListener('click', () => choose(gameId, element.dataset.mode));
+            element.addEventListener('click', () => handle(gameId, () => choose(gameId, element.dataset.mode)));
         });
         host.querySelectorAll('.ul-models-costume').forEach(element => {
-            element.addEventListener('change', () => chooseCostume(gameId, element.dataset.hero, element.dataset.tier, element.value));
+            element.addEventListener('change', () => handle(gameId, () => chooseCostume(gameId, element.dataset.hero, element.dataset.tier, element.value)));
         });
         host.querySelectorAll('[data-act]').forEach(element => {
-            element.addEventListener('click', () => act(gameId, element.dataset.act));
+            element.addEventListener('click', () => handle(gameId, () => act(gameId, element.dataset.act)));
         });
         const mirror = host.querySelector('.ul-models-mirror');
         if (mirror) mirror.addEventListener('toggle', () => { s.mirrorOpen = mirror.open; });
@@ -824,6 +876,19 @@
     // During a run: redraw at most every poll (the run's events change the progress and the table).
     function update(gameId) {
         render(gameId);
+    }
+
+    // A player's action, counted while it runs (s.acting) so a test can wait for the page to settle.
+    async function handle(gameId, work) {
+        const s = getState(gameId);
+        s.acting++;
+        try {
+            await work();
+        } catch (error) {
+            console.error(error);
+        } finally {
+            s.acting--;
+        }
     }
 
     async function act(gameId, action) {

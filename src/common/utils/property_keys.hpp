@@ -46,4 +46,13 @@ namespace property_keys
     constexpr const char* DEV_BUILDER_EXE = "builder-exe";
     constexpr const char* DEV_PATCH_MANIFEST = "patch-manifest";
     constexpr const char* DEV_PATCH_RELEASE = "patch-release";
+
+    // The port's Character models section (models/models_tool.hpp): the appearance last applied or
+    // chosen ("off", "community", "upgraded", "xml2", "sharpen"), the community pack mirror (an
+    // https:// URL; empty = the default) and the per-hero costume choices (JSON {"hero": "tier:ID"}).
+    constexpr const char* MODELS_MODE = "models-mode";
+    constexpr const char* MODELS_MIRROR = "models-mirror";
+    constexpr const char* MODELS_COSTUMES = "models-costumes";
+    // Debug builds only (the CDP tests): a program to run instead of an installed legends-models.exe.
+    constexpr const char* DEV_MODELS_TOOL = "models-tool";
 }

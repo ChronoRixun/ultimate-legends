@@ -2,6 +2,7 @@
 #include "xml1_commands.hpp"
 #include "cef/cef_ui.hpp"
 #include "xml1/xml1_port.hpp"
+#include "models/models_tool.hpp"
 
 #include <utils/string.hpp>
 
@@ -135,6 +136,11 @@ namespace commands::xml1_commands
             out.AddMember("logTail", tail, allocator);
         }
 
+        xml1_port::failure models_running()
+        {
+            return {"L_MODELS_RUNNING", "Wait for the character models to finish."};
+        }
+
         // { success, id } or { success: false, code, error }.
         void write_started(rapidjson::Document& response, const std::optional<int>& id, const xml1_port::failure& error)
         {
@@ -218,7 +224,8 @@ namespace commands::xml1_commands
             options.keep_cache = json_bool(value, "keepCache", true);
             options.link_base = json_bool(value, "linkBase", false);
             xml1_port::failure error{};
-            const auto id = xml1_port::start_build(options, error);
+            // The character-model tool reads the port's Actors while it runs and writes its mods folder.
+            const auto id = models_tool::busy() ? (error = models_running(), std::optional<int>{}) : xml1_port::start_build(options, error);
             write_started(response, id, error);
         });
 
@@ -249,7 +256,8 @@ namespace commands::xml1_commands
         cef_ui.add_command("xml1-clean", [](const rapidjson::Value& value, rapidjson::Document& response)
         {
             xml1_port::failure error{};
-            const auto id = xml1_port::start_clean(json_bool(value, "mods", false), json_bool(value, "cache", false), error);
+            const auto id = models_tool::busy() ? (error = models_running(), std::optional<int>{})
+                                                : xml1_port::start_clean(json_bool(value, "mods", false), json_bool(value, "cache", false), error);
             write_started(response, id, error);
         });
 

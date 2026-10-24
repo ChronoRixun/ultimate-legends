@@ -2,6 +2,7 @@
 #include "mod_commands.hpp"
 #include "cef/cef_ui.hpp"
 #include "mods/game_mods.hpp"
+#include "models/models_tool.hpp"
 
 #include <utils/com.hpp>
 #include <utils/io.hpp>
@@ -62,6 +63,12 @@ namespace commands::mod_commands
             if (!path || !utils::io::directory_exists(*path))
             {
                 set_result(response, false, "Set up the game first.");
+                return std::nullopt;
+            }
+            // The character-model tool writes the port's mods folder and load order while it runs.
+            if (config->get_game_key() == "xml1" && models_tool::busy())
+            {
+                set_result(response, false, "Wait for the character models to finish.");
                 return std::nullopt;
             }
             return path;

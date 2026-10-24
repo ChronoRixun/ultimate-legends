@@ -148,6 +148,41 @@ def main():
         check("once the pack is built" in (text(".ul-models-credits") or ""), "credits panel before the build")
         shot("community-plan")
 
+        print("keyboard / controller")
+        keys = {"Tab": ("Tab", "Tab", 9, None), "ArrowDown": ("ArrowDown", "ArrowDown", 40, None), "Enter": ("Enter", "Enter", 13, "\r")}
+
+        def press(name):
+            key, code, vk, typed = keys[name]
+            base = {"key": key, "code": code, "windowsVirtualKeyCode": vk, "nativeVirtualKeyCode": vk}
+            launcher.call("Input.dispatchKeyEvent", dict(base, type="keyDown", **({"text": typed} if typed else {})))
+            launcher.call("Input.dispatchKeyEvent", dict(base, type="keyUp"))
+            time.sleep(0.15)
+
+        def focus_key():
+            return js("(() => { const el = document.activeElement; return el && el.closest('#xml1-models-panel') ? (el.dataset.focus || el.tagName) : null; })()")
+
+        q('.ul-models-mode[data-mode="community"]', "(el.focus(), true)")
+        reached = set()
+        for _ in range(12):
+            press("Tab")
+            reached.add(focus_key())
+        check("apply" in reached, f"Tab reaches Apply ({sorted(map(str, reached))})")
+        seen = set()
+        q('.ul-models-mode[data-mode="community"]', "(el.focus(), true)")
+        for _ in range(8):
+            press("ArrowDown")
+            seen.add(focus_key())
+        check("apply" in seen or any(str(k).startswith("costume-") for k in seen), f"Down (a pad) walks into the section ({sorted(map(str, seen))})")
+        q('.ul-models-mode[data-mode="off"]', "(el.focus(), true)")
+        press("Enter")
+        time.sleep(0.5)
+        idle()
+        check(q('.ul-models-mode[data-mode="off"]', "el.className.includes('active')"), "Enter on Off picks it")
+        check(focus_key() == "mode-off", f"the focus stays on it after the redraw ({focus_key()})")
+        click('.ul-models-mode[data-mode="community"]')
+        time.sleep(0.3)
+        idle()
+
         print("a costume")
         q('.ul-models-row[data-hero="wolverine"] select', "(el.value = 'Variant 07', el.dispatchEvent(new Event('change', {bubbles: true})), true)")
         time.sleep(0.5)

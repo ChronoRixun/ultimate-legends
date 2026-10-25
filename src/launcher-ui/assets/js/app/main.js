@@ -1037,9 +1037,20 @@ window.ProgressManager = {
 // Download Queue Manager — serializes ops that share the global progress bar.
 // Items with blocksGameButtons=true (verify/install/uninstall) appear in the
 // Downloads tab and disable the corresponding game's Play/Setup/Verify/Manage Install.
+//
+// Work that runs on its own runner, not the progress bar (the Character models section's Apply / Rebuild /
+// Remove and the legends-models tool's install / update, models-view.js), is shown in the same list through
+// track(): the section hands over a live entry (describe() reads the section's own job, so the tab and the
+// page show one job, never a copy) and finishes it with its outcome. Running entries are listed in the order
+// they started, then the queued patch items; finished ones (patch items and tracked work alike) go to Recent,
+// newest first, until the launcher closes or Clear is pressed.
+const DOWNLOAD_HISTORY_LIMIT = 20;
 window.DownloadQueueManager = {
     active: null,
     queue: [],
+    tracked: [],
+    history: [],
+    _seq: 0,
 
     enqueue: function(item) {
         // Dedup blocking ops (verify/install/uninstall) and launches so spam-clicking Play
@@ -1085,10 +1096,18 @@ window.DownloadQueueManager = {
         if (idx < 0) return;
         const item = this.queue.splice(idx, 1)[0];
         this.active = item;
+        item.startedAt = Date.now();
+        item.seq = ++this._seq;
         this._emit();
 
+        // The cancel the runFn registers, marked on the item (Recent says Cancelled); runFns that show it
+        // elsewhere too (the progress bar's Cancel) use the returned wrapper.
         const registerCancel = (fn) => {
-            item.onCancel = fn;
+            item.onCancel = function() {
+                item.cancelled = true;
+                return fn.apply(this, arguments);
+            };
+            return item.onCancel;
         };
 
         let runResult;
@@ -1108,6 +1127,13 @@ window.DownloadQueueManager = {
         if (this.active === item) {
             this.active = null;
         }
+        if (item.blocksGameButtons) {
+            const reason = isError ? String((valueOrError && valueOrError.message) || valueOrError || '') : '';
+            this._remember({
+                kind: 'patch', gameId: item.gameId, op: item.op,
+                outcome: item.cancelled ? 'cancelled' : (isError ? 'failed' : 'done'), reason
+            });
+        }
         if (isError) {
             try { item.reject(valueOrError); } catch (_) {}
         } else {
@@ -1122,6 +1148,9 @@ window.DownloadQueueManager = {
         if (idx >= 0) {
             const removed = this.queue.splice(idx, 1)[0];
             try { removed.resolve(); } catch (_) {}
+            if (removed.blocksGameButtons) {
+                this._remember({ kind: 'patch', gameId: removed.gameId, op: removed.op, outcome: 'cancelled', reason: '' });
+            }
 
             if (typeof window.showToast === 'function') {
                 const cfg = window.GameUtils && typeof window.GameUtils.getGameConfigByUIId === 'function'
@@ -1209,18 +1238,85 @@ window.DownloadQueueManager = {
         return this.queue.some(q => q.blocksGameButtons);
     },
 
+    // What the Downloads tab lists: the running entries in the order they started (the patch item on the
+    // progress bar, kind 'patch', and the tracked work, kind 'tracked'), then the queued patch items.
     getDownloadEntries: function() {
         const items = [];
         if (this.active && this.active.blocksGameButtons) {
-            items.push(Object.assign({}, this.active, { isActive: true, queuePosition: 0 }));
+            items.push(Object.assign({}, this.active, { kind: 'patch', isActive: true, queuePosition: 0 }));
         }
+        for (const entry of this.tracked) {
+            items.push({ kind: 'tracked', key: entry.key, gameId: entry.gameId, op: entry.op, seq: entry.seq, startedAt: entry.startedAt,
+                isActive: true, queuePosition: 0, tracked: entry });
+        }
+        items.sort((a, b) => (a.seq || 0) - (b.seq || 0));
         let pos = 1;
         for (const q of this.queue) {
             if (q.blocksGameButtons) {
-                items.push(Object.assign({}, q, { isActive: false, queuePosition: pos++ }));
+                items.push(Object.assign({}, q, { kind: 'patch', isActive: false, queuePosition: pos++ }));
             }
         }
         return items;
+    },
+
+    // Work of its own runner shown in the list. `entry`: { gameId, op, describe() -> what the row shows
+    // (views.js renderDownloads: title, phase, percent, numbers, items, cancellable, cancelling), cancel()? }.
+    // Returns the handle: update() redraws its row; finish({ outcome: done | partial | failed | cancelled,
+    // reason, title?, items? }) moves it to Recent.
+    track: function(entry) {
+        const tracked = Object.assign({}, entry, { key: `t${++this._seq}`, seq: this._seq, startedAt: Date.now() });
+        this.tracked.push(tracked);
+        this._emit();
+        const manager = this;
+        return {
+            key: tracked.key,
+            entry: tracked,
+            update: function() {
+                try {
+                    window.dispatchEvent(new CustomEvent('ul-download-entry-changed', { detail: { key: tracked.key } }));
+                } catch (_) {}
+            },
+            finish: function(result) {
+                const at = manager.tracked.indexOf(tracked);
+                if (at < 0) return;
+                let last = null;
+                try { last = typeof tracked.describe === 'function' ? tracked.describe() : null; } catch (_) {}
+                manager.tracked.splice(at, 1);
+                const outcome = Object.assign({ outcome: 'done', reason: '' }, result || {});
+                manager._remember({
+                    kind: 'tracked', gameId: tracked.gameId, op: tracked.op,
+                    title: outcome.title || (last && last.title) || '',
+                    items: outcome.items || (last && last.items) || [],
+                    outcome: outcome.outcome, reason: outcome.reason || ''
+                });
+                manager._emit();
+            }
+        };
+    },
+
+    // The Cancel of a tracked row: the entry's own cancel(), which asks the way its page does.
+    cancelTracked: function(key) {
+        const entry = this.tracked.find(item => item.key === key);
+        if (entry && typeof entry.cancel === 'function') {
+            return entry.cancel();
+        }
+        return undefined;
+    },
+
+    _remember: function(record) {
+        this.history.unshift(Object.assign({ key: `h${++this._seq}`, finishedAt: Date.now() }, record));
+        if (this.history.length > DOWNLOAD_HISTORY_LIMIT) {
+            this.history.length = DOWNLOAD_HISTORY_LIMIT;
+        }
+    },
+
+    getHistory: function() {
+        return this.history.slice();
+    },
+
+    clearHistory: function() {
+        this.history = [];
+        this._emit();
     },
 
     _emit: function() {
@@ -1336,7 +1432,7 @@ window.addEventListener('ul-progress-tick', (event) => {
     const downloadsPage = document.getElementById('downloads-page');
     if (!downloadsPage || downloadsPage.style.display === 'none') return;
 
-    const activeRow = downloadsPage.querySelector('.download-row.active');
+    const activeRow = downloadsPage.querySelector('.download-row.active[data-kind="patch"]');
     if (!activeRow) return;
 
     const detail = event.detail || {};
@@ -1351,6 +1447,15 @@ window.addEventListener('ul-progress-tick', (event) => {
     if (messageEl && detail.message) messageEl.textContent = detail.message;
     if (statsEl) {
         statsEl.textContent = window.ProgressManager ? window.ProgressManager._formatStats(detail) : '';
+    }
+});
+
+// A tracked entry changed (a models run's event, the tool's download): redraw that row in place.
+window.addEventListener('ul-download-entry-changed', (event) => {
+    const downloadsPage = document.getElementById('downloads-page');
+    if (!downloadsPage || downloadsPage.style.display === 'none') return;
+    if (window.AppViews && typeof window.AppViews.updateDownloadRow === 'function') {
+        window.AppViews.updateDownloadRow(event.detail && event.detail.key);
     }
 });
 

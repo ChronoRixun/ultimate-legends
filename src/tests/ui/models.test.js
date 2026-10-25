@@ -892,3 +892,6 @@ test('models: Verify of a stale pack shows the note, not an "intact" toast', asy
     assert.ok(p.$('.ul-models-stale'));
     assert.equal(p.toasts.filter(toast => /intact/.test(toast[0])).length, 0);
 });
+
+// downloads.test.js drives the same fake backend with the Downloads tab loaded too.
+module.exports = { Backend, ev, scanResult, planRows, PORT };

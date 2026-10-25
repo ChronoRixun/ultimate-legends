@@ -1207,79 +1207,146 @@
         return t('downloads.statusQueued', { position: entry.queuePosition });
     }
 
-    function renderDownloads() {
-        const list = document.getElementById('downloads-list');
-        if (!list) return;
+    function patchRowHTML(entry, activePercent, activeMessage) {
+        const config = GameUtils.getGameConfigByUIId(entry.gameId) || {};
+        const displayName = config.displayName || entry.gameId;
+        const status = downloadStatusLabel(entry, activePercent);
+        const message = entry.isActive && !entry.paused ? (activeMessage || entry.initialMessage || '') : '';
+        const percent = entry.isActive ? Math.max(0, Math.min(100, activePercent)) : 0;
+        let cls = 'download-row';
+        if (entry.paused && entry.isActive) cls += ' active paused';
+        else if (entry.paused) cls += ' paused';
+        else if (entry.isActive) cls += ' active';
+        else cls += ' queued';
 
-        const queue = window.DownloadQueueManager;
-        const entries = queue ? queue.getDownloadEntries() : [];
-
-        if (entries.length === 0) {
-            list.innerHTML = `<div class="downloads-empty">${escapeHtml(t('downloads.empty'))}</div>`;
-            return;
-        }
-
-        const activePercent = window.ProgressManager && typeof window.ProgressManager.getProgressPercent === 'function'
-            ? window.ProgressManager.getProgressPercent() : 0;
-        const activeMessage = window.ProgressManager && typeof window.ProgressManager.getProgressMessage === 'function'
-            ? window.ProgressManager.getProgressMessage() : '';
-
-        list.innerHTML = entries.map(entry => {
-            const config = GameUtils.getGameConfigByUIId(entry.gameId) || {};
-            const displayName = config.displayName || entry.gameId;
-            const status = downloadStatusLabel(entry, activePercent);
-            const message = entry.isActive && !entry.paused ? (activeMessage || entry.initialMessage || '') : '';
-            const percent = entry.isActive ? Math.max(0, Math.min(100, activePercent)) : 0;
-            let cls = 'download-row';
-            if (entry.paused && entry.isActive) cls += ' active paused';
-            else if (entry.paused) cls += ' paused';
-            else if (entry.isActive) cls += ' active';
-            else cls += ' queued';
-
-            // Active rows keep the bar even when paused (frozen at last percent).
-            const showProgress = entry.isActive;
-            const statsText = (entry.isActive && !entry.paused && window.ProgressManager)
-                ? window.ProgressManager._formatStats(window.ProgressManager.lastStats)
-                : '';
-            const progressBlock = showProgress ? `
-                <div class="download-progress">
-                    <div class="download-progress-bar">
-                        <div class="download-progress-fill"></div>
-                    </div>
-                    <div class="download-progress-meta">
-                        <span class="download-progress-message">${escapeHtml(message)}</span>
-                        <span class="download-progress-stats">${escapeHtml(statsText)}</span>
-                        <span class="download-progress-percent">${percent.toFixed(2)}%</span>
-                    </div>
-                </div>` : '';
-
-            const pauseTitle = entry.paused ? t('downloads.resume') : t('downloads.pause');
-            const pauseAction = entry.paused ? 'resume' : 'pause';
-
-            // Pause/resume is only meaningful for the active download — queued rows can't be paused.
-            const pauseButton = entry.isActive ? `
-                <button class="download-row-pause" data-game="${escapeHtml(entry.gameId)}" data-op="${escapeHtml(entry.op)}" data-action="${pauseAction}" title="${escapeHtml(pauseTitle)}">
-                    <span class="download-row-pause-icon ${entry.paused ? 'is-resume' : ''}"></span>
-                </button>` : '';
-
-            // Active rows put their live status inside the progress bar's message line,
-            // so the standalone status row is only useful for queued items.
-            const statusRow = entry.isActive ? '' : `<div class="download-row-status">${escapeHtml(status)}</div>`;
-
-            return `
-                <div class="${cls}" data-game="${escapeHtml(entry.gameId)}" data-op="${escapeHtml(entry.op)}" tabindex="0" role="button" aria-label="${escapeHtml(displayName)}">
-                    <div class="download-row-icon"></div>
-                    <div class="download-row-body">
-                        <div class="download-row-title">${escapeHtml(displayName)}</div>
-                        ${statusRow}
-                        ${progressBlock}
-                    </div>
-                    ${pauseButton}
-                    <button class="download-row-cancel" data-game="${escapeHtml(entry.gameId)}" data-op="${escapeHtml(entry.op)}" title="${escapeHtml(t('common.cancel'))}"><span class="control-icon close-icon"></span></button>
+        // Active rows keep the bar even when paused (frozen at last percent).
+        const showProgress = entry.isActive;
+        const statsText = (entry.isActive && !entry.paused && window.ProgressManager)
+            ? window.ProgressManager._formatStats(window.ProgressManager.lastStats)
+            : '';
+        const progressBlock = showProgress ? `
+            <div class="download-progress">
+                <div class="download-progress-bar">
+                    <div class="download-progress-fill"></div>
                 </div>
-            `;
-        }).join('');
+                <div class="download-progress-meta">
+                    <span class="download-progress-message">${escapeHtml(message)}</span>
+                    <span class="download-progress-stats">${escapeHtml(statsText)}</span>
+                    <span class="download-progress-percent">${percent.toFixed(2)}%</span>
+                </div>
+            </div>` : '';
 
+        const pauseTitle = entry.paused ? t('downloads.resume') : t('downloads.pause');
+        const pauseAction = entry.paused ? 'resume' : 'pause';
+
+        // Pause/resume is only meaningful for the active download — queued rows can't be paused.
+        const pauseButton = entry.isActive ? `
+            <button class="download-row-pause" data-game="${escapeHtml(entry.gameId)}" data-op="${escapeHtml(entry.op)}" data-action="${pauseAction}" title="${escapeHtml(pauseTitle)}">
+                <span class="download-row-pause-icon ${entry.paused ? 'is-resume' : ''}"></span>
+            </button>` : '';
+
+        // Active rows put their live status inside the progress bar's message line,
+        // so the standalone status row is only useful for queued items.
+        const statusRow = entry.isActive ? '' : `<div class="download-row-status">${escapeHtml(status)}</div>`;
+
+        return `
+            <div class="${cls}" data-kind="patch" data-game="${escapeHtml(entry.gameId)}" data-op="${escapeHtml(entry.op)}" tabindex="0" role="button" aria-label="${escapeHtml(displayName)}">
+                <div class="download-row-icon"></div>
+                <div class="download-row-body">
+                    <div class="download-row-title">${escapeHtml(displayName)}</div>
+                    ${statusRow}
+                    ${progressBlock}
+                </div>
+                ${pauseButton}
+                <button class="download-row-cancel" data-game="${escapeHtml(entry.gameId)}" data-op="${escapeHtml(entry.op)}" title="${escapeHtml(t('common.cancel'))}"><span class="control-icon close-icon"></span></button>
+            </div>
+        `;
+    }
+
+    // A download's file line (tracked work and Recent): what, file, size, source, and its SHA-256 once it is
+    // checked; one still downloading says so.
+    function downloadItemsHTML(items) {
+        if (!items || !items.length) return '';
+        return `<ul class="download-row-items">${items.map(item => `
+            <li class="download-item is-${escapeHtml(item.state || 'done')}">
+                ${item.name ? `<span class="download-item-name">${escapeHtml(item.name)}</span>` : ''}
+                ${item.file ? `<span class="download-item-file">${escapeHtml(item.file)}</span>` : ''}
+                ${item.size ? `<span class="download-item-size">${escapeHtml(item.size)}</span>` : ''}
+                ${item.source ? `<span class="download-item-source">${escapeHtml(item.source)}</span>` : ''}
+                ${item.state === 'downloading' ? `<span class="download-item-state">${escapeHtml(t('downloads.itemDownloading'))}</span>` : ''}
+                ${item.sha256 ? `<span class="download-item-hash" title="SHA-256 ${escapeHtml(item.sha256)}">${escapeHtml(t('downloads.itemHash', { hash: item.sha256.slice(0, 16) }))}</span>` : ''}
+            </li>`).join('')}</ul>`;
+    }
+
+    function describeTracked(tracked) {
+        let view = null;
+        try {
+            view = typeof tracked.describe === 'function' ? tracked.describe() : null;
+        } catch (error) {
+            console.error('Downloads: describe failed', error);
+        }
+        return Object.assign({ title: '', phase: '', percent: null, numbers: '', items: [], cancellable: false, cancelling: false }, view || {});
+    }
+
+    // The inside of a tracked row (redrawn in place by updateDownloadRow while it runs).
+    function trackedBodyHTML(view) {
+        const indeterminate = view.percent === null || view.percent === undefined;
+        const percent = indeterminate ? 0 : Math.max(0, Math.min(100, Number(view.percent) || 0));
+        return `
+            <div class="download-row-title">${escapeHtml(view.title)}</div>
+            <div class="download-progress">
+                <div class="download-progress-bar"><div class="download-progress-fill${indeterminate ? ' is-indeterminate' : ''}" style="width:${indeterminate ? 100 : percent.toFixed(1)}%"></div></div>
+                <div class="download-progress-meta">
+                    <span class="download-progress-message">${escapeHtml(view.phase)}</span>
+                    <span class="download-progress-stats">${escapeHtml(view.numbers || '')}</span>
+                    <span class="download-progress-percent">${indeterminate ? '' : `${percent.toFixed(0)}%`}</span>
+                </div>
+            </div>
+            ${downloadItemsHTML(view.items)}`;
+    }
+
+    function trackedRowHTML(entry) {
+        const view = describeTracked(entry.tracked);
+        const config = GameUtils.getGameConfigByUIId(entry.gameId) || {};
+        const cancel = view.cancellable
+            ? `<button class="download-row-cancel" data-key="${escapeHtml(entry.key)}" title="${escapeHtml(t('common.cancel'))}"${view.cancelling ? ' disabled' : ''}><span class="control-icon close-icon"></span></button>`
+            : '';
+        return `
+            <div class="download-row running tracked${view.cancelling ? ' cancelling' : ''}" data-kind="tracked" data-key="${escapeHtml(entry.key)}" data-game="${escapeHtml(entry.gameId)}" data-op="${escapeHtml(entry.op)}"
+                 data-cancellable="${view.cancellable ? 'true' : 'false'}" tabindex="0" role="button" aria-label="${escapeHtml(`${config.displayName || entry.gameId}: ${view.title}`)}">
+                <div class="download-row-icon"></div>
+                <div class="download-row-body">${trackedBodyHTML(view)}</div>
+                ${cancel}
+            </div>`;
+    }
+
+    function patchOpTitle(record) {
+        const config = GameUtils.getGameConfigByUIId(record.gameId) || {};
+        const name = config.displayName || record.gameId;
+        const key = record.op === 'verify' ? 'downloads.opVerify' : record.op === 'install' ? 'downloads.opInstall'
+            : record.op === 'uninstall' ? 'downloads.opUninstall' : '';
+        return key ? `${name}: ${t(key)}` : name;
+    }
+
+    function historyRowHTML(record) {
+        const title = record.kind === 'patch' ? patchOpTitle(record) : (record.title || record.gameId);
+        const outcomeKey = { done: 'downloads.outcomeDone', partial: 'downloads.outcomePartial', failed: 'downloads.outcomeFailed', cancelled: 'downloads.outcomeCancelled' }[record.outcome] || 'downloads.outcomeDone';
+        const when = new Date(record.finishedAt || Date.now());
+        const time = `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`;
+        return `
+            <div class="download-row finished is-${escapeHtml(record.outcome)}" data-kind="history" data-key="${escapeHtml(record.key)}" data-game="${escapeHtml(record.gameId)}" data-op="${escapeHtml(record.op)}"
+                 data-outcome="${escapeHtml(record.outcome)}" tabindex="0" role="button" aria-label="${escapeHtml(title)}">
+                <div class="download-row-icon"></div>
+                <div class="download-row-body">
+                    <div class="download-row-title">${escapeHtml(title)}</div>
+                    <div class="download-row-status"><span class="download-row-outcome">${escapeHtml(t(outcomeKey))}</span> · ${escapeHtml(time)}</div>
+                    ${record.reason ? `<div class="download-row-reason">${escapeHtml(record.reason)}</div>` : ''}
+                    ${downloadItemsHTML(record.items)}
+                </div>
+            </div>`;
+    }
+
+    function decorateRows(list, activePercent) {
         // Set icon and accent backgrounds via JS to avoid HTML attribute quoting issues.
         list.querySelectorAll('.download-row').forEach(row => {
             const gameId = row.dataset.game;
@@ -1296,16 +1363,50 @@
 
             const fill = row.querySelector('.download-progress-fill');
             if (fill) {
-                fill.style.width = `${Math.max(0, Math.min(100, activePercent))}%`;
+                if (row.dataset.kind === 'patch') {
+                    fill.style.width = `${Math.max(0, Math.min(100, activePercent))}%`;
+                }
                 fill.style.background = accent;
                 fill.style.boxShadow = `0 0 12px ${accent}80`;
             }
         });
+    }
+
+    function renderDownloads() {
+        const list = document.getElementById('downloads-list');
+        if (!list) return;
+
+        const queue = window.DownloadQueueManager;
+        const entries = queue ? queue.getDownloadEntries() : [];
+        const history = queue && typeof queue.getHistory === 'function' ? queue.getHistory() : [];
+
+        const activePercent = window.ProgressManager && typeof window.ProgressManager.getProgressPercent === 'function'
+            ? window.ProgressManager.getProgressPercent() : 0;
+        const activeMessage = window.ProgressManager && typeof window.ProgressManager.getProgressMessage === 'function'
+            ? window.ProgressManager.getProgressMessage() : '';
+
+        const current = entries.length === 0
+            ? `<div class="downloads-empty">${escapeHtml(t('downloads.empty'))}</div>`
+            : entries.map(entry => (entry.kind === 'tracked' ? trackedRowHTML(entry) : patchRowHTML(entry, activePercent, activeMessage))).join('');
+        const recent = history.length ? `
+            <div class="downloads-recent">
+                <div class="downloads-recent-head">
+                    <span class="downloads-recent-title">${escapeHtml(t('downloads.recent'))}</span>
+                    <button type="button" class="downloads-clear">${escapeHtml(t('downloads.clear'))}</button>
+                </div>
+                ${history.map(historyRowHTML).join('')}
+            </div>` : '';
+        list.innerHTML = current + recent;
+
+        decorateRows(list, activePercent);
 
         list.querySelectorAll('.download-row-cancel').forEach(btn => {
             btn.addEventListener('click', (event) => {
                 event.stopPropagation();
-                if (window.DownloadQueueManager) {
+                if (!window.DownloadQueueManager) return;
+                if (btn.dataset.key) {
+                    window.DownloadQueueManager.cancelTracked(btn.dataset.key);
+                } else {
                     window.DownloadQueueManager.cancel(btn.dataset.game, btn.dataset.op);
                 }
             });
@@ -1323,6 +1424,14 @@
             });
         });
 
+        const clear = list.querySelector('.downloads-clear');
+        if (clear) {
+            clear.addEventListener('click', (event) => {
+                event.stopPropagation();
+                if (window.DownloadQueueManager) window.DownloadQueueManager.clearHistory();
+            });
+        }
+
         list.querySelectorAll('.download-row').forEach(row => {
             row.addEventListener('click', (event) => {
                 if (event.target.closest('.download-row-cancel')) return;
@@ -1330,6 +1439,31 @@
                 navigateTo(row.dataset.game);
             });
         });
+    }
+
+    // One tracked row redrawn in place (its run's events), so the list is not rebuilt every poll; the whole
+    // list when the row is new or its Cancel came or went.
+    function updateDownloadRow(key) {
+        const list = document.getElementById('downloads-list');
+        if (!list) return;
+        const queue = window.DownloadQueueManager;
+        const tracked = queue && queue.tracked ? queue.tracked.find(item => item.key === key) : null;
+        const row = key ? list.querySelector(`.download-row[data-key="${key}"]`) : null;
+        if (!tracked || !row) {
+            renderDownloads();
+            return;
+        }
+        const view = describeTracked(tracked);
+        if ((row.dataset.cancellable === 'true') !== !!view.cancellable) {
+            renderDownloads();
+            return;
+        }
+        const body = row.querySelector('.download-row-body');
+        if (body) body.innerHTML = trackedBodyHTML(view);
+        row.classList.toggle('cancelling', !!view.cancelling);
+        const cancel = row.querySelector('.download-row-cancel');
+        if (cancel) cancel.disabled = !!view.cancelling;
+        decorateRows({ querySelectorAll: selector => (selector === '.download-row' ? [row] : []) }, 0);
     }
 
     function renderAll() {
@@ -1393,6 +1527,7 @@
         renderLibrary,
         renderGamePages,
         renderDownloads,
+        updateDownloadRow,
         refreshInstallationStates,
         refreshHomeInstalledClients,
         updateLibraryCard,

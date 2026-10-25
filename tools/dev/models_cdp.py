@@ -188,6 +188,9 @@ def main():
         check(status["tool"]["found"] is real_tool, "get-models-status: the tool as found")
         check(status["port"]["built"] is True, "the fake port counts as built")
         if not real_tool:
+            # The page may have asked before the fake GitHub was set (a page opened at start-up): ask again.
+            wait_for(lambda: launcher.command("get-models-status")["toolRelease"]["checking"] is False, 60)
+            launcher.command("models-tool-check", {"install": False, "force": True})
             check(wait_for(lambda: launcher.command("get-models-status")["toolRelease"]["checking"] is False, 30), "the release check ended")
             js("window.ModelsView.refresh('xml1')")
             idle()

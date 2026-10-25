@@ -234,11 +234,16 @@ def main():
                 launcher.command("set-property", {"dev-launcher-version": launcher_originals.get("dev-launcher-version") or ""})
                 launcher.command("set-update-channel", {"channel": "stable"})
                 releases[TOOL_REPO][:] = [{"tag_name": "v0.4.0-beta.1", "prerelease": True, "files": beta_files}]
+                launcher.command("models-tool-check", {"install": False, "force": True})
+                wait_for(lambda: launcher.command("get-models-status")["toolRelease"]["checking"] is False, 30)
+                js("window.ModelsView.refresh('xml1')")
+                idle()
+                check("no stable release of it yet" in (text(".ul-models-missing") or ""), "back on Stable: no stable release yet again")
 
             print("the tool from its release (Stable)")
             releases[TOOL_REPO].insert(0, {"tag_name": "v0.3.0", "prerelease": False, "files": tool_release(release_dir / "0.3.0", "0.3.0", shim)})
             click('[data-act="tool-check"]')
-            check(wait_for(lambda: q('[data-act="tool-install"]'), 30), "Install offered")
+            check(wait_for(lambda: q('[data-act="tool-install"]') and "0.3.0 is ready" in (text(".ul-models-missing") or ""), 30), "Install offered")
             note = text(".ul-models-missing") or ""
             check("legends-models 0.3.0 is ready to install" in note and "beta" not in note, f"the Stable release: {note[:120]}")
             shot("tool-available")

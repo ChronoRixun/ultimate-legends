@@ -53,6 +53,12 @@ namespace property_keys
     constexpr const char* MODELS_MODE = "models-mode";
     constexpr const char* MODELS_MIRROR = "models-mirror";
     constexpr const char* MODELS_COSTUMES = "models-costumes";
-    // Debug builds only (the CDP tests): a program to run instead of an installed legends-models.exe.
+    // The installed legends-models version to use (tools\legends-models\<version>\), and the version of
+    // the community skins' terms the player accepted before the first community download ("" = not yet).
+    constexpr const char* MODELS_TOOL_VERSION = "models-tool-version";
+    constexpr const char* MODELS_TERMS = "models-terms";
+    // Debug builds only (the CDP tests): a program to run instead of an installed legends-models.exe,
+    // and where to fetch the tool's release manifest instead of the update channel's release.
     constexpr const char* DEV_MODELS_TOOL = "models-tool";
+    constexpr const char* DEV_MODELS_MANIFEST = "models-manifest";
 }

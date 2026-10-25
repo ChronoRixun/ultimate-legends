@@ -46,6 +46,7 @@ namespace models_args
         std::map<std::string, std::string> costumes; // hero -> "ID" | "tier:ID" (plan, build)
         std::vector<std::string> heroes;             // build: only these heroes (optional)
         bool rebuild{};                              // build: ignore cached results
+        bool offline{};                              // plan, build: --offline (community skins from the download cache only)
     };
 
     // The tool's arguments for `request` (UTF-8; the caller converts), starting with the command and
@@ -77,7 +78,7 @@ namespace models_args
     std::optional<marker> parse_marker(const std::string& json);
 
     // The exit codes (LAUNCHER-API.md "In five lines" 3) as stable names for the page:
-    // ok, partial, nothing, missing_input, download, verify_mismatch, unsafe, usage, bug, cancelled,
-    // else "unknown".
+    // ok, partial, nothing, missing_input, download, verify_mismatch, stale, unsafe, usage, bug,
+    // cancelled, else "unknown".
     std::string exit_name(int code);
 }

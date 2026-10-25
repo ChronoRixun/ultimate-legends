@@ -3,8 +3,12 @@
 
 #include "game_config.hpp"
 #include "tools/tool_install.hpp"
+#include "updater/launcher_update.hpp"
+#include "updater/release_source.hpp"
 #include "xml1/builder_process.hpp"
 
+#include <utils/cryptography.hpp>
+#include <utils/flags.hpp>
 #include <utils/io.hpp>
 #include <utils/logger.hpp>
 #include <utils/properties.hpp>
@@ -47,6 +51,60 @@ namespace models_tool
         std::string property(const char* suffix)
         {
             return port_config().get(suffix).value_or(std::string{});
+        }
+
+        // The tool's release check / install (check_tool): its own lock, so a long install never holds
+        // the runs' one.
+        std::mutex check_mutex_;
+        tool_check_state check_;
+
+        void set_check(const std::function<void(tool_check_state&)>& change)
+        {
+            std::lock_guard lock(check_mutex_);
+            change(check_);
+        }
+
+        tool_install::tool tool_def()
+        {
+            tool_install::tool tool{"legends-models", "legends-models.exe", tool_manifest_url};
+#ifdef _DEBUG
+            // Debug builds only: the CDP tests publish a stand-in release from a local server.
+            if (const auto manifest = port_config().get(property_keys::DEV_MODELS_MANIFEST); manifest && !manifest->empty())
+            {
+                tool.manifest_url = *manifest;
+            }
+#endif
+            return tool;
+        }
+
+        // The installed tool (never the Debug stand-in): the recorded version, else the newest one there.
+        std::optional<tool_install::installed> installed_tool()
+        {
+            return tool_install::find(tool_def(), property(property_keys::MODELS_TOOL_VERSION));
+        }
+
+        // The release's manifest URL on the update channel, by the chosen release's tag (so the manifest and
+        // the zip next to it are one release). With no choice at all (GitHub can't be asked and nothing was
+        // found before): the latest release's manifest into a PC without the tool (its zip is still checked
+        // by size and SHA-256), else false and the installed tool stays.
+        bool channel_manifest(tool_install::tool& tool, const release_channel::channel channel, const bool has_tool, bool& from_cache,
+                              std::string& error, bool& not_published)
+        {
+            from_cache = false;
+            if (tool.manifest_url != tool_manifest_url)
+            {
+                return true; // a Debug build's local stand-in
+            }
+            const auto outcome = release_source::resolve(tool_repo, channel, {tool_manifest_name});
+            error = outcome.error;
+            if (!outcome.chosen)
+            {
+                not_published = outcome.error == "No release has been published.";
+                return !has_tool && !not_published;
+            }
+            from_cache = outcome.from_cache;
+            tool.manifest_url = release_source::file_url(tool_repo, *outcome.chosen, tool_manifest_name);
+            return true;
         }
 
         // An entry's install folder when it is set up and still there.
@@ -349,12 +407,209 @@ namespace models_tool
             }
         }
 #endif
-        const tool_install::tool tool{"legends-models", "legends-models.exe", {}};
-        if (const auto installed = tool_install::find(tool))
+        if (const auto installed = installed_tool())
         {
             return tool_location{installed->exe, installed->version, false};
         }
         return std::nullopt;
+    }
+
+    tool_check_state tool_check()
+    {
+        std::lock_guard lock(check_mutex_);
+        return check_;
+    }
+
+    bool check_tool(const bool install)
+    {
+        if (utils::flags::has_flag("offline"))
+        {
+            return false;
+        }
+        {
+            std::lock_guard lock(check_mutex_);
+            if (check_.checking || check_.installing)
+            {
+                return false;
+            }
+            check_.checking = true;
+            check_.code.clear();
+            check_.error.clear();
+            check_.not_published = false;
+        }
+
+        std::thread([install]
+        {
+            auto tool = tool_def();
+            const auto channel = release_source::current_channel();
+            std::string error;
+            bool not_published = false;
+            bool from_cache = false;
+            std::optional<tool_install::manifest> latest;
+            if (channel_manifest(tool, channel, installed_tool().has_value(), from_cache, error, not_published))
+            {
+                error.clear();
+                latest = tool_install::fetch_manifest(tool, error, &not_published);
+            }
+            if (!latest)
+            {
+                utils::logger::write("legends-models: manifest {} ({}): {}", tool.manifest_url, release_channel::channel_name(channel), error);
+                set_check([&](tool_check_state& check)
+                {
+                    check.checking = false;
+                    check.latest.reset();
+                    check.channel = channel;
+                    check.from_cache = false;
+                    check.not_published = not_published;
+                    check.code = not_published ? "L_TOOL_UNPUBLISHED" : "L_TOOL_OFFLINE";
+                    check.error = error;
+                });
+                return;
+            }
+
+            const auto refuse = [&](const char* code, std::string message)
+            {
+                utils::logger::write("legends-models {}: {}", latest->version, message);
+                set_check([&](tool_check_state& check)
+                {
+                    check.checking = false;
+                    check.latest = latest;
+                    check.channel = channel;
+                    check.from_cache = from_cache;
+                    check.code = code;
+                    check.error = std::move(message);
+                });
+            };
+            if (latest->api != 0 && latest->api != api_version)
+            {
+                refuse("L_TOOL_API", "This version of the character-model tool needs a newer Ultimate Legends.");
+                return;
+            }
+            // The whole version (a beta launcher, 0.5.0-beta.1, is not yet the 0.5.0 a tool may need).
+            const auto launcher_version = launcher_update::running_version();
+            if (!latest->min_launcher.empty() && launcher_version != "0.0.0" &&
+                tool_install::compare_versions(launcher_version, latest->min_launcher) < 0)
+            {
+                refuse("L_LAUNCHER_TOO_OLD", "This character-model tool needs Ultimate Legends " + latest->min_launcher + " or newer.");
+                return;
+            }
+
+            // Never an older tool than the one installed (Switch back to Stable keeps a newer beta tool).
+            const auto installed = installed_tool();
+            const auto newer = !installed || tool_install::compare_versions(latest->version, installed->version) > 0;
+            const auto wanted = install && newer;
+            set_check([&](tool_check_state& check)
+            {
+                check.checking = false;
+                check.latest = latest;
+                check.channel = channel;
+                check.from_cache = from_cache;
+                check.installing = wanted;
+                check.done = 0;
+                check.total = latest->size;
+            });
+            if (!wanted)
+            {
+                return;
+            }
+
+            // Never while a run uses the current version (its folder must stay); start() refuses new runs
+            // while the install runs.
+            while (busy())
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            }
+
+            std::optional<tool_install::installed> result;
+            std::string code;
+            std::string source;
+            // The release's zip already on this PC (put in tools\legends-models or in Downloads by hand):
+            // used when it checks out, else downloaded.
+            if (const auto local = tool_install::find_local_zip(tool, *latest))
+            {
+                std::optional<tool_install::zip_match> match;
+                std::string local_error;
+                result = tool_install::install_from_zip(tool, *latest, *local, match, local_error);
+                source = "zip";
+                if (!result)
+                {
+                    utils::logger::write("legends-models: {} not used ({}); downloading the release", utils::string::path_to_utf8(*local), local_error);
+                }
+            }
+            if (!result)
+            {
+                result = tool_install::install(tool, *latest, [](const std::uint64_t done, const std::uint64_t total)
+                {
+                    set_check([&](tool_check_state& check)
+                    {
+                        check.done = done;
+                        check.total = total;
+                    });
+                }, {}, error);
+                source = "download";
+                code = error.find("SHA-256") != std::string::npos ? "L_TOOL_HASH"
+                     : error.find("zip") != std::string::npos || error.find("unpack") != std::string::npos ? "L_TOOL_EXTRACT"
+                     : "L_TOOL_DOWNLOAD";
+            }
+
+            if (result)
+            {
+                port_config().set(property_keys::MODELS_TOOL_VERSION, result->version);
+                // One version is kept: the one just installed (no run can be using another now).
+                tool_install::prune(tool, {result->version});
+                utils::logger::write("legends-models {} installed ({})", result->version, source);
+            }
+            set_check([&](tool_check_state& check)
+            {
+                check.installing = false;
+                if (result)
+                {
+                    check.source = source;
+                    check.installed_now = result->version;
+                }
+                else
+                {
+                    utils::logger::write("legends-models install failed: {}", error);
+                    check.code = code;
+                    check.error = error;
+                }
+            });
+        }).detach();
+        return true;
+    }
+
+    std::optional<std::string> preview_data(const std::string& path)
+    {
+        // Only a small PNG inside the tool's own work folder (where scan's costume_info.preview points:
+        // the author's portrait from an already extracted archive).
+        constexpr std::uintmax_t max_preview_bytes = 2 << 20;
+        std::error_code ec;
+        const auto file = std::filesystem::weakly_canonical(utils::string::utf8_to_path(path), ec);
+        if (ec)
+        {
+            return std::nullopt;
+        }
+        const auto root = std::filesystem::weakly_canonical(work_folder(), ec);
+        if (ec || file.empty() || root.empty() || utils::string::to_lower(utils::string::path_to_utf8(file.extension())) != ".png")
+        {
+            return std::nullopt;
+        }
+        const auto file_text = utils::string::to_lower(utils::string::path_to_utf8(file));
+        auto root_text = utils::string::to_lower(utils::string::path_to_utf8(root));
+        if (!root_text.ends_with("\\"))
+        {
+            root_text += "\\";
+        }
+        if (!file_text.starts_with(root_text) || !utils::io::file_exists(file) || std::filesystem::file_size(file, ec) > max_preview_bytes || ec)
+        {
+            return std::nullopt;
+        }
+        const auto data = utils::io::read_file(file);
+        if (!data.starts_with("\x89PNG\r\n\x1a\n"))
+        {
+            return std::nullopt;
+        }
+        return "data:image/png;base64," + utils::cryptography::base64::encode(data);
     }
 
     std::filesystem::path work_folder()
@@ -426,6 +681,11 @@ namespace models_tool
 
     std::optional<int> start(models_args::request request, failure& error)
     {
+        if (tool_check().installing)
+        {
+            error = {"L_TOOL_INSTALLING", "The character-model tool is being installed."};
+            return std::nullopt;
+        }
         const auto tool = find_tool();
         if (!tool)
         {
@@ -455,6 +715,8 @@ namespace models_tool
         {
             request.mua2 = utils::string::path_to_utf8(*mua2);
         }
+        // -offline: the tool never downloads (community skins only from its cache); the page may ask for it too.
+        request.offline = request.offline || utils::flags::has_flag("offline");
         if (request.command == "build" && request.mirror.empty())
         {
             const auto stored = read_settings().mirror;

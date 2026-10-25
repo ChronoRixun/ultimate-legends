@@ -165,6 +165,10 @@ namespace models_args
                 }
                 args.insert(args.end(), {"--costume", hero + "=" + costume});
             }
+            if (request.offline)
+            {
+                args.emplace_back("--offline");
+            }
         }
 
         if (command == "build")
@@ -305,6 +309,7 @@ namespace models_args
         case 3: return "missing_input";
         case 20: return "download";
         case 30: return "verify_mismatch";
+        case 31: return "stale";
         case 40: return "unsafe";
         case 2: return "usage";
         case 1: return "bug";

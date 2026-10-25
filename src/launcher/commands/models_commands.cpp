@@ -5,7 +5,10 @@
 #include "models/models_tool.hpp"
 #include "xml1/xml1_port.hpp"
 
+#include <utils/flags.hpp>
 #include <utils/io.hpp>
+#include <utils/properties.hpp>
+#include <utils/property_keys.hpp>
 #include <utils/string.hpp>
 
 // Commands of the Character models section (app/models-view.js). The page asks for a command and its
@@ -68,11 +71,19 @@ namespace commands::models_commands
             return costumes;
         }
 
+        std::string terms_accepted()
+        {
+            const auto config = game_config::get_game_config("xml1");
+            return config ? config->get(property_keys::MODELS_TERMS).value_or(std::string{}) : std::string{};
+        }
+
         void write_settings(const models_tool::settings& settings, rapidjson::Value& out, rapidjson::Document::AllocatorType& allocator)
         {
             out.SetObject();
             out.AddMember("mode", make_string(settings.mode, allocator), allocator);
             out.AddMember("mirror", make_string(settings.mirror, allocator), allocator);
+            // The community skins' terms: accepted when the stored version is the current one.
+            out.AddMember("termsAccepted", terms_accepted() == models_tool::terms_version, allocator);
             rapidjson::Value costumes(rapidjson::kObjectType);
             for (const auto& [hero, costume] : settings.costumes)
             {
@@ -126,6 +137,27 @@ namespace commands::models_commands
             tool.AddMember("version", make_string(location ? location->version : std::string{}, allocator), allocator);
             tool.AddMember("dev", location && location->dev, allocator);
             response.AddMember("tool", tool, allocator);
+
+            // The tool's release on the update channel and its install / update (models-tool-check).
+            const auto check = models_tool::tool_check();
+            rapidjson::Value release(rapidjson::kObjectType);
+            release.AddMember("checking", check.checking, allocator);
+            release.AddMember("installing", check.installing, allocator);
+            release.AddMember("done", check.done, allocator);
+            release.AddMember("total", check.total, allocator);
+            release.AddMember("code", make_string(check.code, allocator), allocator);
+            release.AddMember("error", make_string(check.error, allocator), allocator);
+            release.AddMember("notPublished", check.not_published, allocator);
+            release.AddMember("latest", make_string(check.latest ? check.latest->version : std::string{}, allocator), allocator);
+            release.AddMember("latestSize", check.latest ? check.latest->size : 0, allocator);
+            release.AddMember("channel", rapidjson::StringRef(release_channel::channel_name(check.channel)), allocator);
+            release.AddMember("fromCache", check.from_cache, allocator);
+            release.AddMember("source", make_string(check.source, allocator), allocator);
+            release.AddMember("installedNow", make_string(check.installed_now, allocator), allocator);
+            release.AddMember("updateAvailable", location && !location->dev && check.latest &&
+                                                     tool_install::compare_versions(check.latest->version, location->version) > 0, allocator);
+            release.AddMember("offline", utils::flags::has_flag("offline"), allocator);
+            response.AddMember("toolRelease", release, allocator);
 
             const auto config = game_config::get_game_config("xml1");
             const auto port_path = config ? config->get_install_path() : std::nullopt;
@@ -210,6 +242,15 @@ namespace commands::models_commands
 
             std::string error;
             const auto ok = models_tool::write_settings(settings, error);
+            // termsAccepted: true records the current version of the community skins' terms (only the
+            // player's click on the page's confirmation sends it); false forgets it.
+            if (ok && value.IsObject() && value.HasMember("termsAccepted") && value["termsAccepted"].IsBool())
+            {
+                if (const auto config = game_config::get_game_config("xml1"))
+                {
+                    config->set(property_keys::MODELS_TERMS, value["termsAccepted"].GetBool() ? models_tool::terms_version : "");
+                }
+            }
             response.SetObject();
             auto& allocator = response.GetAllocator();
             response.AddMember("success", ok, allocator);
@@ -245,6 +286,8 @@ namespace commands::models_commands
                 }
             }
             request.rebuild = value.IsObject() && value.HasMember("rebuild") && value["rebuild"].IsBool() && value["rebuild"].GetBool();
+            // The page asks for --offline when it runs offline; the launcher's -offline forces it anyway.
+            request.offline = value.IsObject() && value.HasMember("offline") && value["offline"].IsBool() && value["offline"].GetBool();
 
             models_tool::failure error{};
             std::optional<int> id;
@@ -290,6 +333,25 @@ namespace commands::models_commands
         {
             const auto id = value.IsObject() && value.HasMember("id") && value["id"].IsInt() ? value["id"].GetInt() : -1;
             response.SetBool(models_tool::cancel(id));
+        });
+
+        // { install } -> { started }: asks the update channel for the tool's release (install: and installs
+        // it when there is none or it is newer); the page polls get-models-status.toolRelease.
+        cef_ui.add_command("models-tool-check", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            const auto install = value.IsObject() && value.HasMember("install") && value["install"].IsBool() && value["install"].GetBool();
+            response.SetObject();
+            response.AddMember("started", models_tool::check_tool(install), response.GetAllocator());
+        });
+
+        // { path } -> { data } (a data: URL) or { data: null }: a costume preview scan named, only a PNG in
+        // the tool's work folder.
+        cef_ui.add_command("get-models-preview", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetObject();
+            auto& allocator = response.GetAllocator();
+            const auto data = models_tool::preview_data(json_string(value, "path"));
+            response.AddMember("data", data ? make_string(*data, allocator) : rapidjson::Value(rapidjson::kNullType), allocator);
         });
 
         // { group? } -> { credits: [{folder, text}] }: CREDITS.md of the built pack's folders.

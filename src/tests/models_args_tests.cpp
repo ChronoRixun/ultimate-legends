@@ -243,9 +243,29 @@ TEST(models_exit_codes_have_names)
     CHECK(models_args::exit_name(3) == "missing_input");
     CHECK(models_args::exit_name(20) == "download");
     CHECK(models_args::exit_name(30) == "verify_mismatch");
+    CHECK(models_args::exit_name(31) == "stale"); // verify: files intact, the port was rebuilt since (offer Rebuild)
     CHECK(models_args::exit_name(40) == "unsafe");
     CHECK(models_args::exit_name(2) == "usage");
     CHECK(models_args::exit_name(1) == "bug");
     CHECK(models_args::exit_name(130) == "cancelled");
     CHECK(models_args::exit_name(77) == "unknown");
+}
+
+TEST(models_offline_reaches_plan_and_build_only)
+{
+    for (const auto* command : {"plan", "build"})
+    {
+        auto request = base(command);
+        request.mode = "community";
+        CHECK(!has_flag(args_of(request), "--offline"));
+        request.offline = true;
+        CHECK(has_flag(args_of(request), "--offline"));
+    }
+    for (const auto* command : {"scan", "verify", "remove"})
+    {
+        auto request = base(command);
+        request.pack = "Models-Community";
+        request.offline = true;
+        CHECK(!has_flag(args_of(request), "--offline")); // nothing to download there
+    }
 }

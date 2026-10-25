@@ -20,8 +20,12 @@ models kept) and the port build / Mods tab refused meanwhile; the mirror field; 
 plain words; Off removing everything the tool made and nothing else. Since 0.5.0 also: the author's
 terms before the first community download (declined: nothing built); costume labels / credits and a
 preview; offline planning through --offline; a port rebuilt since the models were made (verify exit
-31) and Rebuild; a 0.2.x-named Upgraded folder renamed by the tool and announced. Every setting it
-touches is put back. Screenshots go to tools/dev/models-*.png, or to --shots DIR.
+31) and Rebuild; a 0.2.x-named Upgraded folder renamed by the tool and announced. Since 0.5.0-beta.2 the
+Downloads tab: the tool's install listed there (file, bytes, channel) and cancelled from its row (nothing
+installed), then installed (Recent with the zip's SHA-256); the Apply listed while it runs (downloading a skin
+with its size and source, the finished download with its SHA-256, converting hero N of 14), in Recent with the
+page's outcome; the mid-build Cancel from the Downloads row; Off in Recent. Every setting it touches is put
+back. Screenshots go to tools/dev/models-*.png, or to --shots DIR.
 """
 import argparse
 import hashlib
@@ -32,6 +36,7 @@ import shutil
 import sys
 import tempfile
 import time
+import urllib.request
 import zipfile
 
 from launcher_cdp import Launcher, wait_for
@@ -119,6 +124,39 @@ def main():
     def scroll_to(selector):
         q(selector, "el ? (el.scrollIntoView({block: 'center'}), true) : false")
         time.sleep(0.3)
+
+    # The Downloads tab (views.js renderDownloads): its list, opened from the sidebar like a player does.
+    def dq(selector, expression="!!el"):
+        return js(f"(() => {{ const el = document.querySelector({json.dumps('#downloads-list ' + selector)}); return {expression}; }})()")
+
+    def dtext(selector):
+        return dq(selector, "el ? el.textContent.replace(/\\s+/g, ' ').trim() : null")
+
+    def open_downloads():
+        js("document.getElementById('downloads').click(); true")
+        time.sleep(0.4)
+        return js("document.getElementById('downloads-page').style.display !== 'none'")
+
+    def back_to_page():
+        # (not a click on the sidebar entry: that refreshes the section, which clears a finished run's outcome);
+        # the sidebar marks the game as a click would, so the next click on Downloads opens it again
+        js("removeActiveNavigation(); document.querySelector('.game-item[data-game=\"xml1\"]').classList.add('active', 'xml1-active'); "
+           "loadNavigationPage('xml1'); true")
+        time.sleep(0.3)
+
+    def downloads_shot(name):
+        js("document.getElementById('downloads-page').scrollIntoView({block: 'start'})")
+        time.sleep(0.4)
+        path = args.shots / f"models-downloads-{name}.png"
+        launcher.screenshot(path)
+        print(f"  screenshot: {path}", flush=True)
+
+    def badge():
+        return js("(() => { const b = document.getElementById('downloads-badge'); return b && b.style.display !== 'none' ? b.textContent : ''; })()")
+
+    def recent(index=0):
+        return js(f"(() => {{ const rows = document.querySelectorAll('#downloads-list .downloads-recent .download-row.finished'); const el = rows[{index}]; "
+                  "return el ? { outcome: el.dataset.outcome, text: el.textContent.replace(/\\s+/g, ' ').trim() } : null; })()")
 
     def status_of(hero):
         return q(f'.ul-models-row[data-hero="{hero}"] .ul-models-status', "el ? el.className.replace(/.*is-/, '') : null")
@@ -241,14 +279,56 @@ def main():
                 check("no stable release of it yet" in (text(".ul-models-missing") or ""), "back on Stable: no stable release yet again")
 
             print("the tool from its release (Stable)")
-            releases[TOOL_REPO].insert(0, {"tag_name": "v0.3.0", "prerelease": False, "files": tool_release(release_dir / "0.3.0", "0.3.0", shim)})
+            stable_files = tool_release(release_dir / "0.3.0", "0.3.0", shim)
+            releases[TOOL_REPO].insert(0, {"tag_name": "v0.3.0", "prerelease": False, "files": stable_files})
+            zip_path = pathlib.Path(stable_files["legends-models-0.3.0-win64.zip"])
+            zip_sha = hashlib.sha256(zip_path.read_bytes()).hexdigest()
             click('[data-act="tool-check"]')
             check(wait_for(lambda: q('[data-act="tool-install"]') and "0.3.0 is ready" in (text(".ul-models-missing") or ""), 30), "Install offered")
             note = text(".ul-models-missing") or ""
             check("legends-models 0.3.0 is ready to install" in note and "beta" not in note, f"the Stable release: {note[:120]}")
             shot("tool-available")
+
+            print("the tool's install in the Downloads tab, cancelled from there")
+            # the release's zip served slowly (about 20 s) so the download can be watched and cancelled
+            urllib.request.urlopen(f"{base}/__mode?throttle={max(1024, zip_path.stat().st_size // 20)}", timeout=10).read()
+            click('[data-act="tool-install"]')
+            check(wait_for(lambda: launcher.command("get-models-status")["toolRelease"]["done"] > 0, 30), "the download runs")
+            check(q('[data-act="tool-cancel"]'), "the page has Cancel next to the install's progress")
+            check(open_downloads(), "the Downloads tab opens")
+            check(wait_for(lambda: dq(".download-row.tracked"), 10), "it lists the tool's install")
+            title = dtext(".download-row.tracked .download-row-title") or ""
+            check(title == "Character-model tool: install legends-models 0.3.0", f"its title: {title}")
+            message = dtext(".download-row.tracked .download-progress-message") or ""
+            check("Downloading legends-models-0.3.0-win64.zip" in message, f"the file being downloaded: {message}")
+            check(wait_for(lambda: " / " in (dtext(".download-row.tracked .download-progress-stats") or ""), 10),
+                  f"bytes done / total: {dtext('.download-row.tracked .download-progress-stats')}")
+            item = dtext(".download-row.tracked .download-item") or ""
+            check("from GitHub (Stable update channel)" in item, f"where from: {item}")
+            check(badge() == "1", f"the sidebar badge counts it ({badge()!r})")
+            downloads_shot("tool-install")
+            dq(".download-row.tracked .download-row-cancel", "el ? (el.click(), true) : false")
+            check(wait_for(lambda: (recent() or {}).get("outcome") == "cancelled", 30), f"Recent: Cancelled ({recent()})")
+            check("install was cancelled; nothing was changed" in ((recent() or {}).get("text") or ""), "with the reason")
+            check(not dq(".download-row.tracked"), "no longer running")
+            check(launcher.command("get-models-status")["tool"]["found"] is False, "nothing installed")
+            check(not (tools_root / "0.3.0" / "legends-models.exe").is_file(), "no tools\\legends-models\\0.3.0")
+            downloads_shot("tool-cancelled")
+            urllib.request.urlopen(f"{base}/__mode?throttle=0", timeout=10).read()
+            back_to_page()
+            check(wait_for(lambda: q('[data-act="tool-install"]'), 20), "the page offers Install again")
+            check("cancelled" in (text(".ul-models-tool-error") or ""), f"and says it was cancelled: {text('.ul-models-tool-error')}")
+
             click('[data-act="tool-install"]')
             check(wait_for(lambda: launcher.command("get-models-status")["tool"]["version"] == "0.3.0", 60), "0.3.0 installed")
+            open_downloads()
+            check(wait_for(lambda: (recent() or {}).get("outcome") == "done", 20), f"Recent: the install finished ({recent()})")
+            done = (recent() or {}).get("text") or ""
+            check("legends-models 0.3.0 is installed" in done and f"SHA-256 {zip_sha[:16]}" in done and "legends-models-0.3.0-win64.zip" in done,
+                  f"with the zip and its SHA-256: {done[:200]}")
+            check(((recent(1) or {}).get("outcome")) == "cancelled", "the cancelled one below it")
+            downloads_shot("tool-installed")
+            back_to_page()
             installed_by_test.append("0.3.0")
             check(wait_for(lambda: state()["rows"] == 15, 60), "the page scans and plans with the installed tool")
             idle()
@@ -398,7 +478,8 @@ def main():
         js("window.showMessageBox = async (...a) => { window.__boxes.push(a); return 1; }; true")
 
         print("Apply")
-        knobs(DELAY=0.5, FAIL="cyclops")
+        # each community "download" takes a second, so the Downloads tab can show it
+        knobs(DELAY=0.5, FAIL="cyclops", DOWNLOAD_DELAY=1.0)
         click('[data-act="apply"]')
         check(wait_for(lambda: q(".ul-models-progress") and "of 14 heroes" in (text(".ul-models-progress") or ""), 30), "progress bar with heroes")
         check(launcher.command("get-game-property", {"game": "xml1", "suffix": "models-terms"}) == "baconwizard17-1", "the terms' acceptance stored")
@@ -411,6 +492,31 @@ def main():
         check("SHA-256" in dl and "MB" in dl and "author" in dl, f"download file / size / source / hash: {dl[:120]}")
         check("Beast: Classic" in dl, "the hero and costume of each download")
         shot("building")
+
+        print("the Apply in the Downloads tab")
+        check(open_downloads(), "the Downloads tab opens")
+        rows = js("document.querySelectorAll('#downloads-list .download-row.tracked').length")
+        check(rows == 1, f"one entry for the Apply ({rows})")
+        title = dtext(".download-row.tracked .download-row-title") or ""
+        check(title == "Character models: Apply (Community pack)", f"its title: {title}")
+        check(badge() == "1", f"the sidebar badge counts it ({badge()!r})")
+        check(wait_for(lambda: "Downloading the " in (dtext(".download-row.tracked .download-progress-message") or ""), 20),
+              "a skin downloading")
+        message = dtext(".download-row.tracked .download-progress-message") or ""
+        check(" skin (" in message and "MB" in message and "from the author’s link" in message, f"which skin, its size and source: {message}")
+        check(dq(".download-row.tracked .download-item.is-downloading"), "the skin in flight listed")
+        downloads_shot("apply-downloading")
+        item = dtext(".download-row.tracked .download-item.is-done") or ""
+        check(".rar" in item and "MB" in item and "from the author’s link" in item and "SHA-256 " in item,
+              f"a finished download: file, size, source, SHA-256: {item}")
+        check(wait_for(lambda: "Converting " in (dtext(".download-row.tracked .download-progress-message") or "") and
+                       " of 14" in (dtext(".download-row.tracked .download-progress-message") or ""), 20),
+              f"converting hero N of 14: {dtext('.download-row.tracked .download-progress-message')}")
+        check("of 14 heroes" in (dtext(".download-row.tracked .download-progress-stats") or ""), "heroes done / total")
+        check(dq(".download-row.tracked .download-progress-fill", "parseFloat(el.style.width) > 0"), "the bar moves")
+        check(dq(".download-row.tracked .download-row-cancel"), "Cancel on the entry")
+        downloads_shot("apply-running")
+        back_to_page()
         check(idle(120), "the build finished")
         outcome = text(".ul-models-outcome") or ""
         check("13 heroes have their new models; 2 kept the original" in outcome, f"outcome: {outcome}")
@@ -433,6 +539,16 @@ def main():
         launcher.screenshot(args.shots / "models-preview.png")
         scroll_to(".ul-models-credits")
         launcher.screenshot(args.shots / "models-credits.png")
+        open_downloads()
+        last = recent() or {}
+        check(last.get("outcome") == "partial" and "Character models: Apply (Community pack)" in (last.get("text") or ""),
+              f"Recent: the Apply, finished with notes ({last.get('outcome')})")
+        check("13 heroes have their new models; 2 kept the original" in (last.get("text") or ""), "with the page's outcome")
+        check("SHA-256 " in (last.get("text") or ""), "and its downloads")
+        check(not dq(".download-row.tracked") and dq(".downloads-empty"), "nothing running: No downloads in progress")
+        check(badge() == "", "no badge")
+        downloads_shot("apply-recent")
+        back_to_page()
 
         print("Verify")
         (mods / "Community-Beast" / "Actors" / "14501.IGB").write_bytes(b"changed")
@@ -481,8 +597,15 @@ def main():
         check(build and build.get("code") == "L_MODELS_RUNNING", f"a port build waits: {build}")
         second = launcher.command("models-run", {"command": "scan"})
         check(second and second.get("code") == "L_BUSY", "one run at a time")
-        click('[data-act="cancel"]')
+        # Cancel from the Downloads tab (the page's own Cancel is the same function: the UI tests cover both)
+        open_downloads()
+        check(wait_for(lambda: dq(".download-row.tracked .download-row-cancel", "!!el && !el.disabled"), 10), "the build's entry with Cancel")
+        dq(".download-row.tracked .download-row-cancel", "el ? (el.click(), true) : false")
         check(idle(30), "the run ended")
+        check(wait_for(lambda: (recent() or {}).get("outcome") == "cancelled", 10), f"Recent: Cancelled ({recent()})")
+        check("The models you had before are unchanged" in ((recent() or {}).get("text") or ""), "with the page's words")
+        downloads_shot("apply-cancelled")
+        back_to_page()
         check("Cancelled" in (text(".ul-models-outcome") or ""), "the page says Cancelled")
         build_id = js("window.ModelsView._state('xml1').job.id")
         job = launcher.command("get-models-job", {"id": build_id, "from": 0})
@@ -586,6 +709,11 @@ def main():
         check("none" in (text(".ul-models-installed") or ""), "Installed: none")
         check(launcher.command("get-game-property", {"game": "xml1", "suffix": "models-mode"}) == "off", "mode off stored")
         shot("off")
+        open_downloads()
+        last = recent() or {}
+        check(last.get("outcome") == "done" and "Character models: Turn off" in (last.get("text") or ""), f"Recent: Turn off, finished ({last.get('text', '')[:80]})")
+        downloads_shot("recent")
+        back_to_page()
     finally:
         js(f"window.IS_OFFLINE = {'true' if offline else 'false'}; true")
         launcher.command("set-property", {key: value or "" for key, value in launcher_originals.items()})

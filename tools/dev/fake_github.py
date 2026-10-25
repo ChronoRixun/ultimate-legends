@@ -15,6 +15,7 @@ Serves
     GET /download/<owner>/<repo>/<tag>/<file>      a release's file (each asset's browser_download_url)
     GET /__mode?status=403|429|500|200             from now on every API call answers that status (200: normal);
     GET /__mode?offline=1                          every API call drops the connection (offline, a timeout)
+    GET /__mode?throttle=<bytes per second>        release downloads are sent that slowly from now on (0: at once)
     GET /__latest?repo=<owner>/<repo>&tag=<tag>    make <tag> the latest release (to move "latest" after a choice)
 
 With a Debug launcher (launcher properties, Settings > Advanced or the properties file):
@@ -29,10 +30,11 @@ import pathlib
 import re
 import sys
 import threading
+import time
 import urllib.parse
 import urllib.request
 
-STATE = {"releases": {}, "status": 200, "offline": False, "latest": {}}
+STATE = {"releases": {}, "status": 200, "offline": False, "latest": {}, "throttle": 0}
 LOCK = threading.Lock()
 
 
@@ -76,6 +78,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         base = f"http://{self.headers.get('Host')}"
         with LOCK:
             if url.path == "/__mode":
+                if "throttle" in query:
+                    STATE["throttle"] = int(query["throttle"][0])
+                    return self._send(200, b"ok", "text/plain")
                 STATE["status"] = int(query.get("status", ["200"])[0])
                 STATE["offline"] = query.get("offline", ["0"])[0] == "1"
                 return self._send(200, b"ok", "text/plain")
@@ -84,13 +89,34 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self._send(200, b"ok", "text/plain")
 
             download = re.match(r"^/download/([^/]+/[^/]+)/([^/]+)/(.+)$", url.path)
+            data = None
             if download:
                 repo, tag, name = download.groups()
                 for release in STATE["releases"].get(repo, []):
                     if release["tag_name"] == tag and name in release.get("files", {}):
-                        return self._send(200, pathlib.Path(release["files"][name]).read_bytes(), "application/octet-stream")
-                return self._send(404, b"Not Found", "text/plain")
-
+                        data = pathlib.Path(release["files"][name]).read_bytes()
+                        throttle = STATE["throttle"]
+                        break
+                else:
+                    return self._send(404, b"Not Found", "text/plain")
+        if data is not None:
+            if not throttle:
+                return self._send(200, data, "application/octet-stream")
+            # slowly, outside the lock (the API keeps answering meanwhile); a client that hangs up ends it
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            step = max(1, throttle // 10)
+            try:
+                for at in range(0, len(data), step):
+                    self.wfile.write(data[at:at + step])
+                    self.wfile.flush()
+                    time.sleep(0.1)
+            except OSError:
+                pass
+            return None
+        with LOCK:
             api = re.match(r"^/repos/([^/]+/[^/]+)/releases(/latest)?$", url.path)
             if not api:
                 return self._send(404, b'{"message":"Not Found"}')

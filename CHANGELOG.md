@@ -3,7 +3,31 @@
 The launcher's version comes from its release tag (`v0.3.2`): premake reads it with `git describe` when it
 generates the project, so a release only needs this entry and the tag.
 
-## 0.5.0-beta.1 (unreleased: a pre-release for the Beta update channel)
+## 0.5.0-beta.2 (unreleased: a pre-release for the Beta update channel)
+
+### Added
+- **The character models' work shows in the Downloads tab.** Each Apply / Rebuild / Remove / Off of the Character
+  models section and each install / update of the legends-models tool is one entry there while it runs, drawn from
+  the section's own job (one job model, the tab and the page always agree): its phase in words (downloading a
+  community skin with its costume, expected size and source; converting hero N of M; installing into the mods
+  folder; removing a group; the tool's zip downloading with bytes done / total and its update channel, then checked
+  and unpacked), its progress bar, and the skins downloaded so far with file, size, source and SHA-256. **Cancel**
+  on the entry is the section's Cancel (the same question for a build; the tool's install stops at once and the
+  installed tool, if any, stays); the section's own progress has Cancel for the tool's install too. A Remove / Off is
+  not cancelled half way. The sidebar badge counts these entries.
+- **Recent in the Downloads tab.** Finished work goes to Recent, newest first, with Finished / Finished, with notes /
+  Failed / Cancelled and the reason in the section's own words (a model run's outcome, a patch's error), and the
+  downloads it made; patch installs, updates and removals go there the same way (a queued one cancelled from its row
+  too). Running entries are listed in the order they started, then the queued patch items. Recent lasts until the
+  launcher closes, or **Clear**.
+- Native: `models-tool-cancel`; `get-models-status.toolRelease` gives the release's `latestZip`, `latestSha256` and
+  `cancelRequested`; an install cancelled while it waits for a running conversion stops too (`L_TOOL_CANCELLED`).
+- Tests: UI `downloads.test.js` (Apply's phases, both Cancels, a failure, Rebuild / Remove, the tool's install
+  cancelled and finished, patch and models ordering and Recent); `models_cdp.py` checks the Downloads tab through a
+  fake Apply and the tool's install (a throttled fake GitHub download, `fake_github.py /__mode?throttle=`; the fake
+  tool's `FAKE_LM_DOWNLOAD_DELAY`).
+
+## 0.5.0-beta.1 (2026-10-25: a pre-release for the Beta update channel)
 
 ### Added
 - **Character models for X-Men Legends (Legends Classic port).** A Character models section on the port's page runs

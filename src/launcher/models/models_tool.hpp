@@ -95,8 +95,9 @@ namespace models_tool
 
     // Asks the update channel for the tool's release and, with `install`, installs it when there is no
     // tool yet or the release is newer than the installed one (waits for a running tool to finish first).
-    // false when a check or install is already running, or with -offline.
-    bool check_tool(bool install);
+    // `force` asks GitHub even when a recent answer is at hand (Check again). false when a check or
+    // install is already running, or with -offline.
+    bool check_tool(bool install, bool force = false);
     tool_check_state tool_check();
 
     // <launcher data>\cache\legends-models

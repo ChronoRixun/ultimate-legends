@@ -353,7 +353,7 @@
 
     // Asks the launcher for the tool's release (install: and installs or updates it), then follows the
     // check until it ends. A finished install scans again with the new tool.
-    async function checkTool(gameId, install) {
+    async function checkTool(gameId, install, force = false) {
         const s = getState(gameId);
         if (toolRelease(s).offline) return;
         s.acting++;
@@ -361,7 +361,7 @@
             const before = toolRelease(s).installedNow || '';
             let started = null;
             try {
-                started = await run('models-tool-check', { install: !!install });
+                started = await run('models-tool-check', force ? { install: !!install, force: true } : { install: !!install });
             } catch (error) {
                 console.error(error);
             }
@@ -1150,7 +1150,7 @@
                 await checkTool(gameId, true);
                 break;
             case 'tool-check':
-                await checkTool(gameId, false);
+                await checkTool(gameId, false, true);
                 break;
             case 'verify': {
                 await verifyInstalled(gameId);

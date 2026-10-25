@@ -335,13 +335,15 @@ namespace commands::models_commands
             response.SetBool(models_tool::cancel(id));
         });
 
-        // { install } -> { started }: asks the update channel for the tool's release (install: and installs
-        // it when there is none or it is newer); the page polls get-models-status.toolRelease.
+        // { install, force? } -> { started }: asks the update channel for the tool's release (install: and
+        // installs it when there is none or it is newer; force: GitHub is asked again even when it answered a
+        // moment ago); the page polls get-models-status.toolRelease.
         cef_ui.add_command("models-tool-check", [](const rapidjson::Value& value, rapidjson::Document& response)
         {
             const auto install = value.IsObject() && value.HasMember("install") && value["install"].IsBool() && value["install"].GetBool();
             response.SetObject();
-            response.AddMember("started", models_tool::check_tool(install), response.GetAllocator());
+            const auto force = value.IsObject() && value.HasMember("force") && value["force"].IsBool() && value["force"].GetBool();
+            response.AddMember("started", models_tool::check_tool(install, force), response.GetAllocator());
         });
 
         // { path } -> { data } (a data: URL) or { data: null }: a costume preview scan named, only a PNG in

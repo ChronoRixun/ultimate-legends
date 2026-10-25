@@ -87,15 +87,15 @@ namespace models_tool
         // the zip next to it are one release). With no choice at all (GitHub can't be asked and nothing was
         // found before): the latest release's manifest into a PC without the tool (its zip is still checked
         // by size and SHA-256), else false and the installed tool stays.
-        bool channel_manifest(tool_install::tool& tool, const release_channel::channel channel, const bool has_tool, bool& from_cache,
-                              std::string& error, bool& not_published)
+        bool channel_manifest(tool_install::tool& tool, const release_channel::channel channel, const bool has_tool, const bool force,
+                              bool& from_cache, std::string& error, bool& not_published)
         {
             from_cache = false;
             if (tool.manifest_url != tool_manifest_url)
             {
                 return true; // a Debug build's local stand-in
             }
-            const auto outcome = release_source::resolve(tool_repo, channel, {tool_manifest_name});
+            const auto outcome = release_source::resolve(tool_repo, channel, {tool_manifest_name}, force);
             error = outcome.error;
             if (!outcome.chosen)
             {
@@ -420,7 +420,7 @@ namespace models_tool
         return check_;
     }
 
-    bool check_tool(const bool install)
+    bool check_tool(const bool install, const bool force)
     {
         if (utils::flags::has_flag("offline"))
         {
@@ -438,7 +438,7 @@ namespace models_tool
             check_.not_published = false;
         }
 
-        std::thread([install]
+        std::thread([install, force]
         {
             auto tool = tool_def();
             const auto channel = release_source::current_channel();
@@ -446,7 +446,7 @@ namespace models_tool
             bool not_published = false;
             bool from_cache = false;
             std::optional<tool_install::manifest> latest;
-            if (channel_manifest(tool, channel, installed_tool().has_value(), from_cache, error, not_published))
+            if (channel_manifest(tool, channel, installed_tool().has_value(), force, from_cache, error, not_published))
             {
                 error.clear();
                 latest = tool_install::fetch_manifest(tool, error, &not_published);

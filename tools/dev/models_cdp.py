@@ -8,15 +8,23 @@ throwaway folders: no game, no real pack, no download.
 Points the xml1 entry at a fake port folder (Actors\\, a placeholder XMen2.exe that is never run, a mods\\
 folder holding another mod), the Debug-only models-tool property at a .cmd that runs the stand-in with
 this Python, and - for Upgraded - the mua entry at an empty folder. Then, through the page's own buttons
-and dropdowns: the tool missing; the Community plan (the suggestion) with Upgraded greyed; a costume
+and dropdowns: the tool missing; the tool's own install and update from a fake GitHub (fake_github.py:
+a Stable release and a Beta pre-release of ChronoRixun/legends-models, each a zip with the stand-in as
+legends-models.exe - native.models_shim() - next to legends-models.json), Stable installing the release,
+the Beta channel offering and installing the pre-release, the old version pruned, Stable never going
+back; the Community plan (the suggestion) with Upgraded greyed; a costume
 picked from Wolverine's 19; Upgraded once MUA1 is set up; Apply with its progress, a hero that fails its
 gate, downloads, credits; the folders, markers and load-order lines on disk (the other mod's line byte
 for byte); Verify catching a changed file and Rebuild repairing it; Cancel mid-build (the previous
 models kept) and the port build / Mods tab refused meanwhile; the mirror field; a download refusal in
-plain words; Off removing everything the tool made and nothing else. Every setting it touches is put
-back. Screenshots go to tools/dev/models-*.png, or to --shots DIR.
+plain words; Off removing everything the tool made and nothing else. Since 0.5.0 also: the author's
+terms before the first community download (declined: nothing built); costume labels / credits and a
+preview; offline planning through --offline; a port rebuilt since the models were made (verify exit
+31) and Rebuild; a 0.2.x-named Upgraded folder renamed by the tool and announced. Every setting it
+touches is put back. Screenshots go to tools/dev/models-*.png, or to --shots DIR.
 """
 import argparse
+import hashlib
 import json
 import os
 import pathlib
@@ -24,12 +32,33 @@ import shutil
 import sys
 import tempfile
 import time
+import zipfile
 
 from launcher_cdp import Launcher, wait_for
 
 HERE = pathlib.Path(__file__).resolve().parent
 FAKE = HERE / "fake_legends_models.py"
-XML1_PROPS = ["install", "is-installed", "models-tool", "models-mode", "models-mirror", "models-costumes"]
+XML1_PROPS = ["install", "is-installed", "models-tool", "models-mode", "models-mirror", "models-costumes", "models-terms",
+              "models-tool-version", "models-manifest"]
+LAUNCHER_PROPS = ["dev-release-api", "launcher-update-channel"]
+TOOL_REPO = "ChronoRixun/legends-models"
+
+
+def tool_release(folder, version, shim):
+    """A release of the stand-in tool the way legends-models publishes one: legends-models-<v>-win64.zip
+    (legends-models.exe + _internal\\) and legends-models.json (version, zip, size, sha256, min_launcher, api)."""
+    folder.mkdir(parents=True, exist_ok=True)
+    name = f"legends-models-{version}-win64.zip"
+    with zipfile.ZipFile(folder / name, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.write(shim, "legends-models.exe")
+        archive.write(FAKE, "_internal/legends-models.py")
+        archive.writestr("_internal/python.txt", sys.executable)
+        archive.writestr("_internal/VERSION.txt", version)
+    data = (folder / name).read_bytes()
+    manifest = {"version": version, "content_version": 1, "zip": name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest(),
+                "min_launcher": "0.4.0", "api": 1, "sampler_bundled": True}
+    (folder / "legends-models.json").write_text(json.dumps(manifest))
+    return {"legends-models.json": str(folder / "legends-models.json"), name: str(folder / name)}
 OTHER_ORDER = b"+Some Other Mod\r\n-Old Skin\r\n"
 
 
@@ -109,6 +138,10 @@ def main():
     wrapper.write_text(f'@echo off\r\nset "PYTHONDONTWRITEBYTECODE=1"\r\n"{sys.executable}" -u "{FAKE}" %*\r\nexit /b %ERRORLEVEL%\r\n')
 
     originals = {suffix: launcher.command("get-game-property", {"game": "xml1", "suffix": suffix}) for suffix in XML1_PROPS}
+    launcher_originals = {key: launcher.command("get-property", key) for key in LAUNCHER_PROPS}
+    server = None
+    installed_by_test = []
+    tools_root = None
     original_mua = launcher.command("get-game-property", {"game": "mua", "suffix": "install"})
     knobs_file = None
 
@@ -117,7 +150,7 @@ def main():
 
     try:
         for suffix, value in (("install", str(port)), ("is-installed", "true"), ("models-tool", ""), ("models-mode", ""),
-                              ("models-mirror", ""), ("models-costumes", "")):
+                              ("models-mirror", ""), ("models-costumes", ""), ("models-terms", ""), ("models-manifest", "")):
             launcher.command("set-game-property", {"game": "xml1", "suffix": suffix, "value": value})
         launcher.command("set-game-property", {"game": "mua", "suffix": "install", "value": ""})
 
@@ -127,13 +160,86 @@ def main():
         js("window.IS_OFFLINE = false; true")
 
         print("the tool not installed")
+        status = launcher.command("get-models-status")
+        tools_root = pathlib.Path(status["workFolder"]).parent.parent / "tools" / "legends-models"
+        real_tool = status["tool"]["found"]
+        if real_tool:
+            print("  (a legends-models is installed on this launcher: the install / update checks are skipped)")
+        else:
+            # Nothing published (an empty fake GitHub): the page says so.
+            from fake_github import serve
+            release_dir = root / "releases"
+            shim = None
+            try:
+                import native
+                shim = native.models_shim()
+            except Exception as error:  # noqa: BLE001 - no MSVC here: the prebuilt one, if any
+                prebuilt = HERE.parents[1] / "build" / "dev-tools" / "legends-models.exe"
+                shim = prebuilt if prebuilt.is_file() else None
+                print(f"  (models_shim: {error}; using {shim})")
+            releases = {TOOL_REPO: []}
+            server = serve(releases, 0)
+            base = f"http://127.0.0.1:{server.server_address[1]}"
+            launcher.command("set-property", {"dev-release-api": base, "launcher-update-channel": "stable"})
         open_page()
         status = launcher.command("get-models-status")
-        check(status["tool"]["found"] is False, "get-models-status: no tool")
+        check(status["tool"]["found"] is real_tool, "get-models-status: the tool as found")
         check(status["port"]["built"] is True, "the fake port counts as built")
-        check(q(".ul-models-missing"), "the page says the tool is not installed")
-        check(not q(".ul-models-table") and not q('[data-act="apply"]'), "no table, no Apply")
-        shot("tool-missing")
+        if not real_tool:
+            check(wait_for(lambda: launcher.command("get-models-status")["toolRelease"]["checking"] is False, 30), "the release check ended")
+            js("window.ModelsView.refresh('xml1')")
+            idle()
+            check(q(".ul-models-missing"), "the page says the tool is not installed")
+            check("not been published yet" in (text(".ul-models-missing") or ""), f"nothing published: {text('.ul-models-missing')}")
+            check(not q(".ul-models-table") and not q('[data-act="apply"]'), "no table, no Apply")
+            shot("tool-missing")
+
+            print("the tool from its release (Stable)")
+            releases[TOOL_REPO][:] = [{"tag_name": "v0.3.0", "prerelease": False, "files": tool_release(release_dir / "0.3.0", "0.3.0", shim)}]
+            click('[data-act="tool-check"]')
+            check(wait_for(lambda: q('[data-act="tool-install"]'), 30), "Install offered")
+            note = text(".ul-models-missing") or ""
+            check("legends-models 0.3.0 is ready to install" in note and "beta" not in note, f"the Stable release: {note[:120]}")
+            shot("tool-available")
+            click('[data-act="tool-install"]')
+            check(wait_for(lambda: launcher.command("get-models-status")["tool"]["version"] == "0.3.0", 60), "0.3.0 installed")
+            installed_by_test.append("0.3.0")
+            check(wait_for(lambda: state()["rows"] == 15, 60), "the page scans and plans with the installed tool")
+            idle()
+            check("legends-models 0.3.0" in (text(".ul-models-tool-version") or ""), "its version shown")
+            check((tools_root / "0.3.0" / "legends-models.exe").is_file(), "tools\\legends-models\\0.3.0\\legends-models.exe")
+            check(launcher.command("get-game-property", {"game": "xml1", "suffix": "models-tool-version"}) == "0.3.0", "the version recorded")
+            shot("tool-installed")
+
+            print("the Beta channel's pre-release")
+            releases[TOOL_REPO].append({"tag_name": "v0.4.0-beta.1", "prerelease": True, "files": tool_release(release_dir / "0.4.0-beta.1", "0.4.0-beta.1", shim)})
+            js("window.ModelsView._state('xml1').toolChecked = false; true")
+            open_page()
+            wait_for(lambda: launcher.command("get-models-status")["toolRelease"]["checking"] is False, 30)
+            js("window.ModelsView.refresh('xml1')")
+            idle()
+            check(not q(".ul-models-tool-update"), "Stable: no update (the pre-release is not offered)")
+            launcher.command("set-update-channel", {"channel": "beta"})
+            js("window.ModelsView._state('xml1').toolChecked = false; true")
+            open_page()
+            check(wait_for(lambda: q('[data-act="tool-install"]'), 30), "Beta: Update offered")
+            note = text(".ul-models-tool-update") or ""
+            check("0.4.0-beta.1, a beta on your Beta update channel, is available (you have 0.3.0)" in note, f"the update: {note[:140]}")
+            shot("tool-update-beta")
+            click('[data-act="tool-install"]')
+            check(wait_for(lambda: launcher.command("get-models-status")["tool"]["version"] == "0.4.0-beta.1", 60), "0.4.0-beta.1 installed")
+            installed_by_test.append("0.4.0-beta.1")
+            idle()
+            check(not q(".ul-models-tool-update"), "no update left")
+            versions = sorted(p.name for p in tools_root.iterdir() if p.is_dir() and not p.name.startswith("."))
+            check(versions == ["0.4.0-beta.1"], f"the old version pruned: {versions}")
+            launcher.command("set-update-channel", {"channel": "stable"})
+            js("window.ModelsView._state('xml1').toolChecked = false; true")
+            open_page()
+            wait_for(lambda: launcher.command("get-models-status")["toolRelease"]["checking"] is False, 30)
+            idle()
+            check(launcher.command("get-models-status")["tool"]["version"] == "0.4.0-beta.1" and not q(".ul-models-tool-update"),
+                  "back on Stable: the newer beta tool stays, nothing older is offered")
         knobs_file = pathlib.Path(status["workFolder"]) / "fake-knobs.json"
         knobs_file.parent.mkdir(parents=True, exist_ok=True)
         shutil.rmtree(knobs_file.parent / "community-cache", ignore_errors=True)  # a clean run: nothing downloaded yet
@@ -151,7 +257,9 @@ def main():
         check(status_of("profxastral") == "stock", "Professor X (astral): original (no community skin)")
         options = q('.ul-models-row[data-hero="wolverine"] select', "el ? el.options.length : 0")
         check(options == 19, f"Wolverine's costume chooser has {options} costumes")
-        check("by BaconWizard17" in (text('.ul-models-row[data-hero="wolverine"] .ul-models-credit') or ""), "the author shown")
+        check("by BaconWizard17 (marvelmods.com)" in (text('.ul-models-row[data-hero="wolverine"] .ul-models-credit') or ""), "the author shown")
+        first = q('.ul-models-row[data-hero="wolverine"] select', "el ? el.options[1].textContent.trim() : null")
+        check(first == "Ultimate XML1 · BaconWizard17", f"label and author in the chooser ({first})")
         check("once the pack is built" in (text(".ul-models-credits") or ""), "credits panel before the build")
         shot("community-plan")
 
@@ -193,11 +301,14 @@ def main():
         print("offline mode")
         js("window.IS_OFFLINE = true; window.ModelsView.refresh('xml1'); true")
         idle()
-        check(q(".ul-models-offline") and "not downloaded yet" in (text(".ul-models-offline") or ""), "offline: the note")
-        check(q('[data-act="apply"]', "el.disabled"), "offline: Apply waits for the downloads")
+        note = text(".ul-models-offline-skipped") or ""
+        check("14 community skins are not downloaded yet" in note, f"offline: the tool planned them away (--offline): {note[:100]}")
+        check("not in the download cache (offline)" in (text('.ul-models-row[data-hero="beast"]') or ""), "with the tool's reason per hero")
+        check(not q('[data-act="apply"]', "el.disabled"), "offline: Apply builds what there is")
+        shot("offline")
         js("window.IS_OFFLINE = false; window.ModelsView.refresh('xml1'); true")
         idle()
-        check(not q(".ul-models-offline"), "online again: no note")
+        check(not q(".ul-models-offline-skipped"), "online again: no note")
 
         print("a costume")
         q('.ul-models-row[data-hero="wolverine"] select', "(el.value = 'Variant 07', el.dispatchEvent(new Event('change', {bubbles: true})), true)")
@@ -227,16 +338,31 @@ def main():
         time.sleep(0.3)
         idle()
 
+        print("the author's terms")
+        js("window.__realMessageBox = window.showMessageBox; window.__boxes = []; "
+           "window.showMessageBox = async (...a) => { window.__boxes.push(a); return 0; }; true")
+        click('[data-act="apply"]')
+        time.sleep(0.5)
+        idle()
+        boxes = js("window.__boxes.map(b => b[0] + ' | ' + b[1])") or []
+        check(len(boxes) == 1 and "author’s terms" in boxes[0] and "outside marvelmods.com" in boxes[0], f"asked first: {boxes[:1]}")
+        check("Nothing was downloaded" in (text(".ul-models-outcome") or ""), "declined: nothing built")
+        check(not (mods / "Community-Beast").exists(), "no folder written")
+        js("window.showMessageBox = async (...a) => { window.__boxes.push(a); return 1; }; true")
+
         print("Apply")
         knobs(DELAY=0.5, FAIL="cyclops")
         click('[data-act="apply"]')
         check(wait_for(lambda: q(".ul-models-progress") and "of 14 heroes" in (text(".ul-models-progress") or ""), 30), "progress bar with heroes")
+        check(launcher.command("get-game-property", {"game": "xml1", "suffix": "models-terms"}) == "baconwizard17-1", "the terms' acceptance stored")
+        js("window.showMessageBox = window.__realMessageBox; true")
         check(wait_for(lambda: q('.ul-models-downloads'), 20), "downloads listed")
         time.sleep(1.5)
         check(q('[data-act="cancel"]') and not q('[data-act="apply"]'), "Cancel instead of Apply while it runs")
         check(q('.ul-models-row[data-hero="wolverine"] select', "el.disabled"), "costumes locked while it runs")
         dl = text(".ul-models-downloads") or ""
         check("SHA-256" in dl and "MB" in dl and "author" in dl, f"download file / size / source / hash: {dl[:120]}")
+        check("Beast: Classic" in dl, "the hero and costume of each download")
         shot("building")
         check(idle(120), "the build finished")
         outcome = text(".ul-models-outcome") or ""
@@ -254,6 +380,10 @@ def main():
         wolverine = json.loads((mods / "Community-Wolverine" / "legends-models.json").read_text())
         check(wolverine["characters"]["wolverine"]["source"] == "Variant 07", "the chosen costume was built")
         shot("built")
+        check(wait_for(lambda: q('.ul-models-row[data-hero="beast"] img.ul-models-preview', "!!el && el.src.startsWith('data:image/png')"), 20),
+              "the downloaded costume's preview, read through the launcher")
+        scroll_to('.ul-models-row[data-hero="beast"]')
+        launcher.screenshot(args.shots / "models-preview.png")
         scroll_to(".ul-models-credits")
         launcher.screenshot(args.shots / "models-credits.png")
 
@@ -271,6 +401,22 @@ def main():
         time.sleep(0.5)
         idle(120)
         check(not q(".ul-models-verify"), "Rebuild repaired it (verified after the build)")
+
+        print("the port rebuilt since (verify exit 31)")
+        (port / "libIGSg.dll").write_bytes(b"placeholder, rebuilt")
+        click('[data-act="verify"]')
+        time.sleep(0.3)
+        idle()
+        stale = text(".ul-models-stale") or ""
+        check("rebuilt since these models were made: 13 heroes" in stale, f"stale: {stale[:120]}")
+        check(not q(".ul-models-verify"), "not reported as damaged")
+        last = js("window.ModelsView._state('xml1').verify && window.ModelsView._state('xml1').verify.stale")
+        check(last is True, "verify result stale")
+        shot("stale")
+        click('.ul-models-stale [data-act="rebuild"]')
+        time.sleep(0.5)
+        idle(120)
+        check(not q(".ul-models-stale"), "Rebuild made them for this build (verified after it)")
 
         print("Cancel mid-build")
         knobs(DELAY=3)
@@ -345,6 +491,33 @@ def main():
         js(f"window.IS_OFFLINE = {'true' if offline else 'false'}; window.ModelsView.refresh('xml1'); true")
         idle()
 
+        print("a 0.2.x folder name, renamed by the tool")
+        legacy = mods / "MUA-Storm"
+        (legacy / "Actors").mkdir(parents=True)
+        (legacy / "Actors" / "14601.IGB").write_bytes(b"FAKE legends-models 0.2 output - not a model\n")
+        (legacy / "legends-models.json").write_text(json.dumps({
+            "generator": "legends-models", "version": "0.2.1", "pack": "MUA-Storm", "mode": "upgraded", "group": "Models-Upgraded",
+            "characters": {"storm": {"tier": "mua1", "source": "0601"}},
+            "files": {"Actors/14601.IGB": {"sha256": hashlib.sha256((legacy / "Actors" / "14601.IGB").read_bytes()).hexdigest(), "bytes": 46}}}))
+        before = (mods / "load-order.txt").read_bytes()
+        (mods / "load-order.txt").write_bytes(before + b"-MUA-Storm\r\n")
+        click('.ul-models-mode[data-mode="upgraded"]')
+        time.sleep(0.3)
+        idle()
+        click('[data-act="apply"]')
+        time.sleep(0.5)
+        idle(120)
+        renamed = text(".ul-models-renamed") or ""
+        check("gave 1 model folders its new names" in renamed, f"the rename announced: {renamed[:100]}")
+        check(not legacy.exists() and (mods / "Upgraded-MUA-Storm").is_dir(), "MUA-Storm is now Upgraded-MUA-Storm")
+        order = (mods / "load-order.txt").read_bytes()
+        check(b"MUA-Storm\r\n" in order and b"\nMUA-Storm" not in order and b"+Upgraded-MUA-Storm" in order, "its load-order line renamed")
+        check(any(name.startswith("Upgraded-Community-") for name in os.listdir(mods)), "Upgraded's community heroes: Upgraded-Community-<Hero>")
+        shot("renamed")
+        click('.ul-models-mode[data-mode="community"]')
+        time.sleep(0.3)
+        idle()
+
         print("Off")
         click('.ul-models-mode[data-mode="off"]')
         time.sleep(0.3)
@@ -357,13 +530,21 @@ def main():
         folders = sorted(p.name for p in mods.iterdir() if p.is_dir() and not p.name.startswith("."))
         check(folders == ["Old Skin", "Some Other Mod"], f"only the other mods left: {folders}")
         order = (mods / "load-order.txt").read_bytes()
-        expected = b"".join(line for line in baseline.splitlines(keepends=True) if b"Community-" not in line)
+        expected = b"".join(line for line in baseline.splitlines(keepends=True) if b"Community-" not in line and b"Upgraded-" not in line)
         check(order == expected, f"load order back to the other mods' lines, byte for byte: {order!r}")
         check("none" in (text(".ul-models-installed") or ""), "Installed: none")
         check(launcher.command("get-game-property", {"game": "xml1", "suffix": "models-mode"}) == "off", "mode off stored")
         shot("off")
     finally:
         js(f"window.IS_OFFLINE = {'true' if offline else 'false'}; true")
+        launcher.command("set-property", {key: value or "" for key, value in launcher_originals.items()})
+        if server:
+            server.shutdown()
+        # only the versions this test installed (the stand-in), never a real tool
+        for version in installed_by_test if tools_root else []:
+            folder = tools_root / version
+            if (folder / "_internal" / "VERSION.txt").is_file():
+                shutil.rmtree(folder, ignore_errors=True)
         for suffix, value in originals.items():
             launcher.command("set-game-property", {"game": "xml1", "suffix": suffix, "value": value or ""})
         launcher.command("set-game-property", {"game": "mua", "suffix": "install", "value": original_mua or ""})

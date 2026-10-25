@@ -618,7 +618,7 @@ test('models: no tool and nothing published yet - the page says so, with Check a
     assert.equal(p.act('tool-install'), null);
     p.act('tool-check').click();
     await p.clock.until(() => p.backend.checks.length === 2, 5000, 'a second check');
-    assert.deepEqual(p.backend.checks[1], { install: false });
+    assert.deepEqual(p.backend.checks[1], { install: false, force: true }, 'Check again asks GitHub again');
 });
 
 test('models: a failed tool download is said in plain words and Install stays', async () => {

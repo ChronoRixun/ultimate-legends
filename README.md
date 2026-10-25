@@ -67,8 +67,13 @@ Marvel: Ultimate Alliance and the community pack; it needs one of those games se
 **More** Sharpened classic or XML2 look. The table shows per hero where its model comes from and why, a costume
 dropdown where a source has several, and whether it is planned, built or kept the original (with the reason).
 **Apply** builds the mod folders into the port's `mods` folder (your other mods stay; the game needs a restart),
-**Remove** or **Off** takes them out again, and opening the page verifies them. The launcher ships no models: the tool
-reads your installs and writes only its own folders. Rebuilding the port keeps the `mods` folder.
+**Remove** or **Off** takes them out again, and opening the page verifies them (and offers **Rebuild** when the port
+was rebuilt since the models were made). The launcher ships no models: the tool reads your installs and writes only its
+own folders. Rebuilding the port keeps the `mods` folder. The tool itself comes from its
+[GitHub releases](https://github.com/ChronoRixun/legends-models/releases): the section offers **Install** the first
+time and **Update** when your update channel has a newer one (Beta gets its test versions too). Before the first
+community skin is downloaded, the section shows the author's terms (BaconWizard17: don't share the files outside
+marvelmods.com, don't sell them, credit him); nothing is downloaded until you agree.
 
 Nothing from the games is downloaded: the builder uses only your disc image and your XML2 install, and it never
 connects to the internet. The first build takes about 6-8 minutes on a current PC and needs about 8 GB free.
@@ -150,8 +155,12 @@ Ultimate Legends sends no telemetry. It only connects to the internet in these c
   writes the new game folder on your PC.
 - When you Apply the **Community pack** (or Upgraded, for heroes that use it) under Character models, the
   legends-models tool downloads those community skins from the author's own links, or from the mirror set under
-  **Download source**, and checks each file's SHA-256. The other appearances download nothing. With `-offline`,
-  Apply waits while a planned community skin is not downloaded yet.
+  **Download source**, and checks each file's SHA-256 (after you have accepted the author's terms once). The other
+  appearances download nothing. With `-offline` the tool downloads nothing: heroes whose community skin isn't
+  downloaded yet use their next source or the original model, and the section says so.
+- When you open the X-Men Legends page, the Character models section asks GitHub's API for the latest release of the
+  [legends-models tool](https://github.com/ChronoRixun/legends-models/releases) on your update channel; it downloads
+  it (and checks its SHA-256) only when you press Install or Update. `-offline` turns the check off.
 - When the launcher starts (and every six hours while it runs, or when you press Check for updates in Settings), it
   asks GitHub's API for the latest [Ultimate Legends release](https://github.com/ChronoRixun/ultimate-legends/releases).
   It downloads that release only when you press Update. `-offline` turns the check off.

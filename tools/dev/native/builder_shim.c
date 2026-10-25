@@ -1,4 +1,6 @@
-/* xml1-builder.exe for the fake X-Men Legends builder (tools/dev/fake_xml1_builder.py).
+/* xml1-builder.exe for the fake X-Men Legends builder (tools/dev/fake_xml1_builder.py), and
+ * legends-models.exe for the fake character-model tool (tools/dev/fake_legends_models.py): the script it
+ * runs is named after the exe (_internal\<exe name>.py).
  *
  * The real builder ships as a PyInstaller one-folder app: xml1-builder.exe next to _internal\.
  * The fake keeps that layout so the launcher installs and runs it exactly like the real one:
@@ -64,10 +66,17 @@ int wmain(void)
         return fail("cannot find its own folder");
     }
     *slash = L'\0';
+    wchar_t stem[MAX_PATH];
+    wcsncpy_s(stem, sizeof(stem) / sizeof(stem[0]), slash + 1, _TRUNCATE);
+    wchar_t* dot = wcsrchr(stem, L'.');
+    if (dot)
+    {
+        *dot = L'\0';
+    }
 
     wchar_t script[MAX_PATH * 4];
     wchar_t python_txt[MAX_PATH * 4];
-    swprintf(script, sizeof(script) / sizeof(script[0]), L"%s\\_internal\\xml1-builder.py", folder);
+    swprintf(script, sizeof(script) / sizeof(script[0]), L"%s\\_internal\\%s.py", folder, stem);
     swprintf(python_txt, sizeof(python_txt) / sizeof(python_txt[0]), L"%s\\_internal\\python.txt", folder);
 
     HANDLE file = CreateFileW(python_txt, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);

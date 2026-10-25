@@ -3,6 +3,40 @@
 The launcher's version comes from its release tag (`v0.3.2`): premake reads it with `git describe` when it
 generates the project, so a release only needs this entry and the tag.
 
+## 0.5.0-beta.1 (unreleased: a pre-release for the Beta update channel)
+
+### Added
+- **Character models for X-Men Legends (Legends Classic port).** A Character models section on the port's page runs
+  the legends-models tool (LAUNCHER-API v1) against the player's own installs: Off / Community pack (suggested) /
+  Upgraded (greyed until Marvel: Ultimate Alliance or Marvel: Ultimate Alliance 2 is set up) and, under More,
+  Sharpened classic / XML2 look; a per-hero table (source tier and why, a costume dropdown with its author or source,
+  status planned / built / failed with the reason / original); Apply with a per-hero progress bar, downloads with
+  file, size, source and SHA-256, and a plain-words outcome; Cancel; Remove / Off; Verify when the page opens; the
+  built pack's CREDITS.md whenever community skins are used; a Download source (mirror) field. While it runs, a port
+  build, Uninstall and the Mods list's changes wait; it refuses to write while the game or a build runs.
+- **The legends-models tool installs and updates like the builder.** From the GitHub releases of
+  ChronoRixun/legends-models (`legends-models-<version>-win64.zip` next to `legends-models.json`: version, zip, size,
+  sha256, min_launcher, api) on the update channel: Stable takes the latest release, Beta pre-releases too. With no
+  tool the section shows what the channel offers ("a beta on your Beta update channel" when it is one) and
+  **Install** with its progress, or "not published yet" / the failure in plain words with **Check again**; with one,
+  its version and **Update** when the channel has a newer one. The zip's size and SHA-256 are checked, a release for
+  another protocol (`api`) or a newer launcher (`min_launcher`, the whole version: 0.5.0-beta.1 is not 0.5.0) is not
+  installed, a zip already in `tools\legends-models` or Downloads is used when it matches, the previous version is
+  removed after the install, an older version is never installed over a newer one (Switch back to Stable keeps a
+  beta tool), and nothing runs while it installs. `-offline`: no check. Debug builds take `models-tool` (a program
+  to run instead) and `models-manifest` (a local manifest) properties.
+- **The community skins' terms before the first download.** BaconWizard17's terms (don't share the files outside
+  marvelmods.com, don't sell them, credit him) are shown before the first build that uses community skins; declined,
+  nothing is downloaded; accepted once (stored with the terms' version).
+- Follows legends-models 0.3.0's launcher API: costume labels and credits per source (MUA1 / MUA2 costumes by name,
+  "from your own copy of ..."), the author in the costume dropdown, the author's character-select portrait as a
+  preview once a skin is downloaded (read through the launcher, only a PNG from the tool's work folder); downloads
+  list hero, costume, file, size, source and SHA-256; `--offline` passed with `-offline` (heroes whose community skin
+  isn't downloaded take their next source or the original model, and the section says so); Verify's `stale` (exit 31:
+  the port was rebuilt since the models were made) and packs from before 0.3.0 offer **Rebuild**; the tool's one-time
+  renames of 0.2.x folders (`MUA-Storm` -> `Upgraded-MUA-Storm`, load-order line kept in place) are announced after the
+  build and the Mods list refreshed.
+
 ## 0.4.0 (2026-10-23)
 
 A normal stable release with the Online section and the Beta update channel (below). Online play needs XML2 Fix 1.8.0

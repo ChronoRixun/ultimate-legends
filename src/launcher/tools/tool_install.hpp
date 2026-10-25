@@ -45,6 +45,7 @@ namespace tool_install
         std::string sha256; // lower-case hex
         std::string min_launcher;
         std::string requires_xml2fix;
+        int api{}; // the protocol version a tool speaks (legends-models.json "api"); 0 when not said
     };
 
     struct installed

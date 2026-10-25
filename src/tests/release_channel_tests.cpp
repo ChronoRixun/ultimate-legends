@@ -63,6 +63,16 @@ TEST(semver_orders_pre_releases_below_their_release)
     CHECK(compare("dev", "dev") == 0);
 }
 
+TEST(min_launcher_of_the_tool_s_pre_releases)
+{
+    // legends-models 0.3.0-beta.1's manifest says min_launcher "0.5.0-0": every 0.5.0 pre-release passes, 0.4.x doesn't.
+    CHECK(release_channel::compare("0.5.0-beta.1", "0.5.0-0") > 0);
+    CHECK(release_channel::compare("0.5.0", "0.5.0-0") > 0);
+    CHECK(release_channel::compare("0.4.0", "0.5.0-0") < 0);
+    // a plain "0.5.0" would refuse the beta launcher: SemVer puts 0.5.0-beta.1 below 0.5.0
+    CHECK(release_channel::compare("0.5.0-beta.1", "0.5.0") < 0);
+}
+
 TEST(semver_parses_versions_and_tags)
 {
     CHECK(release_channel::tag_version("v1.8.0-beta.1") == "1.8.0-beta.1");

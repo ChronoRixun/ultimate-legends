@@ -12,6 +12,7 @@
 #include "test_mode_commands.hpp"
 #include "online_commands.hpp"
 #include "xml1_commands.hpp"
+#include "models_commands.hpp"
 #include "update_commands.hpp"
 
 namespace commands
@@ -44,6 +45,7 @@ namespace commands
         test_mode_commands::register_commands(cef_ui, ctx);
         online_commands::register_commands(cef_ui, ctx);
         xml1_commands::register_commands(cef_ui, ctx);
+        models_commands::register_commands(cef_ui, ctx);
         update_commands::register_commands(cef_ui, ctx);
     }
 }

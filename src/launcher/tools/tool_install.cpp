@@ -287,6 +287,10 @@ namespace tool_install
         {
             result.size = document["size"].GetUint64();
         }
+        if (document.HasMember("api") && document["api"].IsInt())
+        {
+            result.api = document["api"].GetInt();
+        }
 
         if (!is_safe_version(result.version))
         {

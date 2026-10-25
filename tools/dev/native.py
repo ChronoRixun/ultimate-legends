@@ -4,6 +4,7 @@
     fix_dll(version, keys)  a dinput.dll stand-in (never loaded) with a VERSIONINFO of `version` (and
                         the ini key names `keys` in it, as the real fix has the keys it reads)
     builder_shim()      xml1-builder.exe for the fake builder (tools/dev/fake_xml1_builder.py)
+    models_shim()       legends-models.exe for the fake character-model tool (tools/dev/fake_legends_models.py)
 
 Sources are in tools/dev/native/; outputs go to build/dev-tools/ (gitignored) and are rebuilt when
 their source changes. Needs the Visual Studio C++ tools (found with vswhere), as the launcher's own
@@ -127,7 +128,12 @@ def builder_shim():
     return _build("xml1-builder.exe", ["builder_shim.c"])
 
 
+def models_shim():
+    """The same shim named legends-models.exe: it runs _internal/legends-models.py."""
+    return _build("legends-models.exe", ["builder_shim.c"])
+
+
 if __name__ == "__main__":
-    for path in (dummy_game(), fix_dll("1.2.0"), builder_shim()):
+    for path in (dummy_game(), fix_dll("1.2.0"), builder_shim(), models_shim()):
         print(path)
     print(json.dumps({"ok": True}))

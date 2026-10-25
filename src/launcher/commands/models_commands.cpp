@@ -150,6 +150,10 @@ namespace commands::models_commands
             release.AddMember("notPublished", check.not_published, allocator);
             release.AddMember("latest", make_string(check.latest ? check.latest->version : std::string{}, allocator), allocator);
             release.AddMember("latestSize", check.latest ? check.latest->size : 0, allocator);
+            // the release's zip and its SHA-256 (the Downloads tab names the file and the hash it is checked against)
+            release.AddMember("latestZip", make_string(check.latest ? check.latest->zip : std::string{}, allocator), allocator);
+            release.AddMember("latestSha256", make_string(check.latest ? check.latest->sha256 : std::string{}, allocator), allocator);
+            release.AddMember("cancelRequested", check.cancel_requested, allocator);
             release.AddMember("channel", rapidjson::StringRef(release_channel::channel_name(check.channel)), allocator);
             release.AddMember("fromCache", check.from_cache, allocator);
             release.AddMember("source", make_string(check.source, allocator), allocator);
@@ -345,6 +349,13 @@ namespace commands::models_commands
             response.SetObject();
             const auto force = value.IsObject() && value.HasMember("force") && value["force"].IsBool() && value["force"].GetBool();
             response.AddMember("started", models_tool::check_tool(install, force), response.GetAllocator());
+        });
+
+        // -> { cancelled }: stops the tool's install / update (models-tool-check install) that is running.
+        cef_ui.add_command("models-tool-cancel", [](const rapidjson::Value&, rapidjson::Document& response)
+        {
+            response.SetObject();
+            response.AddMember("cancelled", models_tool::cancel_tool_install(), response.GetAllocator());
         });
 
         // { path } -> { data } (a data: URL) or { data: null }: a costume preview scan named, only a PNG in

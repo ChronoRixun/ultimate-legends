@@ -317,4 +317,21 @@ namespace models_args
         default: return "unknown";
         }
     }
+
+    std::string tool_install_code(const std::string& error)
+    {
+        if (error == "cancelled")
+        {
+            return "L_TOOL_CANCELLED";
+        }
+        if (error.find("SHA-256") != std::string::npos)
+        {
+            return "L_TOOL_HASH";
+        }
+        if (error.find("zip") != std::string::npos || error.find("unpack") != std::string::npos)
+        {
+            return "L_TOOL_EXTRACT";
+        }
+        return "L_TOOL_DOWNLOAD";
+    }
 }

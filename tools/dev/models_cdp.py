@@ -309,7 +309,7 @@ def main():
         note = text(".ul-models-offline-skipped") or ""
         check("14 community skins are not downloaded yet" in note, f"offline: the tool planned them away (--offline): {note[:100]}")
         check("not in the download cache (offline)" in (text('.ul-models-row[data-hero="beast"]') or ""), "with the tool's reason per hero")
-        check(not q('[data-act="apply"]', "el.disabled"), "offline: Apply builds what there is")
+        check(q('[data-act="apply"]', "el.disabled"), "offline with nothing downloaded: every hero stays original, so Apply has nothing to build")
         shot("offline")
         js("window.IS_OFFLINE = false; window.ModelsView.refresh('xml1'); true")
         idle()
@@ -409,12 +409,16 @@ def main():
 
         print("the port rebuilt since (verify exit 31)")
         (port / "libIGSg.dll").write_bytes(b"placeholder, rebuilt")
+        js("window.__lastToast = ''; window.__realToast = window.showToast; "
+           "window.showToast = (m, k) => { window.__lastToast = String(m); return window.__realToast(m, k); }; true")
         click('[data-act="verify"]')
         time.sleep(0.3)
         idle()
         stale = text(".ul-models-stale") or ""
         check("rebuilt since these models were made: 13 heroes" in stale, f"stale: {stale[:120]}")
         check(not q(".ul-models-verify"), "not reported as damaged")
+        check(not js("window.__lastToast && /are intact/.test(window.__lastToast)"), "no 'intact' toast next to the stale note")
+        js("window.showToast = window.__realToast; true")
         last = js("window.ModelsView._state('xml1').verify && window.ModelsView._state('xml1').verify.stale")
         check(last is True, "verify result stale")
         shot("stale")

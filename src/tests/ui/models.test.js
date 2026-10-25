@@ -852,3 +852,34 @@ test('models: exit 31 has a name of its own', async () => {
     assert.ok(newRun('verify').renamed, 'a run keeps its renames');
     assert.match(p.window.LauncherI18n.t('models.exit.stale'), /rebuilt since they were made/);
 });
+
+test('models: a plan where every hero stays original has nothing to Apply', async () => {
+    const backend = new Backend();
+    const script = backend.script.bind(backend);
+    backend.script = request => request.command !== 'plan' ? script(request) : {
+        lines: [ev('result', { mode: request.mode, pack: 'Models-Community', rows: planRows(request.mode, {}).map(row => Object.assign({}, row,
+            { tier: 'stock', source: '', reason: `${row.source || 'x'} is not in the download cache (offline)` })) })], exit: 0
+    };
+    const p = page({ scripts: ['core/utils.js', 'core/i18n.js', 'app/models-view.js'], body: '<div id="xml1-models-panel"></div>', backend, offline: true });
+    p.window.ModelsView.render('xml1');
+    p.window.ModelsView.refresh('xml1');
+    await p.clock.until(() => !p.window.ModelsView._state('xml1').refreshing, 20000, 'refresh');
+    assert.ok(p.document.querySelector('[data-act="apply"]').disabled);
+    assert.ok(p.document.querySelector('.ul-models-offline-skipped'));
+});
+
+test('models: Verify of a stale pack shows the note, not an "intact" toast', async () => {
+    const installed = [{ folder: 'Community-Beast', group: 'Models-Community', mode: 'community', listed: true, enabled: true, credits: true,
+        characters: [{ hero: 'beast', tier: 'community', source: 'Classic' }] }];
+    const p = await open({ installed });
+    const script = p.backend.script.bind(p.backend);
+    p.backend.script = request => request.command !== 'verify' ? script(request) : {
+        lines: [ev('result', { ok: true, files: 4, missing: [], extra: [], changed: [], load_order: 'enabled', stale: true,
+            stale_folders: ['Community-Beast'], port_changed: ['Community-Beast: libIGSg.dll'], port_build_unknown: [] })], exit: 31
+    };
+    p.act('verify').click();
+    await p.settle();
+    await p.clock.until(() => !p.window.ModelsView._state('xml1').acting, 5000, 'verify');
+    assert.ok(p.$('.ul-models-stale'));
+    assert.equal(p.toasts.filter(toast => /intact/.test(toast[0])).length, 0);
+});

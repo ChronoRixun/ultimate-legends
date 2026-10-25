@@ -1061,8 +1061,10 @@
         } else {
             const applyLabel = mode === 'off' ? t('models.applyOff') : group && group.enabled && group.mode === mode ? t('models.reapply') : t('models.apply');
             const offlineWait = mode !== 'off' && missingDownloads(s).length > 0;
+            // Every hero would stay original (offline with nothing downloaded, or no source at all): nothing to build.
+            const nothing = mode !== 'off' && !!s.plan && !(s.plan.rows || []).some(row => row.tier !== 'stock');
             const installing = !!toolRelease(s).installing;
-            actions.push(button('apply', applyLabel, disabled || offlineWait || installing || (mode === 'off' && !allGroups(s).length), ' data-primary="true"'));
+            actions.push(button('apply', applyLabel, disabled || offlineWait || installing || nothing || (mode === 'off' && !allGroups(s).length), ' data-primary="true"'));
             if (allGroups(s).length) actions.push(button('remove', t('models.remove'), disabled));
             if (group) actions.push(button('verify', t('models.verify'), disabled));
             if (s.status.modsFolder) actions.push(button('open-mods', t('models.openMods'), false));
@@ -1155,7 +1157,8 @@
             case 'verify': {
                 await verifyInstalled(gameId);
                 const verify = s.verify;
-                if (verify && verify.ok) window.showToast(t('models.verifyOk', { count: verify.files || 0 }), 'success');
+                // (intact but made for another build of the port: the stale note says so instead)
+                if (verify && verify.ok && !verify.stale) window.showToast(t('models.verifyOk', { count: verify.files || 0 }), 'success');
                 break;
             }
             case 'open-mods':

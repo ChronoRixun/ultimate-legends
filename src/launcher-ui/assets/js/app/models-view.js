@@ -5,23 +5,29 @@
 // The launcher never ships a model: Apply runs `build` against the player's own installs and the tool
 // writes <port>\mods\<Tier>-<Hero> folders plus their load-order lines; Off runs `remove`.
 //
-// The page talks to the tool only through models_commands.cpp: get-models-status (the tool, the port,
-// the MUA1/MUA2 folders the launcher knows, the stored choices, the legends-models folders in mods\),
-// models-run (scan / plan / build / verify / remove, by name - the C++ builds the command line from
-// checked values) and get-models-job (the run's JSON lines from an index, so each event arrives once).
-// Opening the page scans, plans the chosen appearance and verifies the installed one.
+// The page talks to the tool only through models_commands.cpp: get-models-status (the tool and its
+// release on the update channel, the port, the MUA1/MUA2 folders the launcher knows, the stored choices,
+// the legends-models folders in mods\), models-tool-check (find / install / update the tool from its
+// GitHub releases), models-run (scan / plan / build / verify / remove, by name - the C++ builds the
+// command line from checked values), get-models-job (the run's JSON lines from an index, so each event
+// arrives once) and get-models-preview (a costume portrait scan named, as a data: URL).
+// Opening the page scans, plans the chosen appearance and verifies the installed one; the first
+// community download waits for the author's terms to be accepted.
 (function () {
     'use strict';
 
     const SUPPORTED = new Set(['xml1']);
     const API = 1;
     const POLL_MS = 300;
+    const TOOL_POLL_MS = 400;
     const MODES = ['community', 'upgraded', 'sharpen', 'xml2'];
     const MORE_MODES = ['sharpen', 'xml2'];
     const PACKS = { community: 'Models-Community', upgraded: 'Models-Upgraded', xml2: 'Models-XML2-Look', sharpen: 'Models-Sharpened' };
     // The tool's exit codes (LAUNCHER-API.md); models_args::exit_name gives the same names.
     const EXIT_NAMES = { 0: 'ok', 10: 'partial', 11: 'nothing', 3: 'missing_input', 20: 'download', 30: 'verify_mismatch',
-        40: 'unsafe', 2: 'usage', 1: 'bug', 130: 'cancelled' };
+        31: 'stale', 40: 'unsafe', 2: 'usage', 1: 'bug', 130: 'cancelled' };
+    // The tool's one-time stage message when it moves a 0.2.x folder to its group-qualified name.
+    const RENAMED = /^renamed (.+) to (.+) \(group-qualified folder names\)$/;
 
     const state = {};
     const escapeHtml = value => GameUtils.escapeHtml(value);
@@ -57,7 +63,10 @@
                 refreshing: null,
                 runs: 0,           // tool runs in flight (plan / verify / ... included)
                 acting: 0,         // player actions in flight (handle())
-                mirrorOpen: false
+                mirrorOpen: false,
+                gameId,
+                previews: {},      // costume preview path -> data: URL (null while asked / when refused)
+                toolChecked: false // the tool's release asked for once per launcher run
             };
         }
         return state[gameId];
@@ -121,7 +130,7 @@
         return Object.assign({
             command, id: null, from: 0, active: true, finished: false, cancelRequested: false, exitCode: null, exitName: '',
             plan: null, done: 0, total: 0, message: '', stage: '', heroes: {}, downloads: [], warnings: [], errors: [],
-            gates: [], result: null, unknownApi: false, stderrTail: [], startError: ''
+            gates: [], result: null, unknownApi: false, stderrTail: [], startError: '', renamed: []
         }, extra || {});
     }
 
@@ -145,9 +154,11 @@
                     entry.reason = row.tier === 'stock' ? String(row.reason || '') : '';
                 });
                 break;
-            case 'stage':
+            case 'stage': {
                 job.stage = String(event.stage || '');
                 job.message = String(event.message || '');
+                const renamed = RENAMED.exec(job.message);
+                if (renamed) job.renamed.push({ from: renamed[1], to: renamed[2] });
                 if (typeof event.hero === 'string' && job.stage === 'convert') {
                     const entry = heroEntry(job, event.hero);
                     if (entry.status === 'planned' || entry.status === 'trying') {
@@ -156,6 +167,7 @@
                     }
                 }
                 break;
+            }
             case 'progress':
                 job.done = Math.max(0, Number(event.done) || 0);
                 job.total = Math.max(0, Number(event.total) || 0);
@@ -167,7 +179,9 @@
             case 'download':
                 job.downloads.push({
                     archive: String(event.archive || ''), source: String(event.source || ''),
-                    bytes: Number(event.bytes) || 0, sha256: typeof event.sha256 === 'string' ? event.sha256 : ''
+                    bytes: Number(event.bytes) || 0, sha256: typeof event.sha256 === 'string' ? event.sha256 : '',
+                    character: typeof event.character === 'string' ? event.character : '',
+                    costume: event.costume !== undefined && event.costume !== null ? String(event.costume) : ''
                 });
                 break;
             case 'gate': {
@@ -331,6 +345,48 @@
         return !!(s.status && s.status.tool && s.status.tool.found && s.status.port && s.status.port.built);
     }
 
+    // ---- the tool's own install / update (its GitHub releases on the update channel) ----
+
+    function toolRelease(s) {
+        return (s.status && s.status.toolRelease) || {};
+    }
+
+    // Asks the launcher for the tool's release (install: and installs or updates it), then follows the
+    // check until it ends. A finished install scans again with the new tool.
+    async function checkTool(gameId, install) {
+        const s = getState(gameId);
+        if (toolRelease(s).offline) return;
+        s.acting++;
+        try {
+            const before = toolRelease(s).installedNow || '';
+            let started = null;
+            try {
+                started = await run('models-tool-check', { install: !!install });
+            } catch (error) {
+                console.error(error);
+            }
+            await loadStatus(gameId);
+            render(gameId);
+            if (!started || !started.started) {
+                // one already running (the page's own, or another tab's): follow it all the same
+                if (!toolRelease(s).checking && !toolRelease(s).installing) return;
+            }
+            while (toolRelease(s).checking || toolRelease(s).installing) {
+                await new Promise(resolve => setTimeout(resolve, TOOL_POLL_MS));
+                await loadStatus(gameId);
+                render(gameId);
+            }
+            const release = toolRelease(s);
+            if (release.installedNow && release.installedNow !== before) {
+                window.showToast(t('models.tool.installed', { version: release.installedNow }), 'success');
+                s.scan = null;
+                await refresh(gameId, { rescan: true });
+            }
+        } finally {
+            s.acting--;
+        }
+    }
+
     async function refresh(gameId, { rescan = false } = {}) {
         const s = getState(gameId);
         if (s.refreshing) return s.refreshing;
@@ -342,6 +398,11 @@
             }
             render(gameId);
             await loadStatus(gameId);
+            // Once per launcher run: is there a tool (or a newer one) on the update channel?
+            if (s.status && !s.toolChecked && !toolRelease(s).offline) {
+                s.toolChecked = true;
+                checkTool(gameId, false);
+            }
             if (ready(s) && !(s.job && s.job.active) && !s.status.busy) {
                 // Scan again when the folders the tool reads changed (MUA1 / MUA2 set up or moved, another port).
                 const inputs = JSON.stringify([s.status.port && s.status.port.path, s.status.installs]);
@@ -373,7 +434,7 @@
             if (draw) render(gameId);
             return;
         }
-        const job = await runTool(gameId, newRun('plan'), { mode });
+        const job = await runTool(gameId, newRun('plan'), { mode, offline: !!window.IS_OFFLINE });
         const result = resultOf(job);
         s.plan = result && Array.isArray(result.rows) ? { mode, pack: result.pack, rows: result.rows } : null;
         if (!result) s.outcome = { kind: 'error', text: failureText(job) };
@@ -419,6 +480,38 @@
             const cached = tiers && tiers.community && tiers.community.cached;
             return !(cached && cached[row.source] === true);
         }).map(row => row.name || row.hero);
+    }
+
+    // In offline mode the tool itself (--offline) plans the community skins it has not downloaded as
+    // unavailable: those heroes take their next source or stay original. The rows that did.
+    function offlineSkipped(s) {
+        if (!s.plan) return [];
+        const offline = text => /\(offline\)\s*$/.test(String(text || ''));
+        return (s.plan.rows || []).filter(row => offline(row.reason) ||
+            (Array.isArray(row.skipped) && row.skipped.some(item => item && offline(item.reason))));
+    }
+
+    // The community skins' terms (BaconWizard17's readme) are shown once, before the first build that
+    // downloads one.
+    function needsTerms(s) {
+        const accepted = !!(s.status && s.status.settings && s.status.settings.termsAccepted);
+        return !accepted && !!s.plan && (s.plan.rows || []).some(row => row.tier === 'community');
+    }
+
+    async function askTerms(gameId) {
+        const s = getState(gameId);
+        const choice = await window.showMessageBox(t('models.terms.title'), escapeHtml(t('models.terms.body')),
+            [t('common.cancel'), { label: t('models.terms.agree') }]);
+        if (choice !== 1) return false;
+        try {
+            const saved = await run('set-models-settings', { termsAccepted: true });
+            if (!saved || !saved.success) throw new Error((saved && saved.error) || t('models.saveFailed'));
+            if (s.status) s.status.settings = saved.settings;
+        } catch (error) {
+            window.showToast(String((error && error.message) || error), 'error');
+            return false;
+        }
+        return true;
     }
 
     function portRefused(s) {
@@ -472,18 +565,25 @@
         const mode = currentMode(s);
         if (mode === 'off') return removeAll(gameId, false);
         if (missingDownloads(s).length) return;
+        if (needsTerms(s) && !(await askTerms(gameId))) {
+            s.outcome = { kind: 'info', text: t('models.terms.declined') };
+            render(gameId);
+            return;
+        }
 
         s.outcome = null;
         s.job = newRun('build', { mode });
         render(gameId);
-        const job = await runTool(gameId, s.job, { mode });
+        const job = await runTool(gameId, s.job, { mode, offline: !!window.IS_OFFLINE });
         const result = resultOf(job);
+        const notes = job.renamed.length ? [t('models.renamed', { count: job.renamed.length })] : [];
         if (result && (job.exitCode === 0 || job.exitCode === 10)) {
             const built = Object.keys(result.characters || {}).length;
             const stock = Object.keys(result.stock || {}).length + Object.keys(result.refused || {}).length;
             s.outcome = {
                 kind: job.exitCode === 0 ? 'success' : 'warn',
-                text: job.exitCode === 0 ? t('models.applied', { count: built }) : t('models.appliedPartial', { count: built, stock })
+                text: job.exitCode === 0 ? t('models.applied', { count: built }) : t('models.appliedPartial', { count: built, stock }),
+                notes
             };
             try {
                 await run('set-models-settings', { mode });
@@ -491,9 +591,9 @@
                 console.error(error);
             }
         } else if (job.exitCode === 130) {
-            s.outcome = { kind: 'info', text: t('models.cancelled') };
+            s.outcome = { kind: 'info', text: t('models.cancelled'), notes };
         } else {
-            s.outcome = { kind: 'error', text: failureText(job), details: job.stderrTail };
+            s.outcome = { kind: 'error', text: failureText(job), details: job.stderrTail, notes };
         }
         s.chosen = null;
         await loadStatus(gameId);
@@ -585,6 +685,21 @@
         return has(`models.tier.${tier}`) ? t(`models.tier.${tier}`) : String(tier || '');
     }
 
+    // A costume preview as an image source: a data: URL as it is, an absolute path the tool named (scan:
+    // costume_info.preview, a PNG in its work folder) read through the launcher once, then from s.previews.
+    function previewSrc(s, preview) {
+        if (!preview || typeof preview !== 'string') return '';
+        if (/^data:image\/(png|jpeg);base64,/.test(preview)) return preview;
+        if (Object.prototype.hasOwnProperty.call(s.previews, preview)) return s.previews[preview] || '';
+        s.previews[preview] = null;
+        run('get-models-preview', { path: preview }).then(answer => {
+            const data = answer && typeof answer.data === 'string' && /^data:image\/png;base64,/.test(answer.data) ? answer.data : null;
+            s.previews[preview] = data;
+            if (data) render(s.gameId);
+        }).catch(() => {});
+        return '';
+    }
+
     // The costumes a hero's source tier offers (scan): strings, or objects with id / label / author /
     // credit / preview when the tool sends them.
     function costumesOf(s, hero, tier) {
@@ -630,8 +745,8 @@
         const current = costumes.find(item => item.id === String(row.source)) || { id: String(row.source || '') };
         if (!costumes.find(item => item.id === current.id) && current.id) costumes.unshift(current);
         const credit = creditText(row.tier, current);
-        const preview = current.preview && /^data:image\/(png|jpeg);base64,/.test(current.preview)
-            ? `<img class="ul-models-preview" alt="" src="${escapeHtml(current.preview)}">` : '';
+        const src = previewSrc(s, current.preview);
+        const preview = src ? `<img class="ul-models-preview" alt="" src="${escapeHtml(src)}">` : '';
         const control = costumes.length > 1
             ? `<select class="setting-select ul-models-costume" data-hero="${escapeHtml(row.hero)}" data-tier="${escapeHtml(row.tier)}" data-focus="costume-${escapeHtml(row.hero)}"
                     aria-label="${escapeHtml(t('models.costumeFor', { hero: row.name || row.hero }))}"${disabled ? ' disabled' : ''}>
@@ -728,6 +843,7 @@
                 <div class="ul-models-subtitle">${escapeHtml(t('models.downloads'))}</div>
                 <ul>${job.downloads.map(item => `
                     <li class="ul-models-download">
+                        ${item.character ? `<span class="ul-models-download-for">${escapeHtml(t('models.downloadFor', { hero: heroName(job, item.character), costume: item.costume }))}</span>` : ''}
                         <span class="ul-models-download-file">${escapeHtml(item.archive)}</span>
                         <span class="ul-models-download-size">${escapeHtml(bytes(item.bytes))}</span>
                         <span class="ul-models-download-source">${escapeHtml(t(`models.downloadSource.${item.source === 'mirror' ? 'mirror' : 'author'}`))}</span>
@@ -736,15 +852,35 @@
             </div>`;
     }
 
+    function heroName(job, hero) {
+        const rows = (job && job.plan && job.plan.rows) || [];
+        const row = rows.find(item => item && item.hero === hero);
+        return (row && row.name) || hero;
+    }
+
     function warningsHTML(job) {
         if (!job || !job.warnings.length) return '';
         return `<ul class="ul-models-warnings">${job.warnings.slice(-6).map(w =>
             `<li class="xml1-note is-warn">${escapeHtml(w.message)}</li>`).join('')}</ul>`;
     }
 
-    function verifyHTML(s) {
+    function verifyHTML(s, disabled) {
         const verify = s.verify;
-        if (!verify || verify.ok) return '';
+        if (!verify) return '';
+        if (verify.ok) {
+            // Intact, but made for another build of the port (verify exit 31), or by a tool that did not
+            // record the build (0.2.x): offer Rebuild.
+            const stale = Array.isArray(verify.stale_folders) ? verify.stale_folders : [];
+            const unknown = Array.isArray(verify.port_build_unknown) ? verify.port_build_unknown : [];
+            if (!verify.stale && !unknown.length) return '';
+            const changed = Array.isArray(verify.port_changed) ? verify.port_changed.slice(0, 3) : [];
+            return `
+                <div class="xml1-note ${verify.stale ? 'is-warn' : 'is-info'} ul-models-stale">
+                    <div>${escapeHtml(verify.stale ? t('models.stale', { count: stale.length }) : t('models.staleUnknown'))}</div>
+                    ${changed.length ? `<ul class="xml1-verify-files">${changed.map(file => `<li>${escapeHtml(file)}</li>`).join('')}</ul>` : ''}
+                    <div class="xml1-actions">${button('rebuild', t('models.rebuild'), disabled)}</div>
+                </div>`;
+        }
         const count = (verify.missing || []).length + (verify.changed || []).length;
         const files = [...(verify.missing || []), ...(verify.changed || [])].slice(0, 3);
         return `
@@ -760,7 +896,8 @@
         const kind = outcome.kind === 'success' ? 'is-ok' : outcome.kind === 'error' ? 'is-error' : outcome.kind === 'warn' ? 'is-warn' : 'is-info';
         const details = outcome.details && outcome.details.length
             ? `<details class="ul-models-details"><summary>${escapeHtml(t('models.details'))}</summary><pre>${escapeHtml(outcome.details.join('\n'))}</pre></details>` : '';
-        return `<div class="xml1-note ${kind} ul-models-outcome">${escapeHtml(outcome.text)}${details}</div>`;
+        const notes = (outcome.notes || []).map(note => `<div class="xml1-note is-info ul-models-renamed">${escapeHtml(note)}</div>`).join('');
+        return `<div class="xml1-note ${kind} ul-models-outcome">${escapeHtml(outcome.text)}${details}</div>${notes}`;
     }
 
     // Per-hero folders each carry a CREDITS.md: the same opening lines, then that hero's "## Hero" section.
@@ -824,6 +961,68 @@
         return `<button type="button" class="secondary-action xml1-small" data-act="${act}" data-focus="${act}"${disabled ? ' disabled' : ''}${extra}>${escapeHtml(label)}</button>`;
     }
 
+    function toolErrorText(release) {
+        const key = `models.tool.errors.${release.code}`;
+        return has(key) ? t(key, { error: release.error || '' }) : (release.error || release.code);
+    }
+
+    function toolProgressHTML(release) {
+        const percent = release.total ? Math.max(0, Math.min(100, (100 * release.done) / release.total)) : 0;
+        return `
+            <div class="xml1-progress ul-models-tool-progress">
+                <div class="xml1-progress-bar"><div class="xml1-progress-fill" style="width:${percent.toFixed(1)}%"></div></div>
+                <div class="xml1-progress-meta">
+                    <span class="xml1-progress-message">${escapeHtml(t('models.tool.installing', { version: release.latest || '' }))}</span>
+                    <span class="xml1-progress-numbers">${escapeHtml(release.total ? `${bytes(release.done) || '0 B'} / ${bytes(release.total)}` : '')}</span>
+                </div>
+            </div>`;
+    }
+
+    // No tool yet: what the update channel offers, Install, its progress, or why it can't be had.
+    function toolMissingHTML(s, busy) {
+        const release = toolRelease(s);
+        const beta = release.channel === 'beta' && /-/.test(release.latest || '');
+        if (release.offline) {
+            return `<div class="xml1-note is-info ul-models-missing">${escapeHtml(t('models.toolMissing'))} ${escapeHtml(t('models.tool.offline'))}</div>`;
+        }
+        if (release.installing) {
+            return `<div class="ul-models-tool">${toolProgressHTML(release)}</div>`;
+        }
+        if (release.checking) {
+            return `<div class="xml1-note is-info ul-models-missing">${escapeHtml(t('models.tool.checking'))}</div>`;
+        }
+        if (release.code && !(release.latest && release.code !== 'L_TOOL_API' && release.code !== 'L_LAUNCHER_TOO_OLD')) {
+            return `<div class="xml1-note ${release.notPublished ? 'is-info' : 'is-warn'} ul-models-missing">
+                        ${escapeHtml(t('models.toolMissing'))} ${escapeHtml(release.notPublished ? t('models.tool.unpublished') : toolErrorText(release))}
+                        <div class="xml1-actions">${button('tool-check', t('models.tool.checkAgain'), busy)}</div>
+                    </div>`;
+        }
+        if (release.latest) {
+            const failed = release.code ? `<div class="xml1-note is-error ul-models-tool-error">${escapeHtml(toolErrorText(release))}</div>` : '';
+            return `<div class="xml1-note is-info ul-models-missing">
+                        ${escapeHtml(t('models.toolMissing'))} ${escapeHtml(t(beta ? 'models.tool.availableBeta' : 'models.tool.available', { version: release.latest, size: bytes(release.latestSize) }))}
+                        <div class="xml1-actions">${button('tool-install', t('models.tool.install'), busy, ' data-primary="true"')}</div>
+                    </div>${failed}`;
+        }
+        return `<div class="xml1-note is-info ul-models-missing">${escapeHtml(t('models.toolMissing'))}
+                    <div class="xml1-actions">${button('tool-check', t('models.tool.checkAgain'), busy)}</div>
+                </div>`;
+    }
+
+    // The installed tool: its version, and Update when the update channel has a newer one.
+    function toolLineHTML(s, busy) {
+        const tool = (s.status && s.status.tool) || {};
+        const release = toolRelease(s);
+        const beta = release.channel === 'beta' && /-/.test(release.latest || '');
+        const version = `<span class="ul-models-tool-version">${escapeHtml(tool.dev ? t('models.tool.versionDev') : t('models.tool.version', { version: tool.version }))}</span>`;
+        if (release.installing) return `<div class="ul-models-tool">${version}${toolProgressHTML(release)}</div>`;
+        const update = release.updateAvailable
+            ? `<div class="xml1-note is-info ul-models-tool-update">${escapeHtml(t(beta ? 'models.tool.updateAvailableBeta' : 'models.tool.updateAvailable', { version: release.latest, installed: tool.version }))}
+                   <div class="xml1-actions">${button('tool-install', t('models.tool.update'), busy)}</div></div>` : '';
+        const failed = release.code && release.latest ? `<div class="xml1-note is-warn ul-models-tool-error">${escapeHtml(toolErrorText(release))}</div>` : '';
+        return `<div class="ul-models-tool">${version}${update}${failed}</div>`;
+    }
+
     function render(gameId) {
         const host = panel(gameId);
         if (!host) return;
@@ -845,7 +1044,7 @@
 
         let head = '';
         if (!tool.found) {
-            head = `<div class="xml1-note is-info ul-models-missing">${escapeHtml(t('models.toolMissing'))}</div>`;
+            head = toolMissingHTML(s, working || !!(toolRelease(s).checking || toolRelease(s).installing));
         } else if (!s.status.port || !s.status.port.built) {
             head = `<div class="xml1-note is-info ul-models-notbuilt">${escapeHtml(t('models.buildFirst'))}</div>`;
         } else if (blocked) {
@@ -862,7 +1061,8 @@
         } else {
             const applyLabel = mode === 'off' ? t('models.applyOff') : group && group.enabled && group.mode === mode ? t('models.reapply') : t('models.apply');
             const offlineWait = mode !== 'off' && missingDownloads(s).length > 0;
-            actions.push(button('apply', applyLabel, disabled || offlineWait || (mode === 'off' && !allGroups(s).length), ' data-primary="true"'));
+            const installing = !!toolRelease(s).installing;
+            actions.push(button('apply', applyLabel, disabled || offlineWait || installing || (mode === 'off' && !allGroups(s).length), ' data-primary="true"'));
             if (allGroups(s).length) actions.push(button('remove', t('models.remove'), disabled));
             if (group) actions.push(button('verify', t('models.verify'), disabled));
             if (s.status.modsFolder) actions.push(button('open-mods', t('models.openMods'), false));
@@ -874,12 +1074,14 @@
                 ${head}
                 ${tool.found && s.status.port && s.status.port.built ? `
                     <div class="ul-models-installed">${escapeHtml(installedLine)}</div>
+                    ${toolLineHTML(s, working || !!toolRelease(s).checking)}
                     ${modesHTML(s, disabled)}
                     <div class="xml1-actions ul-models-actions">${actions.join('')}</div>
                     ${mode !== 'off' && missingDownloads(s).length ? `<div class="xml1-note is-warn ul-models-offline">${escapeHtml(t('models.offlineNeedsDownload', { count: missingDownloads(s).length }))}</div>` : ''}
+                    ${mode !== 'off' && !missingDownloads(s).length && offlineSkipped(s).length ? `<div class="xml1-note is-info ul-models-offline-skipped">${escapeHtml(t('models.offlineSkipped', { count: offlineSkipped(s).length }))}</div>` : ''}
                     ${progressHTML(s.job)}
                     ${outcomeHTML(s)}
-                    ${verifyHTML(s)}
+                    ${verifyHTML(s, disabled)}
                     ${downloadsHTML(s.job)}
                     ${warningsHTML(s.job)}
                     ${mode !== 'off' && !portRefused(s) ? (s.plan ? tableHTML(s, disabled) : `<div class="ul-display-empty">${escapeHtml(s.loading ? t('models.loading') : t('models.noPlan'))}</div>`) : ''}
@@ -936,6 +1138,19 @@
                 break;
             case 'cancel':
                 await cancel(gameId);
+                break;
+            case 'rebuild': {
+                // The installed appearance, built again for the port as it is now.
+                const group = installedGroup(s);
+                if (group && MODES.includes(group.mode)) s.chosen = group.mode;
+                await apply(gameId);
+                break;
+            }
+            case 'tool-install':
+                await checkTool(gameId, true);
+                break;
+            case 'tool-check':
+                await checkTool(gameId, false);
                 break;
             case 'verify': {
                 await verifyInstalled(gameId);

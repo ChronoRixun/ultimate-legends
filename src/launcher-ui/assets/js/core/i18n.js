@@ -420,7 +420,39 @@
                 title: 'Character models',
                 intro: 'Optional new looks for the heroes, made on this PC from games you own. The port keeps its own animations and gameplay, so co-op and saves are unaffected. Turn it off any time for the original look.',
                 loading: 'Loading character models…',
-                toolMissing: 'The character-model tool is not installed yet. When it is published, the launcher downloads it here the way it gets the builder.',
+                toolMissing: 'The character-model tool is not installed yet.',
+                // The tool itself (legends-models), installed and updated from its GitHub releases on the
+                // launcher's update channel, like the builder.
+                tool: {
+                    checking: 'Looking for the character-model tool…',
+                    available: 'legends-models {{version}} is ready to install ({{size}}). It goes into the launcher’s own folder and converts models on this PC; the launcher never ships a model.',
+                    availableBeta: 'legends-models {{version}}, a beta on your Beta update channel, is ready to install ({{size}}). It goes into the launcher’s own folder and converts models on this PC; the launcher never ships a model.',
+                    install: 'Install the tool',
+                    installing: 'Installing legends-models {{version}}…',
+                    update: 'Update the tool',
+                    updateAvailable: 'legends-models {{version}} is available (you have {{installed}}).',
+                    updateAvailableBeta: 'legends-models {{version}}, a beta on your Beta update channel, is available (you have {{installed}}).',
+                    installed: 'legends-models {{version}} is installed.',
+                    unpublished: 'The character-model tool has not been published yet. Check again later.',
+                    offline: 'Offline mode: the tool can’t be downloaded now. Start the launcher online to install it.',
+                    checkAgain: 'Check again',
+                    version: 'Tool: legends-models {{version}}',
+                    versionDev: 'Tool: a development stand-in',
+                    errors: {
+                        L_TOOL_OFFLINE: 'GitHub could not be reached to get the tool: {{error}}',
+                        L_TOOL_HASH: 'The tool’s download did not match its SHA-256, so nothing was installed. Try again.',
+                        L_TOOL_EXTRACT: 'The tool’s download could not be unpacked: {{error}}',
+                        L_TOOL_DOWNLOAD: 'The tool could not be downloaded: {{error}}',
+                        L_TOOL_API: 'This version of the tool needs a newer Ultimate Legends: update the launcher first.',
+                        L_LAUNCHER_TOO_OLD: '{{error}} Update the launcher first.'
+                    }
+                },
+                terms: {
+                    title: 'Community skins: the author’s terms',
+                    body: 'The community skins are made by BaconWizard17 and downloaded from his own links (marvelmods.com), or from a mirror he has agreed to. His terms: don’t share or re-upload these files outside marvelmods.com, don’t sell them, and credit him. The launcher keeps his credits with the models, and the files stay on this PC in your game’s mods folder.',
+                    agree: 'I agree, download',
+                    declined: 'Nothing was downloaded. The community skins need the author’s terms accepted first.'
+                },
                 buildFirst: 'Build X-Men Legends first, then choose its character models here.',
                 gameRunning: 'X-Men Legends is running: close it to change its character models.',
                 buildRunning: 'A build is running: change the character models when it has finished.',
@@ -507,10 +539,16 @@
                 portRefused: 'The character-model tool can’t use this X-Men Legends folder: {{problems}}. Rebuild the game (Build section above) and try again.',
                 portRefusedUnknown: 'it is not a finished Legends Classic build',
                 offlineNeedsDownload: 'Offline mode: {{count}} of the community skins planned here are not downloaded yet. Turn offline mode off to Apply, or pick another appearance.',
+                offlineSkipped: 'Offline mode: {{count}} community skins are not downloaded yet, so those heroes use their next source or the original model. Apply again online to get them.',
+                stale: 'X-Men Legends was rebuilt since these models were made: {{count}} heroes need converting again for the new build. Rebuild to update them.',
+                staleUnknown: 'Some of these models were made by an older version of the tool, which did not record the X-Men Legends build they were made for. Rebuild to be sure they match it.',
+                rebuild: 'Rebuild',
+                renamed: 'The tool gave {{count}} model folders its new names (the Mods list shows them); their places in the load order were kept.',
                 verifyOk: 'The character models are intact ({{count}} files).',
                 verifyFailed: '{{count}} files of the character models are missing or changed. Rebuild to repair them.',
                 details: 'Details',
                 downloads: 'Downloads',
+                downloadFor: '{{hero}}: {{costume}}',
                 downloadSource: {
                     mirror: 'from the mirror',
                     author: 'from the author’s link'
@@ -532,6 +570,7 @@
                     missing_input: 'Something the tool needs is missing.',
                     download: 'A community skin could not be downloaded or did not match its checksum.',
                     verify_mismatch: 'Some files are missing or changed.',
+                    stale: 'The models are intact, but X-Men Legends was rebuilt since they were made.',
                     unsafe: 'The tool refused to write into a folder it did not make.',
                     usage: 'The tool refused the request.',
                     bug: 'The tool stopped with an error.',
@@ -544,7 +583,8 @@
                     L_GAME_RUNNING: 'Close X-Men Legends first.',
                     L_BUILD_RUNNING: 'Wait for the X-Men Legends build to finish.',
                     L_BUSY: 'The character-model tool is already running.',
-                    L_USAGE: 'That choice is not valid.'
+                    L_USAGE: 'That choice is not valid.',
+                    L_TOOL_INSTALLING: 'The character-model tool is being installed: wait for it to finish.'
                 }
             },
             // The X-Men Legends page's Online section (online-view.js): hosting and joining through the

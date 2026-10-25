@@ -69,7 +69,15 @@ class Backend {
         this.mua2 = mua2;
         this.installed = installed;
         this.verifyOk = verifyOk;
-        this.settings = { mode: '', mirror: '', costumes: {} };
+        this.settings = { mode: '', mirror: '', costumes: {}, termsAccepted: true };
+        this.toolVersion = 'dev';
+        this.toolDev = true;
+        // the tool's release on the update channel (models-tool-check), as models_commands.cpp reports it
+        this.release = { checking: false, installing: false, done: 0, total: 0, code: '', error: '', notPublished: false, latest: '',
+            latestSize: 0, channel: 'stable', fromCache: false, source: '', installedNow: '', updateAvailable: false, offline: false };
+        this.releaseScript = null; // (install) => [release states, one per status poll]; the last one stays
+        this.checks = [];          // every models-tool-check request
+        this.previews = [];        // every get-models-preview request
         this.runs = [];       // every models-run request
         this.jobs = {};
         this.nextId = 1;
@@ -82,7 +90,8 @@ class Backend {
 
     status() {
         return {
-            tool: { found: this.tool, version: 'dev', dev: true },
+            tool: { found: this.tool, version: this.tool ? this.toolVersion : '', dev: this.tool && this.toolDev },
+            toolRelease: this.nextRelease(),
             port: { path: PORT, built: this.built, running: this.running },
             installs: { mua1: this.mua1 ? 'D:\\Steam\\MUA' : null, mua2: this.mua2 ? 'D:\\Steam\\MUA2' : null },
             settings: JSON.parse(JSON.stringify(this.settings)),
@@ -91,6 +100,15 @@ class Backend {
             installed: JSON.parse(JSON.stringify(this.installed)),
             busy: false, xml1Busy: false, job: null
         };
+    }
+
+    nextRelease() {
+        if (this.releaseSteps && this.releaseSteps.length) {
+            const step = this.releaseSteps.shift();
+            if (typeof step === 'function') step(this);
+            else Object.assign(this.release, step);
+        }
+        return JSON.parse(JSON.stringify(this.release));
     }
 
     script(request) {
@@ -182,6 +200,16 @@ class Backend {
                     first: from, total: job.lines.length, startError: '', lines: job.lines.slice(from, upto), stderrTail: job.cancelled ? [] : ['converter log line']
                 };
             }
+            case 'models-tool-check': {
+                this.checks.push(JSON.parse(JSON.stringify(data)));
+                if (this.release.offline) return { started: false };
+                this.release.checking = true;
+                this.releaseSteps = this.releaseScript ? this.releaseScript(!!data.install) : [{ checking: false, code: 'L_TOOL_OFFLINE', error: 'no connection' }];
+                return { started: true };
+            }
+            case 'get-models-preview':
+                this.previews.push(data.path);
+                return { data: /\.png$/.test(data.path) ? 'data:image/png;base64,iVBORw0KGgo=' : null };
             case 'models-cancel': {
                 this.cancels.push(data.id);
                 if (this.jobs[data.id]) this.jobs[data.id].cancelled = true;
@@ -553,4 +581,274 @@ test('models: events of an unexpected shape are ignored, an other API version is
     assert.equal(job.unknownApi, true);
     applyEvent(job, { event: 'result', api: 1, characters: { beast: { tier: 'community' } }, refused: 'bad', stock: null });
     assert.equal(job.heroes.beast.status, 'built');
+});
+
+// ---- 0.5.0: the tool's own install / update, the author's terms, offline, stale, migration ----
+
+test('models: no tool - the update channel offers it, Install installs it and the page scans with it', async () => {
+    const backend = { tool: false };
+    const p = await open(backend, { refresh: false });
+    p.backend.releaseScript = install => install
+        ? [{ checking: false, installing: true, done: 0, total: 62113029 },
+            { done: 31000000 },
+            b => { b.tool = true; b.toolVersion = '0.4.0-beta.1'; b.toolDev = false; Object.assign(b.release, { installing: false, done: 62113029, installedNow: '0.4.0-beta.1', source: 'download' }); }]
+        : [{ checking: false, latest: '0.4.0-beta.1', latestSize: 62113029, channel: 'beta' }];
+    p.window.ModelsView.refresh('xml1');
+    await p.clock.until(() => p.act('tool-install'), 5000, 'Install');
+    assert.deepEqual(p.backend.checks, [{ install: false }], 'asked the channel once, without installing');
+    assert.match(p.$('.ul-models-missing').textContent, /legends-models 0\.4\.0-beta\.1, a beta on your Beta update channel, is ready to install \(59\.2\d? MB\)/);
+    assert.equal(p.backend.runs.length, 0, 'no tool run yet');
+    p.act('tool-install').click();
+    await p.clock.until(() => p.$('.ul-models-tool-progress'), 5000, 'the install progress');
+    await p.clock.until(() => p.backend.commands('scan').length === 1, 20000, 'a scan with the new tool');
+    await p.settle();
+    assert.deepEqual(p.backend.checks[1], { install: true });
+    assert.ok(p.toasts.some(toast => /legends-models 0\.4\.0-beta\.1 is installed/.test(toast[0])), 'said so');
+    assert.equal(p.$('.ul-models-missing'), null);
+    assert.match(p.$('.ul-models-tool-version').textContent, /legends-models 0\.4\.0-beta\.1/);
+    assert.ok(p.$('.ul-models-table'), 'the plan table');
+});
+
+test('models: no tool and nothing published yet - the page says so, with Check again', async () => {
+    const p = await open({ tool: false }, { refresh: false });
+    p.backend.releaseScript = () => [{ checking: false, notPublished: true, code: 'L_TOOL_UNPUBLISHED', error: 'No release has been published.' }];
+    p.window.ModelsView.refresh('xml1');
+    await p.clock.until(() => p.act('tool-check'), 5000, 'Check again');
+    assert.match(p.$('.ul-models-missing').textContent, /has not been published yet/);
+    assert.equal(p.act('tool-install'), null);
+    p.act('tool-check').click();
+    await p.clock.until(() => p.backend.checks.length === 2, 5000, 'a second check');
+    assert.deepEqual(p.backend.checks[1], { install: false });
+});
+
+test('models: a failed tool download is said in plain words and Install stays', async () => {
+    const p = await open({ tool: false }, { refresh: false });
+    p.backend.releaseScript = install => install
+        ? [{ installing: true, checking: false, total: 100 }, { installing: false, code: 'L_TOOL_HASH', error: 'SHA-256 mismatch' }]
+        : [{ checking: false, latest: '0.3.0', latestSize: 100, channel: 'stable' }];
+    p.window.ModelsView.refresh('xml1');
+    await p.clock.until(() => p.act('tool-install'), 5000, 'Install');
+    assert.match(p.$('.ul-models-missing').textContent, /legends-models 0\.3\.0 is ready to install/);
+    p.act('tool-install').click();
+    await p.clock.until(() => p.$('.ul-models-tool-error'), 5000, 'the failure');
+    assert.match(p.$('.ul-models-tool-error').textContent, /did not match its SHA-256, so nothing was installed/);
+    assert.ok(p.act('tool-install'), 'Install again');
+});
+
+test('models: an installed tool with a newer release on the channel offers Update', async () => {
+    const p = await open({}, { refresh: false });
+    p.backend.toolVersion = '0.3.0';
+    p.backend.toolDev = false;
+    p.backend.releaseScript = install => install
+        ? [{ installing: true, checking: false, total: 10 }, { installing: false, installedNow: '0.3.1', updateAvailable: false }]
+        : [{ checking: false, latest: '0.3.1', latestSize: 10, channel: 'stable', updateAvailable: true }];
+    p.window.ModelsView.refresh('xml1');
+    await p.settle();
+    await p.clock.until(() => p.act('tool-install'), 5000, 'Update');
+    assert.match(p.$('.ul-models-tool-update').textContent, /legends-models 0\.3\.1 is available \(you have 0\.3\.0\)/);
+    assert.equal(p.act('tool-install').textContent.trim(), 'Update the tool');
+    p.act('tool-install').click();
+    await p.clock.until(() => p.backend.checks.length === 2 && !p.window.ModelsView._state('xml1').acting, 20000, 'the update');
+    assert.deepEqual(p.backend.checks[1], { install: true });
+    assert.equal(p.$('.ul-models-tool-update'), null);
+});
+
+test('models: -offline - no release check, and the tool missing says it can only be installed online', async () => {
+    const p = await open({ tool: false }, { refresh: false, offline: true });
+    p.backend.release.offline = true;
+    p.window.ModelsView.refresh('xml1');
+    await p.clock.until(() => !p.window.ModelsView._state('xml1').refreshing, 5000, 'refresh');
+    assert.equal(p.backend.checks.length, 0);
+    assert.match(p.$('.ul-models-missing').textContent, /Start the launcher online to install it/);
+    assert.equal(p.act('tool-install'), null);
+});
+
+test("models: the author's terms are asked for before the first community download, once", async () => {
+    const p = await open();
+    p.backend.settings.termsAccepted = false;
+    p.window.ModelsView.refresh('xml1');
+    await p.settle();
+    // declined: nothing built
+    p.act('apply').click();
+    await p.settle();
+    assert.equal(p.messages.length, 1);
+    assert.match(p.messages[0][0], /the author’s terms/);
+    assert.match(p.messages[0][1], /don’t share or re-upload these files outside marvelmods\.com, don’t sell them, and credit him/);
+    assert.equal(p.backend.commands('build').length, 0, 'declined: no build');
+    assert.match(p.$('.ul-models-outcome').textContent, /Nothing was downloaded/);
+    // agreed: stored, then built
+    p.window.showMessageBox = async (...args) => { p.messages.push(args); return 1; };
+    p.act('apply').click();
+    await p.settle();
+    assert.ok(p.backend.saves.some(save => save.termsAccepted === true), 'the acceptance is stored');
+    assert.equal(p.backend.commands('build').length, 1);
+    // next time: no question
+    const asked = p.messages.length;
+    p.act('apply').click();
+    await p.settle();
+    assert.equal(p.messages.length, asked);
+    assert.equal(p.backend.commands('build').length, 2);
+});
+
+test('models: no terms question for an appearance without community skins', async () => {
+    const p = await open();
+    p.backend.settings.termsAccepted = false;
+    p.$('.ul-models-mode[data-mode="sharpen"]').click();
+    await p.settle();
+    p.act('apply').click();
+    await p.settle();
+    assert.equal(p.messages.length, 0);
+    assert.equal(p.backend.commands('build').length, 1);
+});
+
+test('models: offline, the tool plans the undownloaded skins away (--offline) and the page says so', async () => {
+    const backend = new Backend();
+    const script = backend.script.bind(backend);
+    backend.script = request => {
+        if (request.command !== 'plan') return script(request);
+        const rows = planRows(request.mode, {});
+        rows[0] = Object.assign({}, rows[0], { tier: 'stock', source: '', reason: 'Classic is not in the download cache (offline)',
+            skipped: [{ tier: 'community', reason: 'Classic is not in the download cache (offline)' }] });
+        const result = { mode: request.mode, pack: 'Models-Community', rows };
+        return { lines: [ev('result', result)], exit: 0 };
+    };
+    backend.release.offline = true;
+    const scan = backend.script;
+    backend.script = request => {
+        if (request.command !== 'scan') return scan(request);
+        const result = scanResult();
+        result.heroes.beast.tiers.community.cached = { Classic: false };
+        result.heroes.wolverine.tiers.community.cached = { Original: true, 'Ultimate XML1': true };
+        return { lines: [ev('result', result)], exit: 0 };
+    };
+    const p = page({ scripts: ['core/utils.js', 'core/i18n.js', 'app/models-view.js'], body: '<div id="xml1-models-panel"></div>', backend, offline: true });
+    p.window.ModelsView.render('xml1');
+    p.window.ModelsView.refresh('xml1');
+    await p.clock.until(() => !p.window.ModelsView._state('xml1').refreshing, 20000, 'refresh');
+    assert.equal(backend.commands('plan')[0].offline, true, 'plan --offline');
+    const note = p.document.querySelector('.ul-models-offline-skipped');
+    assert.ok(note, 'the offline note');
+    assert.match(note.textContent, /1 community skins are not downloaded yet/);
+    assert.match(p.document.querySelector('.ul-models-row[data-hero="beast"]').textContent, /not in the download cache \(offline\)/);
+    const apply = p.document.querySelector('[data-act="apply"]');
+    assert.ok(!apply.disabled, 'Apply builds what is there');
+    apply.click();
+    await p.clock.until(() => backend.commands('build').length === 1 && !p.window.ModelsView._state('xml1').job.active, 20000, 'the build');
+    assert.equal(backend.commands('build')[0].offline, true, 'build --offline');
+});
+
+test('models: verify says the port was rebuilt since (exit 31) and Rebuild builds the installed appearance', async () => {
+    const installed = [{ folder: 'Upgraded-MUA-Storm', group: 'Models-Upgraded', mode: 'upgraded', listed: true, enabled: true, credits: false,
+        characters: [{ hero: 'wolverine', tier: 'mua1', source: '0303' }] }];
+    const backend = new Backend({ installed, mua1: true });
+    const script = backend.script.bind(backend);
+    backend.script = request => request.command !== 'verify' ? script(request) : {
+        lines: [ev('result', { ok: true, files: 4, missing: [], extra: [], changed: [], load_order: 'enabled', stale: true,
+            stale_folders: ['Upgraded-MUA-Storm'], port_changed: ['Upgraded-MUA-Storm: Actors/14601.IGB'], port_build_unknown: [] })], exit: 31
+    };
+    const p = page({ scripts: ['core/utils.js', 'core/i18n.js', 'app/models-view.js'], body: '<div id="xml1-models-panel"></div>', backend });
+    p.window.ModelsView.render('xml1');
+    p.window.ModelsView.refresh('xml1');
+    await p.clock.until(() => !p.window.ModelsView._state('xml1').refreshing, 20000, 'refresh');
+    const note = p.document.querySelector('.ul-models-stale');
+    assert.ok(note, 'the stale note');
+    assert.match(note.textContent, /rebuilt since these models were made: 1 heroes need converting again/);
+    assert.match(note.textContent, /Upgraded-MUA-Storm: Actors\/14601\.IGB/);
+    assert.equal(p.document.querySelector('.ul-models-verify'), null, 'not a damaged pack');
+    note.querySelector('[data-act="rebuild"]').click();
+    await p.clock.until(() => backend.commands('build').length === 1, 20000, 'the rebuild');
+    assert.equal(backend.commands('build')[0].mode, 'upgraded');
+});
+
+test('models: a pack made before 0.3.0 (no port build recorded) offers Rebuild quietly', async () => {
+    const installed = [{ folder: 'Community-Beast', group: 'Models-Community', mode: 'community', listed: true, enabled: true, credits: true,
+        characters: [{ hero: 'beast', tier: 'community', source: 'Classic' }] }];
+    const backend = new Backend({ installed });
+    const script = backend.script.bind(backend);
+    backend.script = request => request.command !== 'verify' ? script(request) : {
+        lines: [ev('result', { ok: true, files: 4, missing: [], extra: [], changed: [], load_order: 'enabled', stale: false,
+            stale_folders: [], port_changed: [], port_build_unknown: ['Community-Beast'] })], exit: 0
+    };
+    const p = page({ scripts: ['core/utils.js', 'core/i18n.js', 'app/models-view.js'], body: '<div id="xml1-models-panel"></div>', backend });
+    p.window.ModelsView.render('xml1');
+    p.window.ModelsView.refresh('xml1');
+    await p.clock.until(() => !p.window.ModelsView._state('xml1').refreshing, 20000, 'refresh');
+    const note = p.document.querySelector('.ul-models-stale');
+    assert.ok(note && note.className.includes('is-info'));
+    assert.match(note.textContent, /older version of the tool/);
+});
+
+test("models: the tool's folder renames (0.2.x names) are announced after the build", async () => {
+    const p = await open();
+    const build = p.backend.defaultBuild.bind(p.backend);
+    p.backend.buildScript = request => {
+        const out = build(request);
+        out.lines.splice(1, 0, ev('stage', { stage: 'publish', message: 'renamed MUA-Storm to Upgraded-MUA-Storm (group-qualified folder names)' }),
+            ev('stage', { stage: 'publish', message: 'renamed MUA2-Wolverine to Upgraded-MUA2-Wolverine (group-qualified folder names)' }));
+        return out;
+    };
+    p.act('apply').click();
+    await p.settle();
+    const note = p.$('.ul-models-renamed');
+    assert.ok(note);
+    assert.match(note.textContent, /gave 2 model folders its new names/);
+    const job = p.window.ModelsView._state('xml1').job;
+    assert.equal(JSON.stringify(job.renamed[0]), JSON.stringify({ from: 'MUA-Storm', to: 'Upgraded-MUA-Storm' }));
+});
+
+test('models: a download names the hero and costume with its SHA-256', async () => {
+    const p = await open();
+    const build = p.backend.defaultBuild.bind(p.backend);
+    p.backend.buildScript = request => {
+        const out = build(request);
+        out.lines = out.lines.map(line => JSON.parse(line).event === 'download'
+            ? ev('download', { archive: 'Beast-Classic.rar', source: 'author', bytes: 1048576, sha256: 'c'.repeat(64), character: 'beast', costume: 'Classic' }) : line);
+        return out;
+    };
+    p.act('apply').click();
+    await p.settle();
+    const text = p.$('.ul-models-downloads').textContent;
+    assert.match(text, /Beast: Classic/);
+    assert.match(text, /Beast-Classic\.rar/);
+    assert.match(text, /SHA-256 cccccccccccccccc/);
+});
+
+test('models: costume labels and authors, and a preview the tool named is read through the launcher', async () => {
+    const backend = new Backend({ mua1: true });
+    const script = backend.script.bind(backend);
+    backend.script = request => {
+        if (request.command !== 'scan') return script(request);
+        const result = scanResult({ mua1: true });
+        result.heroes.wolverine.tiers.mua1.author = '';
+        result.heroes.wolverine.tiers.mua1.costume_info = [
+            { id: '0301', label: 'White shirt and jeans', author: '', credit: 'from your own copy of Marvel: Ultimate Alliance' },
+            { id: '0302', label: 'Brown/yellow', author: '', credit: 'from your own copy of Marvel: Ultimate Alliance' },
+            { id: '0303', label: 'Classic yellow/blue', author: '', credit: 'from your own copy of Marvel: Ultimate Alliance' }];
+        result.heroes.beast.tiers.community.costume_info = [{ id: 'Classic', label: 'Classic', author: 'BaconWizard17',
+            credit: 'by BaconWizard17 (marvelmods.com)', preview: 'C:\\work\\ports\\abc\\community\\extracted\\beast\\classic\\Beast (Character Select Portrait).png' }];
+        return { lines: [ev('result', result)], exit: 0 };
+    };
+    const p = page({ scripts: ['core/utils.js', 'core/i18n.js', 'app/models-view.js'], body: '<div id="xml1-models-panel"></div>', backend });
+    p.window.ModelsView.render('xml1');
+    p.window.ModelsView.refresh('xml1');
+    await p.clock.until(() => !p.window.ModelsView._state('xml1').refreshing, 20000, 'refresh');
+    p.document.querySelector('.ul-models-mode[data-mode="upgraded"]').click();
+    await p.clock.until(() => !p.window.ModelsView._state('xml1').acting, 20000, 'the upgraded plan');
+    const wolverine = p.document.querySelector('.ul-models-row[data-hero="wolverine"]');
+    const select = wolverine.querySelector('select');
+    assert.deepEqual([...select.options].map(o => o.textContent.trim()), ['White shirt and jeans', 'Brown/yellow', 'Classic yellow/blue']);
+    assert.equal(select.value, '0303');
+    assert.match(wolverine.querySelector('.ul-models-credit').textContent, /from your own copy of Marvel: Ultimate Alliance/);
+    const beast = p.document.querySelector('.ul-models-row[data-hero="beast"]');
+    assert.match(beast.querySelector('.ul-models-credit').textContent, /by BaconWizard17 \(marvelmods\.com\)/);
+    await p.clock.until(() => p.document.querySelector('.ul-models-row[data-hero="beast"] img.ul-models-preview'), 5000, 'the preview');
+    assert.equal(backend.previews.length, 1, 'asked once');
+    assert.match(p.document.querySelector('.ul-models-row[data-hero="beast"] img.ul-models-preview').getAttribute('src'), /^data:image\/png;base64,/);
+});
+
+test('models: exit 31 has a name of its own', async () => {
+    const p = await open();
+    const { _newRun: newRun } = p.window.ModelsView;
+    assert.ok(newRun('verify').renamed, 'a run keeps its renames');
+    assert.match(p.window.LauncherI18n.t('models.exit.stale'), /rebuilt since they were made/);
 });

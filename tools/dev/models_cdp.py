@@ -40,7 +40,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 FAKE = HERE / "fake_legends_models.py"
 XML1_PROPS = ["install", "is-installed", "models-tool", "models-mode", "models-mirror", "models-costumes", "models-terms",
               "models-tool-version", "models-manifest"]
-LAUNCHER_PROPS = ["dev-release-api", "launcher-update-channel"]
+LAUNCHER_PROPS = ["dev-release-api", "launcher-update-channel", "dev-launcher-version"]
 TOOL_REPO = "ChronoRixun/legends-models"
 
 
@@ -65,6 +65,9 @@ OTHER_ORDER = b"+Some Other Mod\r\n-Old Skin\r\n"
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--shots", type=pathlib.Path, default=HERE)
+    # The real release's legends-models.json (fetched beforehand, read only): the launcher parses it as served by
+    # the fake GitHub as that release (v<version>, a pre-release) - its version, size, min_launcher and api.
+    parser.add_argument("--real-manifest", type=pathlib.Path)
     args = parser.parse_args()
     args.shots.mkdir(parents=True, exist_ok=True)
 
@@ -199,8 +202,41 @@ def main():
             check(not q(".ul-models-table") and not q('[data-act="apply"]'), "no table, no Apply")
             shot("tool-missing")
 
+            print("only a pre-release published, on Stable")
+            beta_files = tool_release(release_dir / "0.4.0-beta.1", "0.4.0-beta.1", shim)
+            releases[TOOL_REPO][:] = [{"tag_name": "v0.4.0-beta.1", "prerelease": True, "files": beta_files}]
+            click('[data-act="tool-check"]')
+            check(wait_for(lambda: "no stable release of it yet" in (text(".ul-models-missing") or ""), 30), "Stable: no stable release yet")
+            note = text(".ul-models-missing") or ""
+            check("legends-models 0.4.0-beta.1 is a beta: choose Beta under Settings" in note and not q('[data-act="tool-install"]'),
+                  f"points at the Beta channel, nothing to install: {note[:160]}")
+            shot("tool-stable-none")
+
+            if args.real_manifest:
+                print("the real release's manifest (as published), on Beta")
+                real = json.loads(args.real_manifest.read_text(encoding="utf-8"))
+                releases[TOOL_REPO][:] = [{"tag_name": "v" + real["version"], "prerelease": True,
+                                           "files": {"legends-models.json": str(args.real_manifest)}}]
+                launcher.command("set-update-channel", {"channel": "beta"})
+                launcher.command("set-property", {"dev-launcher-version": "0.4.0"})
+                click('[data-act="tool-check"]')
+                check(wait_for(lambda: f"needs Ultimate Legends {real['min_launcher']} or newer" in (text(".ul-models-missing") or ""), 30),
+                      f"a 0.4.0 launcher is refused by min_launcher {real['min_launcher']}: {(text('.ul-models-missing') or '')[:140]}")
+                check(not q('[data-act="tool-install"]'), "and offered nothing")
+                launcher.command("set-property", {"dev-launcher-version": "0.5.0-beta.1"})
+                click('[data-act="tool-check"]')
+                size = f"{real['size'] / 1048576:.2f} MB"
+                check(wait_for(lambda: q('[data-act="tool-install"]'), 30), "0.5.0-beta.1 is new enough: Install offered")
+                note = text(".ul-models-missing") or ""
+                check(f"legends-models {real['version']}, a beta on your Beta update channel, is ready to install ({size})" in note,
+                      f"the real manifest parsed: {note[:160]}")
+                shot("tool-real-manifest")
+                launcher.command("set-property", {"dev-launcher-version": launcher_originals.get("dev-launcher-version") or ""})
+                launcher.command("set-update-channel", {"channel": "stable"})
+                releases[TOOL_REPO][:] = [{"tag_name": "v0.4.0-beta.1", "prerelease": True, "files": beta_files}]
+
             print("the tool from its release (Stable)")
-            releases[TOOL_REPO][:] = [{"tag_name": "v0.3.0", "prerelease": False, "files": tool_release(release_dir / "0.3.0", "0.3.0", shim)}]
+            releases[TOOL_REPO].insert(0, {"tag_name": "v0.3.0", "prerelease": False, "files": tool_release(release_dir / "0.3.0", "0.3.0", shim)})
             click('[data-act="tool-check"]')
             check(wait_for(lambda: q('[data-act="tool-install"]'), 30), "Install offered")
             note = text(".ul-models-missing") or ""
@@ -217,7 +253,6 @@ def main():
             shot("tool-installed")
 
             print("the Beta channel's pre-release")
-            releases[TOOL_REPO].append({"tag_name": "v0.4.0-beta.1", "prerelease": True, "files": tool_release(release_dir / "0.4.0-beta.1", "0.4.0-beta.1", shim)})
             js("window.ModelsView._state('xml1').toolChecked = false; true")
             open_page()
             wait_for(lambda: launcher.command("get-models-status")["toolRelease"]["checking"] is False, 30)
@@ -225,7 +260,9 @@ def main():
             idle()
             check(not q(".ul-models-tool-update"), "Stable: no update (the pre-release is not offered)")
             launcher.command("set-update-channel", {"channel": "beta"})
-            js("window.ModelsView._state('xml1').toolChecked = false; true")
+            # asked again (force): an earlier Beta answer may still be reused for a few minutes
+            launcher.command("models-tool-check", {"install": False, "force": True})
+            wait_for(lambda: launcher.command("get-models-status")["toolRelease"]["checking"] is False, 30)
             open_page()
             check(wait_for(lambda: q('[data-act="tool-install"]'), 30), "Beta: Update offered")
             note = text(".ul-models-tool-update") or ""

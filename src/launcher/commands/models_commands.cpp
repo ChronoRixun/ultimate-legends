@@ -154,6 +154,7 @@ namespace commands::models_commands
             release.AddMember("fromCache", check.from_cache, allocator);
             release.AddMember("source", make_string(check.source, allocator), allocator);
             release.AddMember("installedNow", make_string(check.installed_now, allocator), allocator);
+            release.AddMember("betaVersion", make_string(check.beta_version, allocator), allocator);
             release.AddMember("updateAvailable", location && !location->dev && check.latest &&
                                                      tool_install::compare_versions(check.latest->version, location->version) > 0, allocator);
             release.AddMember("offline", utils::flags::has_flag("offline"), allocator);

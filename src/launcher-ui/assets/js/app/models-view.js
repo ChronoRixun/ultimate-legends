@@ -993,7 +993,9 @@
         }
         if (release.code && !(release.latest && release.code !== 'L_TOOL_API' && release.code !== 'L_LAUNCHER_TOO_OLD')) {
             return `<div class="xml1-note ${release.notPublished ? 'is-info' : 'is-warn'} ul-models-missing">
-                        ${escapeHtml(t('models.toolMissing'))} ${escapeHtml(release.notPublished ? t('models.tool.unpublished') : toolErrorText(release))}
+                        ${escapeHtml(t('models.toolMissing'))} ${escapeHtml(release.notPublished
+                            ? (release.betaVersion ? t('models.tool.stableNone', { version: release.betaVersion }) : t('models.tool.unpublished'))
+                            : toolErrorText(release))}
                         <div class="xml1-actions">${button('tool-check', t('models.tool.checkAgain'), busy)}</div>
                     </div>`;
         }

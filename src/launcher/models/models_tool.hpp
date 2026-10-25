@@ -91,6 +91,7 @@ namespace models_tool
         bool from_cache{};   // GitHub could not be asked: `latest` is the channel's last release found
         std::string source;  // where the last install came from: download, zip (one the player had)
         std::string installed_now; // the version the last install put in place
+        std::string beta_version;  // Stable with no release yet: the Beta channel's pre-release, if there is one
     };
 
     // Asks the update channel for the tool's release and, with `install`, installs it when there is no

@@ -433,6 +433,7 @@ namespace models_tool
                 return false;
             }
             check_.checking = true;
+            check_.beta_version.clear();
             check_.code.clear();
             check_.error.clear();
             check_.not_published = false;
@@ -451,6 +452,16 @@ namespace models_tool
                 error.clear();
                 latest = tool_install::fetch_manifest(tool, error, &not_published);
             }
+            // Stable with nothing published yet: is there a pre-release (for the page to point at the Beta channel)?
+            std::string beta_version;
+            if (!latest && not_published && channel == release_channel::channel::stable && tool.manifest_url == tool_manifest_url)
+            {
+                const auto beta = release_source::resolve(tool_repo, release_channel::channel::beta, {tool_manifest_name}, force);
+                if (beta.chosen)
+                {
+                    beta_version = beta.chosen->version;
+                }
+            }
             if (!latest)
             {
                 utils::logger::write("legends-models: manifest {} ({}): {}", tool.manifest_url, release_channel::channel_name(channel), error);
@@ -463,6 +474,7 @@ namespace models_tool
                     check.not_published = not_published;
                     check.code = not_published ? "L_TOOL_UNPUBLISHED" : "L_TOOL_OFFLINE";
                     check.error = error;
+                    check.beta_version = beta_version;
                 });
                 return;
             }

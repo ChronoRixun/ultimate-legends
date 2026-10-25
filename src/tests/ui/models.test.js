@@ -621,6 +621,15 @@ test('models: no tool and nothing published yet - the page says so, with Check a
     assert.deepEqual(p.backend.checks[1], { install: false, force: true }, 'Check again asks GitHub again');
 });
 
+test('models: Stable with only a pre-release published points at the Beta channel', async () => {
+    const p = await open({ tool: false }, { refresh: false });
+    p.backend.releaseScript = () => [{ checking: false, notPublished: true, code: 'L_TOOL_UNPUBLISHED', error: 'No release has been published.', betaVersion: '0.3.0-beta.1' }];
+    p.window.ModelsView.refresh('xml1');
+    await p.clock.until(() => p.act('tool-check'), 5000, 'Check again');
+    assert.match(p.$('.ul-models-missing').textContent, /no stable release of it yet\. legends-models 0\.3\.0-beta\.1 is a beta: choose Beta under Settings/);
+    assert.equal(p.act('tool-install'), null, 'nothing to install on Stable');
+});
+
 test('models: a failed tool download is said in plain words and Install stays', async () => {
     const p = await open({ tool: false }, { refresh: false });
     p.backend.releaseScript = install => install

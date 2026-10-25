@@ -13,6 +13,10 @@
 // arrives once) and get-models-preview (a costume portrait scan named, as a data: URL).
 // Opening the page scans, plans the chosen appearance and verifies the installed one; the first
 // community download waits for the author's terms to be accepted.
+// The player's work (Apply / Rebuild / Remove / Off and the tool's install / update) is also listed in the
+// Downloads tab (DownloadQueueManager.track in main.js): one entry per action that reads this page's own job
+// whenever it is drawn (phase, skins downloaded, progress), with the same Cancel, and goes to Recent with
+// the outcome the page shows.
 (function () {
     'use strict';
 
@@ -130,7 +134,9 @@
         return Object.assign({
             command, id: null, from: 0, active: true, finished: false, cancelRequested: false, exitCode: null, exitName: '',
             plan: null, done: 0, total: 0, message: '', stage: '', heroes: {}, downloads: [], warnings: [], errors: [],
-            gates: [], result: null, unknownApi: false, stderrTail: [], startError: '', renamed: []
+            gates: [], result: null, unknownApi: false, stderrTail: [], startError: '', renamed: [],
+            current: null, // the hero / tier / source being worked on (stage convert), settled once it got past fetching
+            started: []    // the heroes in the order the run started them
         }, extra || {});
     }
 
@@ -143,6 +149,11 @@
     function applyEvent(job, event) {
         if (!event || typeof event !== 'object' || typeof event.event !== 'string') return job;
         if (event.api !== undefined && event.api !== API) job.unknownApi = true;
+        // The current hero's own events (its download, its converter, a stored result, its gate): past fetching.
+        if (job.current && (['download', 'engine'].includes(event.event) ||
+            (['cache', 'gate', 'warning'].includes(event.event) && event.hero === job.current.hero))) {
+            job.current.settled = true;
+        }
         switch (event.event) {
             case 'plan':
                 job.plan = { mode: event.mode, rows: Array.isArray(event.rows) ? event.rows : [] };
@@ -160,6 +171,10 @@
                 const renamed = RENAMED.exec(job.message);
                 if (renamed) job.renamed.push({ from: renamed[1], to: renamed[2] });
                 if (typeof event.hero === 'string' && job.stage === 'convert') {
+                    const now = { hero: event.hero, tier: String(event.tier || ''), source: event.source !== undefined && event.source !== null ? String(event.source) : '' };
+                    const c = job.current;
+                    if (!c || c.hero !== now.hero || c.tier !== now.tier || c.source !== now.source) job.current = Object.assign(now, { settled: false });
+                    if (!job.started.includes(event.hero)) job.started.push(event.hero);
                     const entry = heroEntry(job, event.hero);
                     if (entry.status === 'planned' || entry.status === 'trying') {
                         entry.status = 'converting';
@@ -328,6 +343,135 @@
         return error && error.message ? `${named} ${error.message}` : named;
     }
 
+    // ---- the Downloads tab (one entry per player action, drawn from this page's state) ----
+
+    function modeName(mode) {
+        return has(`models.mode.${mode}`) ? t(`models.mode.${mode}`) : String(mode || '');
+    }
+
+    // A community skin of the plan as the scan describes it: its label, size, and whether it is downloaded.
+    function skinInfo(s, hero, costume) {
+        const info = s.scan && s.scan.heroes && s.scan.heroes[hero];
+        const entry = info && info.tiers && info.tiers.community;
+        const list = entry && Array.isArray(entry.costume_info) ? entry.costume_info : [];
+        const item = list.find(c => c && c.id === costume) || {};
+        return {
+            cached: !!(entry && entry.cached && entry.cached[costume] === true),
+            bytes: Number(item.bytes) || 0,
+            label: item.label || costume
+        };
+    }
+
+    function skinSourceText(s) {
+        const settings = (s.status && s.status.settings) || {};
+        const mirror = settings.mirror || (s.status && s.status.defaultMirror) || '';
+        return t(`models.downloadSource.${mirror ? 'mirror' : 'author'}`);
+    }
+
+    function downloadItems(job) {
+        return (job.downloads || []).map(item => ({
+            name: item.character ? t('models.dl.skin', { hero: heroName(job, item.character), costume: item.costume }) : '',
+            file: item.archive,
+            size: bytes(item.bytes),
+            source: t(`models.downloadSource.${item.source === 'mirror' ? 'mirror' : 'author'}`),
+            sha256: item.sha256,
+            state: 'done'
+        }));
+    }
+
+    function plannedCount(job) {
+        const rows = (job.plan && job.plan.rows) || [];
+        return rows.filter(row => row && row.tier !== 'stock').length;
+    }
+
+    // What the Downloads tab shows for a build or remove (work: { op: build | rebuild | remove | off, mode,
+    // groups, index }), from the run on the page (s.job).
+    function describeWork(s, work) {
+        const title = work.op === 'remove' ? t('models.dl.remove') : work.op === 'off' ? t('models.dl.off')
+            : t(work.op === 'rebuild' ? 'models.dl.rebuild' : 'models.dl.build', { mode: modeName(work.mode) });
+        const view = { title, phase: t('models.dl.starting'), percent: null, numbers: '', items: [], cancellable: false, cancelling: false };
+        const job = s.job;
+        if (work.op === 'remove' || work.op === 'off') {
+            const group = work.groups[work.index] || '';
+            const total = work.groups.length;
+            view.phase = total > 1 ? t('models.dl.removingOf', { group, n: work.index + 1, total }) : t('models.dl.removing', { group });
+            return view;
+        }
+        if (!job || job.command !== 'build') return view;
+        view.cancellable = !!(job.id && job.active);
+        view.cancelling = !!job.cancelRequested;
+        const total = job.total || plannedCount(job);
+        view.percent = job.total ? (100 * job.done) / job.total : (job.plan ? 0 : null);
+        view.numbers = total ? t('models.dl.heroes', { done: Math.min(job.done, total), total }) : '';
+        view.items = downloadItems(job);
+        if (job.cancelRequested) {
+            view.phase = t('models.cancelling');
+        } else if (job.stage === 'publish') {
+            view.phase = t('models.dl.installing');
+        } else if (job.current) {
+            const current = job.current;
+            const name = heroName(job, current.hero);
+            if (current.tier === 'community' && !current.settled &&
+                !job.downloads.some(item => item.character === current.hero && String(item.costume) === current.source)) {
+                const skin = skinInfo(s, current.hero, current.source);
+                if (!skin.cached) {
+                    const source = skinSourceText(s);
+                    view.phase = skin.bytes
+                        ? t('models.dl.downloadingSize', { hero: name, costume: skin.label, size: bytes(skin.bytes), source })
+                        : t('models.dl.downloading', { hero: name, costume: skin.label });
+                    view.items = view.items.concat([{
+                        name: t('models.dl.skin', { hero: name, costume: skin.label }),
+                        size: skin.bytes ? t('models.dl.expected', { size: bytes(skin.bytes) }) : '',
+                        source, state: 'downloading'
+                    }]);
+                    return view;
+                }
+            }
+            const n = Math.max(1, job.started.length);
+            view.phase = total ? t('models.dl.converting', { hero: name, n: Math.min(n, total), total }) : name;
+        }
+        return view;
+    }
+
+    // The tool's install / update (work: { update, version }), from the release state the page polls.
+    function describeTool(s, work) {
+        const release = toolRelease(s);
+        const file = release.latestZip || `legends-models-${work.version}-win64.zip`;
+        const source = t('models.dl.toolSource', { channel: t(release.channel === 'beta' ? 'models.dl.channelBeta' : 'models.dl.channelStable') });
+        const total = Number(release.total) || 0;
+        const done = Number(release.done) || 0;
+        let phase = t('models.dl.toolDownloading', { file });
+        if (release.cancelRequested) phase = t('models.cancelling');
+        else if (total && done >= total) phase = t('models.dl.toolUnpacking');
+        else if (!done && s.status && s.status.busy) phase = t('models.dl.toolWaiting');
+        return {
+            title: t(work.update ? 'models.dl.toolUpdate' : 'models.dl.toolInstall', { version: work.version }),
+            phase,
+            percent: total ? (100 * done) / total : null,
+            numbers: total ? `${bytes(done) || '0 B'} / ${bytes(total)}` : '',
+            items: [{ name: `legends-models ${work.version}`, file, size: bytes(total || release.latestSize), source, state: 'downloading' }],
+            cancellable: true,
+            cancelling: !!release.cancelRequested
+        };
+    }
+
+    // An entry in the Downloads tab for a piece of work; a stand-in that does nothing when the tab is not there.
+    function trackWork(gameId, op, describe, cancelWork) {
+        const queue = window.DownloadQueueManager;
+        if (!queue || typeof queue.track !== 'function') return { update() {}, finish() {} };
+        return queue.track({ gameId, op, describe, cancel: cancelWork });
+    }
+
+    // The page's outcome of a build or remove, as Recent shows it.
+    function finishWork(handle, outcome, cancelled) {
+        if (!handle) return;
+        const kind = outcome && outcome.kind;
+        handle.finish({
+            outcome: cancelled ? 'cancelled' : kind === 'success' ? 'done' : kind === 'warn' ? 'partial' : kind === 'error' ? 'failed' : 'done',
+            reason: outcome ? outcome.text : ''
+        });
+    }
+
     // ---- refresh: status, scan, plan, verify, credits ----
 
     async function loadStatus(gameId) {
@@ -357,6 +501,8 @@
         const s = getState(gameId);
         if (toolRelease(s).offline) return;
         s.acting++;
+        const hadTool = !!(s.status && s.status.tool && s.status.tool.found);
+        let work = null;
         try {
             const before = toolRelease(s).installedNow || '';
             let started = null;
@@ -371,12 +517,42 @@
                 // one already running (the page's own, or another tab's): follow it all the same
                 if (!toolRelease(s).checking && !toolRelease(s).installing) return;
             }
+            const follow = () => {
+                const release = toolRelease(s);
+                if (release.installing && !work) {
+                    const info = { update: hadTool, version: release.latest || '' };
+                    work = { info, handle: trackWork(gameId, 'tool', () => describeTool(s, info), () => cancelTool(gameId)) };
+                    s.toolDownload = work.handle;
+                }
+                if (work) work.handle.update();
+            };
+            follow();
             while (toolRelease(s).checking || toolRelease(s).installing) {
                 await new Promise(resolve => setTimeout(resolve, TOOL_POLL_MS));
                 await loadStatus(gameId);
                 render(gameId);
+                follow();
             }
             const release = toolRelease(s);
+            const installed = !!(release.installedNow && release.installedNow !== before);
+            const installFailed = /^L_TOOL_(HASH|EXTRACT|DOWNLOAD|CANCELLED)$/.test(release.code || '');
+            if (!work && install && (installed || installFailed)) {
+                // an install that began and ended between two polls (a zip already on this PC): listed all the same
+                const info = { update: hadTool, version: release.installedNow || release.latest || '' };
+                work = { info, handle: trackWork(gameId, 'tool', () => describeTool(s, info), null) };
+            }
+            if (work) {
+                const file = release.latestZip || `legends-models-${work.info.version}-win64.zip`;
+                const source = release.source === 'zip' ? t('models.dl.toolSourceZip')
+                    : t('models.dl.toolSource', { channel: t(release.channel === 'beta' ? 'models.dl.channelBeta' : 'models.dl.channelStable') });
+                work.handle.finish(installed
+                    ? { outcome: 'done', reason: t('models.dl.toolDone', { version: release.installedNow }),
+                        items: [{ name: `legends-models ${release.installedNow}`, file, size: bytes(release.latestSize || release.total), source, sha256: release.latestSha256 || '', state: 'done' }] }
+                    : { outcome: release.code === 'L_TOOL_CANCELLED' ? 'cancelled' : 'failed',
+                        reason: release.code ? toolErrorText(release) : t('models.exit.unknown', { code: '-' }),
+                        items: [{ name: `legends-models ${work.info.version}`, file, size: bytes(release.latestSize || release.total), source, state: 'failed' }] });
+                s.toolDownload = null;
+            }
             if (release.installedNow && release.installedNow !== before) {
                 window.showToast(t('models.tool.installed', { version: release.installedNow }), 'success');
                 s.scan = null;
@@ -385,6 +561,19 @@
         } finally {
             s.acting--;
         }
+    }
+
+    // Cancel of the tool's install (the page's Cancel or the Downloads tab's): the release download stops, the
+    // installed tool (if any) stays.
+    async function cancelTool(gameId) {
+        try {
+            await run('models-tool-cancel', {});
+        } catch (error) {
+            console.error(error);
+        }
+        await loadStatus(gameId);
+        render(gameId);
+        if (getState(gameId).toolDownload) getState(gameId).toolDownload.update();
     }
 
     async function refresh(gameId, { rescan = false } = {}) {
@@ -559,7 +748,7 @@
         await plan(gameId);
     }
 
-    async function apply(gameId) {
+    async function apply(gameId, { rebuild = false } = {}) {
         const s = getState(gameId);
         if (blockedReason(s) || (s.job && s.job.active)) return;
         const mode = currentMode(s);
@@ -573,6 +762,11 @@
 
         s.outcome = null;
         s.job = newRun('build', { mode });
+        // Rebuild: the stale note's button, or Apply while it reads Rebuild (the installed appearance again)
+        const installedNow = installedGroup(s);
+        const again = rebuild || !!(installedNow && installedNow.enabled && installedNow.mode === mode);
+        const work = { op: again ? 'rebuild' : 'build', mode };
+        s.download = trackWork(gameId, work.op, () => describeWork(s, work), () => handle(gameId, () => cancel(gameId)));
         render(gameId);
         const job = await runTool(gameId, s.job, { mode, offline: !!window.IS_OFFLINE });
         const result = resultOf(job);
@@ -595,6 +789,8 @@
         } else {
             s.outcome = { kind: 'error', text: failureText(job), details: job.stderrTail, notes };
         }
+        finishWork(s.download, s.outcome, job.exitCode === 130);
+        s.download = null;
         s.chosen = null;
         await loadStatus(gameId);
         // What is downloaded now (scan: community cached) changed with the build.
@@ -624,8 +820,12 @@
         }
         s.outcome = null;
         let failed = null;
-        for (const group of groups) {
+        const work = { op: ask ? 'remove' : 'off', groups, index: 0 };
+        s.download = trackWork(gameId, work.op, () => describeWork(s, work), null);
+        for (const [index, group] of groups.entries()) {
+            work.index = index;
             s.job = newRun('remove', { pack: group });
+            s.download.update();
             render(gameId);
             const job = await runTool(gameId, s.job, { pack: group });
             if (!resultOf(job) || job.exitCode !== 0) {
@@ -634,6 +834,8 @@
             }
         }
         s.outcome = failed ? { kind: 'error', text: failureText(failed), details: failed.stderrTail } : { kind: 'success', text: t('models.removed') };
+        finishWork(s.download, s.outcome, false);
+        s.download = null;
         if (!failed) {
             try {
                 await run('set-models-settings', { mode: 'off' });
@@ -658,7 +860,7 @@
         if (choice !== 1) return;
         await run('models-cancel', { id: s.job.id });
         s.job.cancelRequested = true;
-        render(gameId);
+        update(gameId);
     }
 
     async function saveMirror(gameId, value) {
@@ -972,10 +1174,11 @@
             <div class="xml1-progress ul-models-tool-progress">
                 <div class="xml1-progress-bar"><div class="xml1-progress-fill" style="width:${percent.toFixed(1)}%"></div></div>
                 <div class="xml1-progress-meta">
-                    <span class="xml1-progress-message">${escapeHtml(t('models.tool.installing', { version: release.latest || '' }))}</span>
+                    <span class="xml1-progress-message">${escapeHtml(release.cancelRequested ? t('models.cancelling') : t('models.tool.installing', { version: release.latest || '' }))}</span>
                     <span class="xml1-progress-numbers">${escapeHtml(release.total ? `${bytes(release.done) || '0 B'} / ${bytes(release.total)}` : '')}</span>
                 </div>
-            </div>`;
+            </div>
+            <div class="xml1-actions">${button('tool-cancel', t('models.tool.cancel'), !!release.cancelRequested)}</div>`;
     }
 
     // No tool yet: what the update channel offers, Install, its progress, or why it can't be had.
@@ -1113,9 +1316,12 @@
         }
     }
 
-    // During a run: redraw at most every poll (the run's events change the progress and the table).
+    // During a run: redraw at most every poll (the run's events change the progress and the table), here and
+    // in the Downloads tab.
     function update(gameId) {
         render(gameId);
+        const s = getState(gameId);
+        if (s.download) s.download.update();
     }
 
     // A player's action, counted while it runs (s.acting) so a test can wait for the page to settle.
@@ -1147,7 +1353,7 @@
                 // The installed appearance, built again for the port as it is now.
                 const group = installedGroup(s);
                 if (group && MODES.includes(group.mode)) s.chosen = group.mode;
-                await apply(gameId);
+                await apply(gameId, { rebuild: true });
                 break;
             }
             case 'tool-install':
@@ -1155,6 +1361,9 @@
                 break;
             case 'tool-check':
                 await checkTool(gameId, false, true);
+                break;
+            case 'tool-cancel':
+                await cancelTool(gameId);
                 break;
             case 'verify': {
                 await verifyInstalled(gameId);

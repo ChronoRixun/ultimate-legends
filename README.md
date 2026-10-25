@@ -73,7 +73,9 @@ own folders. Rebuilding the port keeps the `mods` folder. The tool itself comes 
 [GitHub releases](https://github.com/ChronoRixun/legends-models/releases): the section offers **Install** the first
 time and **Update** when your update channel has a newer one (Beta gets its test versions too). Before the first
 community skin is downloaded, the section shows the author's terms (BaconWizard17: don't share the files outside
-marvelmods.com, don't sell them, credit him); nothing is downloaded until you agree.
+marvelmods.com, don't sell them, credit him); nothing is downloaded until you agree. Apply, Rebuild, Remove and the
+tool's install also show in the **Downloads** tab while they run (what they are doing, the skins downloaded with their
+SHA-256, Cancel), and under **Recent** once they end.
 
 Nothing from the games is downloaded: the builder uses only your disc image and your XML2 install, and it never
 connects to the internet. The first build takes about 6-8 minutes on a current PC and needs about 8 GB free.

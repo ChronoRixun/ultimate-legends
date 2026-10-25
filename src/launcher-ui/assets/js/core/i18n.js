@@ -93,8 +93,19 @@
             },
             downloads: {
                 title: 'Downloads',
-                subtitle: 'Patch installs, updates and removals in progress or queued.',
+                subtitle: 'Patch installs, updates and removals, and the character models’ work, in progress or queued.',
                 empty: 'No downloads in progress.',
+                recent: 'Recent',
+                clear: 'Clear',
+                outcomeDone: 'Finished',
+                outcomePartial: 'Finished, with notes',
+                outcomeFailed: 'Failed',
+                outcomeCancelled: 'Cancelled',
+                opVerify: 'Verify / update',
+                opInstall: 'Patch install',
+                opUninstall: 'Uninstall',
+                itemDownloading: 'downloading…',
+                itemHash: 'SHA-256 {{hash}}…',
                 statusVerifying: 'Verifying',
                 statusInstalling: 'Installing',
                 statusUninstalling: 'Uninstalling',
@@ -445,8 +456,39 @@
                         L_TOOL_EXTRACT: 'The tool’s download could not be unpacked: {{error}}',
                         L_TOOL_DOWNLOAD: 'The tool could not be downloaded: {{error}}',
                         L_TOOL_API: 'This version of the tool needs a newer Ultimate Legends: update the launcher first.',
-                        L_LAUNCHER_TOO_OLD: '{{error}} Update the launcher first.'
-                    }
+                        L_LAUNCHER_TOO_OLD: '{{error}} Update the launcher first.',
+                        L_TOOL_CANCELLED: 'The tool’s install was cancelled; nothing was changed.'
+                    },
+                    cancel: 'Cancel'
+                },
+                // The section's work as the Downloads tab lists it (one entry per Apply / Rebuild / Remove and
+                // per install / update of the tool).
+                dl: {
+                    build: 'Character models: Apply ({{mode}})',
+                    rebuild: 'Character models: Rebuild ({{mode}})',
+                    remove: 'Character models: Remove',
+                    off: 'Character models: Turn off',
+                    toolInstall: 'Character-model tool: install legends-models {{version}}',
+                    toolUpdate: 'Character-model tool: update to legends-models {{version}}',
+                    starting: 'Starting…',
+                    downloading: 'Downloading the {{hero}} skin ({{costume}})',
+                    downloadingSize: 'Downloading the {{hero}} skin ({{costume}}, {{size}}) {{source}}',
+                    converting: 'Converting {{hero}}: hero {{n}} of {{total}}',
+                    convertingAny: 'Converting: hero {{n}} of {{total}}',
+                    installing: 'Installing into the game’s mods folder',
+                    removing: 'Removing {{group}}',
+                    removingOf: 'Removing {{group}} ({{n}} of {{total}})',
+                    heroes: '{{done}} of {{total}} heroes',
+                    toolDownloading: 'Downloading {{file}}',
+                    toolUnpacking: 'Checking the SHA-256 and unpacking',
+                    toolWaiting: 'Waiting for the running conversion to finish',
+                    toolSource: 'from GitHub ({{channel}} update channel)',
+                    toolSourceZip: 'from the zip already on this PC',
+                    channelBeta: 'Beta',
+                    channelStable: 'Stable',
+                    toolDone: 'legends-models {{version}} is installed.',
+                    skin: '{{hero}}: {{costume}}',
+                    expected: '{{size}} expected'
                 },
                 terms: {
                     title: 'Community skins: the author’s terms',

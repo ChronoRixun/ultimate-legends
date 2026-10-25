@@ -57,6 +57,8 @@ namespace models_tool
         // the runs' one.
         std::mutex check_mutex_;
         tool_check_state check_;
+        // cancel_tool_install(): read by the install's download and its wait for a run to finish.
+        std::atomic<bool> tool_cancel_{};
 
         void set_check(const std::function<void(tool_check_state&)>& change)
         {
@@ -433,6 +435,8 @@ namespace models_tool
                 return false;
             }
             check_.checking = true;
+            check_.cancel_requested = false;
+            tool_cancel_ = false;
             check_.beta_version.clear();
             check_.code.clear();
             check_.error.clear();
@@ -527,9 +531,20 @@ namespace models_tool
 
             // Never while a run uses the current version (its folder must stay); start() refuses new runs
             // while the install runs.
-            while (busy())
+            while (busy() && !tool_cancel_)
             {
                 std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            }
+            if (tool_cancel_)
+            {
+                utils::logger::write("legends-models {}: install cancelled", latest->version);
+                set_check([&](tool_check_state& check)
+                {
+                    check.installing = false;
+                    check.code = "L_TOOL_CANCELLED";
+                    check.error = "cancelled";
+                });
+                return;
             }
 
             std::optional<tool_install::installed> result;
@@ -557,11 +572,9 @@ namespace models_tool
                         check.done = done;
                         check.total = total;
                     });
-                }, {}, error);
+                }, [] { return tool_cancel_.load(); }, error);
                 source = "download";
-                code = error.find("SHA-256") != std::string::npos ? "L_TOOL_HASH"
-                     : error.find("zip") != std::string::npos || error.find("unpack") != std::string::npos ? "L_TOOL_EXTRACT"
-                     : "L_TOOL_DOWNLOAD";
+                code = models_args::tool_install_code(error);
             }
 
             if (result)
@@ -587,6 +600,19 @@ namespace models_tool
                 }
             });
         }).detach();
+        return true;
+    }
+
+    bool cancel_tool_install()
+    {
+        std::lock_guard lock(check_mutex_);
+        if (!check_.installing)
+        {
+            return false;
+        }
+        check_.cancel_requested = true;
+        tool_cancel_ = true;
+        utils::logger::write("legends-models: install cancel asked");
         return true;
     }
 

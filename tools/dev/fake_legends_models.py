@@ -31,7 +31,8 @@ xml1 entry points at the .cmd). What it does, like the real tool:
   fetch   (offline only) exit 20
 Knobs (environment, or the same names without FAKE_LM_ in <work>\fake-knobs.json): FAKE_LM_DELAY seconds per hero (default 0.6); FAKE_LM_FAIL heroes whose gate fails
 at every tier (comma list); FAKE_LM_BUILD_EXIT forces a build's exit code (20: a download refusal,
-3: a missing helper) after its plan; FAKE_LM_LOG appends each command line to a file.
+3: a missing helper) after its plan; FAKE_LM_DOWNLOAD_DELAY seconds each community "download" takes (default 0);
+FAKE_LM_LOG appends each command line to a file.
 """
 import argparse
 import hashlib
@@ -413,6 +414,7 @@ def cmd_build(args):
             src = source if attempt == tier else tiers[attempt][0]
             emit('stage', stage='convert', message=f'{name}: {attempt} {src}', hero=hero, tier=attempt, source=src)
             if attempt == 'community' and not archive_cache(args, hero, src).is_file():
+                time.sleep(float(knob('DOWNLOAD_DELAY', '0')))  # the download (the real tool fetches here, then emits download)
                 data = f'fake archive {hero} {src}'.encode()
                 archive_cache(args, hero, src).parent.mkdir(parents=True, exist_ok=True)
                 archive_cache(args, hero, src).write_bytes(data)

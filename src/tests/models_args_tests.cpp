@@ -269,3 +269,16 @@ TEST(models_offline_reaches_plan_and_build_only)
         CHECK(!has_flag(args_of(request), "--offline")); // nothing to download there
     }
 }
+
+TEST(models_tool_install_failures_have_the_page_codes)
+{
+    // tool_install's own word for the player's Cancel (the Downloads tab or the models page)
+    CHECK(models_args::tool_install_code("cancelled") == "L_TOOL_CANCELLED");
+    CHECK(models_args::tool_install_code("The download did not match its SHA-256.") == "L_TOOL_HASH");
+    CHECK(models_args::tool_install_code("The zip could not be opened.") == "L_TOOL_EXTRACT");
+    CHECK(models_args::tool_install_code("could not unpack legends-models.exe") == "L_TOOL_EXTRACT");
+    CHECK(models_args::tool_install_code("HTTP 404") == "L_TOOL_DOWNLOAD");
+    // only the exact word: a message that merely mentions it is a download failure
+    CHECK(models_args::tool_install_code("the server cancelled the transfer") == "L_TOOL_DOWNLOAD");
+    CHECK(models_args::tool_install_code("") == "L_TOOL_DOWNLOAD");
+}

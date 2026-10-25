@@ -92,6 +92,7 @@ namespace models_tool
         std::string source;  // where the last install came from: download, zip (one the player had)
         std::string installed_now; // the version the last install put in place
         std::string beta_version;  // Stable with no release yet: the Beta channel's pre-release, if there is one
+        bool cancel_requested{};   // cancel_tool_install() was asked during this install
     };
 
     // Asks the update channel for the tool's release and, with `install`, installs it when there is no
@@ -100,6 +101,10 @@ namespace models_tool
     // install is already running, or with -offline.
     bool check_tool(bool install, bool force = false);
     tool_check_state tool_check();
+
+    // Stops a running install of the tool (its download, or its wait for a run to finish): the install
+    // ends with code L_TOOL_CANCELLED and the installed tool (if any) stays. false when none is running.
+    bool cancel_tool_install();
 
     // <launcher data>\cache\legends-models
     std::filesystem::path work_folder();

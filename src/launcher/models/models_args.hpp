@@ -81,4 +81,9 @@ namespace models_args
     // ok, partial, nothing, missing_input, download, verify_mismatch, stale, unsafe, usage, bug,
     // cancelled, else "unknown".
     std::string exit_name(int code);
+
+    // Why an install of the tool from its release failed, as the page's code: L_TOOL_CANCELLED (the
+    // player cancelled it: tool_install's "cancelled"), L_TOOL_HASH (the SHA-256 did not match),
+    // L_TOOL_EXTRACT (the zip could not be unpacked), else L_TOOL_DOWNLOAD.
+    std::string tool_install_code(const std::string& error);
 }

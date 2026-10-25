@@ -370,9 +370,9 @@ class GameUtils {
                 resolve(answer);
             };
 
-            registerCancel(cancelOperation);
+            const cancelFromBar = registerCancel(cancelOperation) || cancelOperation;
 
-            window.ProgressManager.show(gameId, initialMessage, cancelOperation);
+            window.ProgressManager.show(gameId, initialMessage, cancelFromBar);
 
             window.executeCommand(command, commandArgs)
                 .then(result => {

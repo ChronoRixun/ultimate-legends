@@ -179,6 +179,8 @@ def main():
                 print(f"  (models_shim: {error}; using {shim})")
             releases = {TOOL_REPO: []}
             server = serve(releases, 0)
+            import threading
+            threading.Thread(target=server.serve_forever, daemon=True).start()
             base = f"http://127.0.0.1:{server.server_address[1]}"
             launcher.command("set-property", {"dev-release-api": base, "launcher-update-channel": "stable"})
         open_page()
@@ -231,7 +233,7 @@ def main():
             installed_by_test.append("0.4.0-beta.1")
             idle()
             check(not q(".ul-models-tool-update"), "no update left")
-            versions = sorted(p.name for p in tools_root.iterdir() if p.is_dir() and not p.name.startswith("."))
+            versions = sorted(p.name for p in tools_root.iterdir() if p.is_dir() and not p.name.startswith(".")) if tools_root.is_dir() else []
             check(versions == ["0.4.0-beta.1"], f"the old version pruned: {versions}")
             launcher.command("set-update-channel", {"channel": "stable"})
             js("window.ModelsView._state('xml1').toolChecked = false; true")

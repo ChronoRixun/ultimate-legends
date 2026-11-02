@@ -3,7 +3,27 @@
 The launcher's version comes from its release tag (`v0.3.2`): premake reads it with `git describe` when it
 generates the project, so a release only needs this entry and the tag.
 
-## 0.5.0-beta.2 (unreleased: a pre-release for the Beta update channel)
+## 0.5.0-beta.3 (unreleased: a pre-release for the Beta update channel)
+
+### Fixed
+- **Every drop-down opens under Proton / Wine (Steam Deck, Linux).** Clicking a drop-down there showed nothing: the
+  list is a separate popup window that Proton closes before it is drawn, so the update channel could only be changed
+  blind from the keyboard. Every drop-down is now drawn inside the launcher's own page instead: Settings' language,
+  theme and **update channel**, the X-Men Legends and X-Men Legends II **Display** rows (display mode, resolution,
+  frame rate, VSync) and the **Character models** costume choosers. They work the same on Windows. Mouse, touch,
+  keyboard and controller all open them: Enter / Space / A opens the list, Up / Down (or Home / End, or the first
+  letters of an option) move through it, Enter / A picks, Escape / Backspace / B closes it without a change. The
+  choice is made only when you pick it, not while you move through the list. The list opens upwards when there is no
+  room below and closes when you click elsewhere or the window loses focus. Settings are saved exactly as before.
+- Tests: UI `dropdown.test.js` in the UI suite (the shared list's keyboard, mouse, pad and ARIA behaviour; each
+  drop-down in Settings, Display and Models); `tools/dev/dropdown_ui_test.py`, the same in a headless Chromium
+  with the real settings and display code.
+
+### Docs
+- README: what Settings > Updates > **Update channel** (Stable / Beta) does, what follows it and how switching back
+  works.
+
+## 0.5.0-beta.2 (2026-10-25: a pre-release for the Beta update channel)
 
 ### Added
 - **The character models' work shows in the Downloads tab.** Each Apply / Rebuild / Remove / Off of the Character

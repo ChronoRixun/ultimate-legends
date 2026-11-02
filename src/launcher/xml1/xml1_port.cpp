@@ -1,5 +1,6 @@
 #include "std_include.hpp"
 #include "xml1_port.hpp"
+#include "source_path.hpp"
 
 #include "display/xml2_display.hpp"
 #include "game_config.hpp"
@@ -652,6 +653,59 @@ namespace xml1_port
         return run_locked("info", std::move(args), {}, error, false);
     }
 
+    std::optional<int> start_save_import(const save_import_args::request& request, failure& error)
+    {
+        const auto out = output_folder();
+        if (!out || !is_playable(*out))
+        {
+            error = {"L_NOT_SET_UP", "Build X-Men Legends before importing a save."};
+            return std::nullopt;
+        }
+        std::string reason;
+        const auto args = save_import_args::build(request, *out, reason);
+        if (!args)
+        {
+            error = {"L_USAGE", reason};
+            return std::nullopt;
+        }
+        if ((request.mode == "apply" || request.mode == "undo") && !save_import_args::player_install_enabled)
+        {
+            error = {"E_XML1_UNVALIDATED", "Player installation and undo await real-save, native-loader and game save-lock acceptance."};
+            return std::nullopt;
+        }
+        if (utils::nt::is_any_image_running({*out / L"XMen2.exe"}, 0))
+        {
+            error = {"L_GAME_RUNNING", "Close X-Men Legends before importing a save."};
+            return std::nullopt;
+        }
+        std::lock_guard lock(mutex_);
+        if (work_active_locked())
+        {
+            error = {"L_BUILD_RUNNING", "Wait for the current build or save operation to finish."};
+            return std::nullopt;
+        }
+        auto hold = updater::reserve(*out, updater::folder_use::builder);
+        auto saves = request.save_dir.empty() ? nullptr : updater::reserve(request.save_dir, updater::folder_use::builder);
+        if (!hold || (!request.save_dir.empty() && !saves))
+        {
+            error = {"E_XML1_BUSY", "The game or save folder is in use. Wait for it to finish."};
+            return std::nullopt;
+        }
+        return run_locked("import-xml1-save", *args, [saves = std::move(saves)](const xml1::builder_snapshot&) mutable
+        {
+            saves.reset();
+        }, error, true, std::move(hold));
+    }
+
+    bool cancel_save_import(const int id)
+    {
+        std::lock_guard lock(mutex_);
+        const auto found = jobs_.find(id);
+        if (found == jobs_.end() || found->second->snapshot().command != "import-xml1-save" || !found->second->active()) return false;
+        found->second->cancel();
+        return true;
+    }
+
     std::optional<int> start_verify(failure& error)
     {
         const auto out = output_folder();
@@ -665,7 +719,7 @@ namespace xml1_port
         {
             args.insert(args.end(), {L"--xml2", xml2->wstring()});
         }
-        if (const auto iso = iso_path(); iso && utils::io::file_exists(*iso))
+        if (const auto iso = iso_path(); iso && xml1::source_path_exists(*iso))
         {
             args.insert(args.end(), {L"--iso", iso->wstring()});
         }
@@ -1127,7 +1181,7 @@ namespace xml1_port
         out.AddMember("launcherOnly", facts.launcher_only, allocator);
         out.AddMember("isInstalled", game.is_installed(), allocator);
         out.AddMember("iso", make_string(path_text(iso), allocator), allocator);
-        out.AddMember("isoExists", iso && utils::io::file_exists(*iso), allocator);
+        out.AddMember("isoExists", iso && xml1::source_path_exists(*iso), allocator);
         out.AddMember("movies", flag(game, property_keys::BUILD_MOVIES, true), allocator);
         out.AddMember("keepCache", flag(game, property_keys::BUILD_KEEP_CACHE, true), allocator);
         out.AddMember("linkBase", flag(game, property_keys::BUILD_LINK_BASE, false), allocator);

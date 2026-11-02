@@ -127,6 +127,23 @@
         return 'community'; // the suggestion: needs nothing else
     }
 
+    // --hero preserves the other members of this group. Never send an empty selection: the tool
+    // interprets that as every hero. A different appearance still uses the full Apply path.
+    function changedHeroes(s) {
+        const group = installedGroup(s);
+        if (!group || !group.enabled || group.mode !== currentMode(s) || !s.plan || s.plan.mode !== group.mode) return [];
+        const verify = s.verify && s.verify.group === group.group ? s.verify : {};
+        const files = key => Array.isArray(verify[key]) ? verify[key] : [];
+        const stale = [...files('stale_folders'), ...files('port_build_unknown')];
+        const damaged = [...files('missing'), ...files('changed')].map(file => String(file).replace(/\\/g, '/'));
+        return s.plan.rows.filter(row => {
+            if (!row || row.tier === 'stock') return false;
+            const installed = group.characters[row.hero];
+            return !installed || installed.tier !== row.tier || String(installed.source || '') !== String(row.source || '') ||
+                stale.includes(installed.folder) || damaged.some(file => file === installed.folder || file.startsWith(installed.folder + '/'));
+        }).map(row => row.hero);
+    }
+
     // ---- the tool's events ----
 
     // A fresh view of one run, fed event by event (applyEvent), whatever its command.
@@ -136,6 +153,7 @@
             plan: null, done: 0, total: 0, message: '', stage: '', heroes: {}, downloads: [], warnings: [], errors: [],
             gates: [], result: null, unknownApi: false, stderrTail: [], startError: '', renamed: [],
             current: null, // the hero / tier / source being worked on (stage convert), settled once it got past fetching
+            refinement: null, // converter progress, separate from the number of completed heroes
             started: []    // the heroes in the order the run started them
         }, extra || {});
     }
@@ -166,7 +184,10 @@
                 });
                 break;
             case 'stage': {
+                job.refinement = null;
+                job.engine = '';
                 job.stage = String(event.stage || '');
+                job.cacheReason = '';
                 job.message = String(event.message || '');
                 const renamed = RENAMED.exec(job.message);
                 if (renamed) job.renamed.push({ from: renamed[1], to: renamed[2] });
@@ -183,13 +204,41 @@
                 }
                 break;
             }
-            case 'progress':
-                job.done = Math.max(0, Number(event.done) || 0);
-                job.total = Math.max(0, Number(event.total) || 0);
+            case 'progress': {
+                const calls = event.calls ?? event.call;
+                // A staged converter event can never become completed-hero progress.
+                if (event.stage && !(Number.isFinite(calls) && calls >= 0)) break;
+                if (Number.isFinite(calls) && calls >= 0) {
+                    if (event.hero && job.current && event.hero !== job.current.hero) break;
+                    job.refinement = {
+                        calls, max: event.max_calls ?? event.maxCalls ?? event.max,
+                        elapsed: event.elapsed_s ?? event.elapsed ?? event.seconds,
+                        loss: event.loss, stage: String(event.stage || 'refine_bind')
+                    };
+                    if (job.current) job.current.settled = true;
+                } else {
+                    if (Number.isFinite(event.done)) job.done = Math.max(0, event.done);
+                    if (Number.isFinite(event.total)) job.total = Math.max(0, event.total);
+                    job.refinement = null;
+                }
                 if (event.message) job.message = String(event.message);
                 break;
+            }
+            case 'engine':
+                job.refinement = null;
+                if (event.script) job.engine = String(event.script).split(/[\\/]/).pop();
+                break;
             case 'cache':
-                if (typeof event.hero === 'string' && event.hit) heroEntry(job, event.hero).cached = true;
+                job.cacheReason = String(event.message || event.acceptance_reason || event.reason || '');
+                if (job.cacheReason) job.message = job.cacheReason;
+                if (typeof event.hero === 'string') heroEntry(job, event.hero).cacheReason = job.cacheReason;
+                job.refinement = null;
+                if (typeof event.hero === 'string' && event.hit) {
+                    heroEntry(job, event.hero).cached = true;
+                    job.stage = 'cache';
+                    job.engine = '';
+                    job.refinement = null;
+                }
                 break;
             case 'download':
                 job.downloads.push({
@@ -202,6 +251,9 @@
             case 'gate': {
                 job.gates.push(event);
                 if (typeof event.hero !== 'string') break;
+                job.stage = 'gate';
+                job.engine = '';
+                job.refinement = null;
                 const entry = heroEntry(job, event.hero);
                 if (event.passed) {
                     entry.status = 'passed';
@@ -388,7 +440,7 @@
     // groups, index }), from the run on the page (s.job).
     function describeWork(s, work) {
         const title = work.op === 'remove' ? t('models.dl.remove') : work.op === 'off' ? t('models.dl.off')
-            : t(work.op === 'rebuild' ? 'models.dl.rebuild' : 'models.dl.build', { mode: modeName(work.mode) });
+            : t(work.op === 'update' ? 'models.dl.update' : work.op === 'rebuild' ? 'models.dl.rebuild' : 'models.dl.build', { mode: modeName(work.mode) });
         const view = { title, phase: t('models.dl.starting'), percent: null, numbers: '', items: [], cancellable: false, cancelling: false };
         const job = s.job;
         if (work.op === 'remove' || work.op === 'off') {
@@ -429,6 +481,7 @@
             }
             const n = Math.max(1, job.started.length);
             view.phase = total ? t('models.dl.converting', { hero: name, n: Math.min(n, total), total }) : name;
+            view.phase += ' · ' + liveState(job);
         }
         return view;
     }
@@ -661,9 +714,10 @@
 
     // In offline mode (-offline), the planned community skins the tool has not downloaded yet (scan:
     // tiers.community.cached per costume). Apply waits for those to be none: the tool would download them.
-    function missingDownloads(s) {
+    function missingDownloads(s, heroes = null) {
         if (!window.IS_OFFLINE || !s.plan || !s.scan || !s.scan.heroes) return [];
         return (s.plan.rows || []).filter(row => {
+            if (heroes && !heroes.includes(row.hero)) return false;
             if (row.tier !== 'community') return false;
             const tiers = s.scan.heroes[row.hero] && s.scan.heroes[row.hero].tiers;
             const cached = tiers && tiers.community && tiers.community.cached;
@@ -682,9 +736,9 @@
 
     // The community skins' terms (BaconWizard17's readme) are shown once, before the first build that
     // downloads one.
-    function needsTerms(s) {
+    function needsTerms(s, heroes = null) {
         const accepted = !!(s.status && s.status.settings && s.status.settings.termsAccepted);
-        return !accepted && !!s.plan && (s.plan.rows || []).some(row => row.tier === 'community');
+        return !accepted && !!s.plan && (s.plan.rows || []).some(row => row.tier === 'community' && (!heroes || heroes.includes(row.hero)));
     }
 
     async function askTerms(gameId) {
@@ -748,13 +802,15 @@
         await plan(gameId);
     }
 
-    async function apply(gameId, { rebuild = false } = {}) {
+    async function apply(gameId, { rebuild = false, incremental = false } = {}) {
         const s = getState(gameId);
         if (blockedReason(s) || (s.job && s.job.active)) return;
         const mode = currentMode(s);
         if (mode === 'off') return removeAll(gameId, false);
-        if (missingDownloads(s).length) return;
-        if (needsTerms(s) && !(await askTerms(gameId))) {
+        const heroes = incremental ? changedHeroes(s) : null;
+        if (incremental && !heroes.length) return;
+        if (missingDownloads(s, heroes).length) return;
+        if (needsTerms(s, heroes) && !(await askTerms(gameId))) {
             s.outcome = { kind: 'info', text: t('models.terms.declined') };
             render(gameId);
             return;
@@ -765,10 +821,12 @@
         // Rebuild: the stale note's button, or Apply while it reads Rebuild (the installed appearance again)
         const installedNow = installedGroup(s);
         const again = rebuild || !!(installedNow && installedNow.enabled && installedNow.mode === mode);
-        const work = { op: again ? 'rebuild' : 'build', mode };
+        const work = { op: incremental ? 'update' : again ? 'rebuild' : 'build', mode };
         s.download = trackWork(gameId, work.op, () => describeWork(s, work), () => handle(gameId, () => cancel(gameId)));
         render(gameId);
-        const job = await runTool(gameId, s.job, { mode, offline: !!window.IS_OFFLINE });
+        const payload = { mode, offline: !!window.IS_OFFLINE };
+        if (heroes) payload.heroes = heroes;
+        const job = await runTool(gameId, s.job, payload);
         const result = resultOf(job);
         const notes = job.renamed.length ? [t('models.renamed', { count: job.renamed.length })] : [];
         if (result && (job.exitCode === 0 || job.exitCode === 10)) {
@@ -796,6 +854,7 @@
         // What is downloaded now (scan: community cached) changed with the build.
         const scan = await runTool(gameId, newRun('scan'));
         if (resultOf(scan)) s.scan = resultOf(scan);
+        await plan(gameId, false);
         await verifyInstalled(gameId, false);
         await loadCredits(gameId);
         render(gameId);
@@ -854,12 +913,12 @@
 
     async function cancel(gameId) {
         const s = getState(gameId);
-        if (!s.job || !s.job.active || !s.job.id) return;
+        const job = s.job;
+        if (!job || !job.active || !job.id || job.cancelRequested) return;
         const choice = await window.showMessageBox(t('models.cancelTitle'), escapeHtml(t('models.cancelBody')),
             [t('models.keepGoing'), { label: t('models.cancel'), danger: true }]);
-        if (choice !== 1) return;
-        await run('models-cancel', { id: s.job.id });
-        s.job.cancelRequested = true;
+        if (choice !== 1 || s.job !== job || !job.active) return;
+        if (await run('models-cancel', { id: job.id })) job.cancelRequested = true;
         update(gameId);
     }
 
@@ -937,8 +996,9 @@
 
     function statusHTML(entry) {
         const label = has(`models.status.${entry.status}`) ? t(`models.status.${entry.status}`) : entry.status;
+        const reason = entry.reason || entry.cacheReason;
         return `<span class="ul-models-status is-${escapeHtml(entry.status)}">${escapeHtml(label)}</span>` +
-            (entry.reason ? `<span class="ul-models-reason">${escapeHtml(entry.reason)}</span>` : '');
+            (reason ? `<span class="ul-models-reason">${escapeHtml(reason)}</span>` : '');
     }
 
     function costumeHTML(s, row, disabled) {
@@ -1025,6 +1085,23 @@
             ${note}`;
     }
 
+    function liveState(job) {
+        const parts = [];
+        if (job.current) parts.push(heroName(job, job.current.hero), tierName(job.current.tier));
+        const stage = job.refinement ? job.refinement.stage : job.engine || job.stage;
+        const key = String(stage || '').replace(/\.py$/, '');
+        parts.push(has(`models.stage.${key}`) ? t(`models.stage.${key}`) : stage);
+        const progress = job.refinement;
+        if (progress) {
+            parts.push(Number.isFinite(progress.max) && progress.max > 0
+                ? t('models.callsOf', { call: progress.calls, max: progress.max }) : t('models.calls', { call: progress.calls }));
+            if (Number.isFinite(progress.loss)) parts.push(t('models.loss', { loss: progress.loss.toFixed(3) }));
+            if (Number.isFinite(progress.elapsed) && progress.elapsed >= 0) parts.push(t('models.elapsed', { seconds: Math.floor(progress.elapsed) }));
+        }
+        if (job.cacheReason) parts.push(job.cacheReason);
+        return parts.filter(Boolean).join(' · ');
+    }
+
     function progressHTML(job) {
         if (!job || !job.active || job.command !== 'build') return '';
         const percent = job.total ? Math.max(0, Math.min(100, (100 * job.done) / job.total)) : 0;
@@ -1035,6 +1112,7 @@
                     <span class="xml1-progress-message ul-models-progress-message">${escapeHtml(job.cancelRequested ? t('models.cancelling') : (job.message || t('models.starting')))}</span>
                     <span class="xml1-progress-numbers">${escapeHtml(job.total ? t('models.heroesDone', { done: job.done, total: job.total }) : '')}</span>
                 </div>
+                <div class="ul-models-live-state" role="status" aria-live="polite">${escapeHtml(liveState(job))}</div>
             </div>`;
     }
 
@@ -1270,6 +1348,8 @@
             const nothing = mode !== 'off' && !!s.plan && !(s.plan.rows || []).some(row => row.tier !== 'stock');
             const installing = !!toolRelease(s).installing;
             actions.push(button('apply', applyLabel, disabled || offlineWait || installing || nothing || (mode === 'off' && !allGroups(s).length), ' data-primary="true"'));
+            const changes = changedHeroes(s);
+            if (changes.length) actions.push(button('update', t('models.installNew'), disabled || installing || missingDownloads(s, changes).length > 0));
             if (allGroups(s).length) actions.push(button('remove', t('models.remove'), disabled));
             if (group) actions.push(button('verify', t('models.verify'), disabled));
             if (s.status.modsFolder) actions.push(button('open-mods', t('models.openMods'), false));
@@ -1284,6 +1364,7 @@
                     ${toolLineHTML(s, working || !!toolRelease(s).checking)}
                     ${modesHTML(s, disabled)}
                     <div class="xml1-actions ul-models-actions">${actions.join('')}</div>
+                    ${changedHeroes(s).length ? `<p class="ul-models-note">${escapeHtml(t('models.newOptions', { count: changedHeroes(s).length }))}</p>` : ''}
                     ${mode !== 'off' && missingDownloads(s).length ? `<div class="xml1-note is-warn ul-models-offline">${escapeHtml(t('models.offlineNeedsDownload', { count: missingDownloads(s).length }))}</div>` : ''}
                     ${mode !== 'off' && !missingDownloads(s).length && offlineSkipped(s).length ? `<div class="xml1-note is-info ul-models-offline-skipped">${escapeHtml(t('models.offlineSkipped', { count: offlineSkipped(s).length }))}</div>` : ''}
                     ${progressHTML(s.job)}
@@ -1342,6 +1423,9 @@
         switch (action) {
             case 'apply':
                 await apply(gameId);
+                break;
+            case 'update':
+                await apply(gameId, { incremental: true });
                 break;
             case 'remove':
                 await removeAll(gameId, true);

@@ -188,6 +188,9 @@
             </div>` : '';
 
         const actions = [];
+        if (s.install && s.build && s.build.stamp && window.Xml1SaveImport) {
+            actions.push(button('import-save', t('saveImport.title'), blocked || s.running ? 'disabled' : ''));
+        }
         if (state === 'building') {
             actions.push(button('cancel-build', t('xml1.cancelBuild'), job && job.cancelRequested ? 'disabled' : ''));
             actions.push(button('show-progress', t('xml1.showProgress')));
@@ -207,6 +210,7 @@
             actions.push(button('setup', t('common.setUp')));
         }
 
+        const importFocus = window.Xml1SaveImport && window.Xml1SaveImport.captureFocus();
         host.innerHTML = `
             <div class="ul-display xml1-view" data-state="${escapeHtml(state)}">
                 <div class="xml1-state is-${escapeHtml(state)}">
@@ -220,8 +224,10 @@
                 ${state !== 'building' && !failed ? noticesHTML(port, job) : ''}
                 ${rows}
                 <div class="xml1-actions">${actions.join('')}</div>
+                <div id="xml1-save-import"></div>
             </div>`;
 
+        if (window.Xml1SaveImport) window.Xml1SaveImport.mount(importFocus);
         host.querySelectorAll('[data-act]').forEach(element => {
             element.addEventListener('click', () => act(gameId, element.dataset.act));
         });
@@ -244,6 +250,9 @@
         const port = window.Xml1Port;
         const s = port.status;
         switch (action) {
+            case 'import-save':
+                window.Xml1SaveImport.open();
+                break;
             case 'setup':
             case 'show-progress':
             case 'change-disc':

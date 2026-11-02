@@ -194,7 +194,7 @@
         },
 
         isWorking() {
-            return !!this.starting || !!(this.build && this.build.active) || !!(this.status && this.status.work && this.status.work.active);
+            return !!(window.Xml1SaveImport && window.Xml1SaveImport.isBusy()) || !!this.starting || !!(this.build && this.build.active) || !!(this.status && this.status.work && this.status.work.active);
         },
 
         isBuilding() {

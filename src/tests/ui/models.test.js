@@ -136,6 +136,18 @@ class Backend {
     }
 
     defaultBuild(request) {
+        if (request.heroes) {
+            const rows = planRows(request.mode, request.costumes || this.settings.costumes, { mua1: this.mua1 })
+                .filter(row => request.heroes.includes(row.hero));
+            const characters = Object.fromEntries(rows.map(row => [row.hero, { tier: row.tier, source: row.source }]));
+            this.afterBuild = () => {
+                this.installed = this.installed.filter(folder => !folder.characters.some(c => request.heroes.includes(c.hero)));
+                rows.forEach(row => this.installed.push({ folder: `${row.tier}-${row.hero}`, group: `Models-${request.mode === 'upgraded' ? 'Upgraded' : 'Community'}`,
+                    mode: request.mode, listed: true, enabled: true, credits: true, characters: [{ hero: row.hero, tier: row.tier, source: row.source }] }));
+            };
+            return { lines: [ev('plan', { mode: request.mode, rows }), ev('progress', { done: rows.length, total: rows.length }),
+                ev('result', { characters, refused: {}, stock: {} })], exit: 0 };
+        }
         const rows = planRows(request.mode, request.costumes || this.settings.costumes, { mua1: this.mua1 });
         const lines = [
             ev('plan', { mode: request.mode, rows }),
@@ -893,5 +905,229 @@ test('models: Verify of a stale pack shows the note, not an "intact" toast', asy
     assert.equal(p.toasts.filter(toast => /intact/.test(toast[0])).length, 0);
 });
 
+function installedHero(hero, tier = 'community', source = hero === 'beast' ? 'Classic' : 'Original', mode = 'community') {
+    return { folder: `${tier}-${hero}`, group: `Models-${mode === 'upgraded' ? 'Upgraded' : 'Community'}`, mode,
+        listed: true, enabled: true, credits: false, characters: [{ hero, tier, source }] };
+}
+
+test('models: Install the new options sends only missing heroes and keeps existing models', async () => {
+    const beast = installedHero('beast');
+    const p = await open({ installed: [beast] });
+    assert.equal(p.act('apply').textContent.trim(), 'Rebuild');
+    assert.equal(p.act('update').textContent.trim(), 'Install the new options');
+    p.act('update').click();
+    await p.settle();
+    assert.deepEqual(p.backend.commands('build')[0], { command: 'build', mode: 'community', offline: false, heroes: ['wolverine'] });
+    assert.deepEqual(p.backend.installed.find(f => f.characters[0].hero === 'beast'), beast);
+    assert.equal(p.act('update'), null, 'nothing new remains; never send an empty heroes list');
+    assert.equal(p.act('apply').textContent.trim(), 'Rebuild', 'the full path is kept');
+    assert.equal(p.backend.commands('remove').length, 0, 'never turn models off to update');
+});
+
+test('models: a changed costume selects only that hero; Rebuild still selects the whole appearance', async () => {
+    const p = await open({ installed: [installedHero('beast'), installedHero('wolverine')] });
+    assert.equal(p.act('update'), null);
+    const select = p.row('wolverine').querySelector('select.ul-models-costume');
+    select.value = 'Ultimate XML1';
+    select.dispatchEvent(new p.window.Event('change', { bubbles: true }));
+    await p.settle();
+    p.act('update').click();
+    await p.settle();
+    assert.deepEqual(p.backend.commands('build')[0].heroes, ['wolverine']);
+    p.act('apply').click();
+    await p.settle();
+    assert.equal(p.backend.commands('build')[1].heroes, undefined);
+});
+
+test('models: a newly available higher tier selects only the changed hero', async () => {
+    const p = await open({ mua1: true, installed: [installedHero('beast', 'community', 'Classic', 'upgraded'),
+        installedHero('wolverine', 'community', 'Original', 'upgraded')] });
+    p.act('update').click();
+    await p.settle();
+    assert.equal(p.backend.commands('build')[0].mode, 'upgraded');
+    assert.deepEqual(p.backend.commands('build')[0].heroes, ['wolverine']);
+    assert.equal(p.backend.installed.find(f => f.characters[0].hero === 'wolverine').characters[0].tier, 'mua1');
+});
+
+test('models: stale or damaged folders update just their heroes, and stock rows never cause a full build', async () => {
+    for (const problem of ['stale_folders', 'port_build_unknown', 'changed', 'missing']) {
+        const p = await open({ installed: [installedHero('beast'), installedHero('wolverine')] }, { refresh: false });
+        const script = p.backend.script.bind(p.backend);
+        p.backend.script = request => request.command === 'verify'
+            ? { lines: [ev('result', { ok: !['changed', 'missing'].includes(problem),
+                [problem]: [problem === 'changed' || problem === 'missing' ? 'community-beast/Actors/14501.IGB' : 'community-beast'] })], exit: 0 }
+            : script(request);
+        p.window.ModelsView.refresh('xml1');
+        await p.settle();
+        assert.ok(p.act('update'), problem);
+        p.act('update').click();
+        await p.settle();
+        assert.deepEqual(p.backend.commands('build')[0].heroes, ['beast'], problem);
+    }
+});
+
+test('models: switching appearance uses Apply; disabled groups and a running game cannot incrementally update', async () => {
+    const p = await open({ installed: [installedHero('beast')] });
+    p.$('.ul-models-mode[data-mode="sharpen"]').click();
+    await p.settle();
+    assert.equal(p.act('update'), null);
+    const disabled = await open({ installed: [Object.assign(installedHero('beast'), { enabled: false })] });
+    assert.equal(disabled.act('update'), null);
+    const running = await open({ installed: [installedHero('beast')], running: true });
+    assert.ok(!running.act('update') || running.act('update').disabled);
+});
+
+test('models: offline incremental update ignores unchanged heroes that would need a download on Rebuild', async () => {
+    const p = await open({ mua1: true, installed: [installedHero('beast', 'community', 'Classic', 'upgraded')] }, { offline: true });
+    assert.ok(p.act('apply').disabled, 'full rebuild needs the uncached Beast download');
+    assert.ok(!p.act('update').disabled, 'only Wolverine from the owned MUA1 install is selected');
+    p.act('update').click();
+    await p.settle();
+    assert.deepEqual(p.backend.commands('build')[0].heroes, ['wolverine']);
+    assert.equal(p.backend.commands('build')[0].offline, true);
+});
+
+test('models: refinement calls, loss and elapsed are live without overwriting completed heroes; Cancel keeps the installed group', async () => {
+    const installed = [installedHero('beast')];
+    const p = await open({ installed });
+    p.backend.hold = true;
+    p.backend.chunk = 1;
+    p.backend.buildScript = () => ({ lines: [
+        ev('plan', { mode: 'community', rows: planRows('community', {}, {}) }),
+        ev('progress', { done: 0, total: 1 }),
+        ev('stage', { stage: 'convert', hero: 'wolverine', tier: 'mua2', source: '0301' }),
+        ev('engine', { engine: 'mua2', script: 'refine_bind.py' }),
+        ev('progress', { hero: 'wolverine', tier: 'mua2', stage: 'refine_bind', call: 5, done: 5, total: 100, max_calls: 100, loss: 69.123, best_loss: 50, elapsed: 39.5, max_seconds: 180 }),
+        ev('result', { characters: {} })
+    ], exit: 0 });
+    p.act('update').click();
+    await p.clock.until(() => /call 5 of 100/.test(p.$('.ul-models-live-state')?.textContent || ''), 5000, 'live refinement');
+    assert.match(p.$('.ul-models-live-state').textContent, /Wolverine.*MUA2.*Refining the model.*loss 69.123.*39 s elapsed/);
+    assert.match(p.$('.xml1-progress-numbers').textContent, /0 of 1 heroes/);
+    assert.ok(p.act('cancel'));
+    p.window.showMessageBox = async () => 1;
+    p.act('cancel').click();
+    await p.settle();
+    assert.equal(p.backend.cancels.length, 1);
+    assert.deepEqual(p.backend.installed, installed);
+    assert.equal(p.backend.commands('remove').length, 0);
+    assert.ok(p.backend.commands('verify').length >= 2, 'reverified on cancellation');
+    assert.ok(p.act('update'), 'the cancelled new option can be retried');
+});
+
+test('models: malformed refinement events and a late event for another hero do not corrupt the counters', async () => {
+    const p = await open();
+    const { _newRun: fresh, _applyEvent: feed } = p.window.ModelsView;
+    const job = fresh('build');
+    feed(job, { event: 'progress', done: 1, total: 2 });
+    feed(job, { event: 'stage', stage: 'convert', hero: 'beast', tier: 'community' });
+    feed(job, { event: 'progress', hero: 'wolverine', calls: 20, max_calls: 100 });
+    assert.equal(job.refinement, null);
+    feed(job, { event: 'progress', calls: 'bad', total: 'bad' });
+    feed(job, { event: 'progress', stage: 'refine_bind', call: 'bad', done: 120, total: 120 });
+    assert.equal(job.done, 1);
+    assert.equal(job.total, 2);
+    feed(job, { event: 'progress', hero: 'beast', calls: 3, max_calls: 100, elapsed_s: 20 });
+    assert.equal(job.refinement.calls, 3);
+    feed(job, { event: 'gate', hero: 'beast', tier: 'community', passed: true });
+    assert.equal(job.refinement, null);
+    assert.equal(job.stage, 'gate');
+    feed(job, { event: 'stage', stage: 'publish' });
+    assert.equal(job.refinement, null);
+});
+
+test('models: a cancellation confirmation that outlives its job never cancels a later run', async () => {
+    const p = await open({ installed: [installedHero('beast')] });
+    p.backend.hold = true;
+    p.act('update').click();
+    await p.clock.until(() => p.act('cancel'), 5000, 'Cancel');
+    let confirm;
+    p.window.showMessageBox = () => new Promise(resolve => { confirm = resolve; });
+    p.act('cancel').click();
+    await p.clock.advance(0);
+    assert.ok(confirm);
+    p.backend.hold = false;
+    await p.settle();
+    // The old dialog is still open, while another build has started.
+    p.backend.hold = true;
+    p.act('apply').click();
+    await p.clock.until(() => p.backend.commands('build').length === 2 && p.act('cancel'), 5000, 'the later build');
+    confirm(1);
+    await p.clock.advance(0);
+    assert.equal(p.backend.cancels.length, 0);
+    p.backend.hold = false;
+    await p.settle();
+});
+
+test('models: a refused cancellation does not falsely label a continuing job Cancelling', async () => {
+    const p = await open({ installed: [installedHero('beast')] });
+    p.backend.hold = true;
+    const handle = p.backend.handle.bind(p.backend);
+    p.backend.handle = (command, data) => command === 'models-cancel' ? false : handle(command, data);
+    p.window.showMessageBox = async () => 1;
+    p.act('update').click();
+    await p.clock.until(() => p.act('cancel'), 5000, 'Cancel');
+    p.act('cancel').click();
+    await p.clock.advance(100);
+    assert.equal(p.window.ModelsView._state('xml1').job.cancelRequested, false);
+    p.backend.hold = false;
+    await p.settle();
+});
+
 // downloads.test.js drives the same fake backend with the Downloads tab loaded too.
 module.exports = { Backend, ev, scanResult, planRows, PORT };
+
+test('models: accepted reuse and changed-input refit reasons survive staged progress without changing hero counts', async () => {
+    const p = await open();
+    const { _newRun: fresh, _applyEvent: feed } = p.window.ModelsView;
+    const job = fresh('build');
+    feed(job, { event: 'progress', done: 1, total: 2 });
+    feed(job, { event: 'stage', stage: 'convert', hero: 'wolverine', tier: 'mua2' });
+    feed(job, { event: 'cache', hero: 'wolverine', tier: 'mua2', hit: true, owner_accepted: true,
+        reason: 'accepted_inputs_match', message: 'Owner accepted this exact output hash' });
+    assert.equal(job.message, 'Owner accepted this exact output hash');
+    assert.ok(job.heroes.wolverine.cached);
+    feed(job, { event: 'gate', hero: 'wolverine', tier: 'mua2', passed: true, owner_accepted: true });
+    p.window.ModelsView._state('xml1').job = job;
+    p.window.ModelsView.render('xml1');
+    assert.match(p.$('.ul-models-row[data-hero="wolverine"]').textContent, /Owner accepted this exact output hash/);
+    feed(job, { event: 'cache', hero: 'wolverine', hit: false, refit: true, reason: 'inputs_changed',
+        message: 'Accepted source/template hashes differ; checking changed-input result cache before fitting' });
+    assert.match(job.cacheReason, /hashes differ/);
+    feed(job, { event: 'progress', hero: 'wolverine', stage: 'refine_bind', call: 6, max_calls: 120,
+        done: 6, total: 120, elapsed: 42, loss: 70 });
+    assert.equal(job.done, 1);
+    assert.equal(job.total, 2);
+    assert.equal(job.refinement.calls, 6);
+});
+
+test('models: a cooperative cancellation after publication starts reports the completed installation', async () => {
+    const p = await open({ installed: [installedHero('beast')] });
+    p.backend.hold = true;
+    p.backend.chunk = 1;
+    const handle = p.backend.handle.bind(p.backend);
+    let requested = false;
+    p.backend.handle = (command, data) => {
+        if (command === 'models-cancel') { requested = true; return true; }
+        const result = handle(command, data);
+        if (command === 'get-models-job' && result && result.command === 'build') result.cancelRequested = requested;
+        return result;
+    };
+    p.backend.buildScript = () => ({ lines: [
+        ev('plan', { mode: 'community', rows: planRows('community', {}, {}) }),
+        ev('progress', { done: 1, total: 1 }),
+        ev('stage', { stage: 'publish', message: 'Writing complete model group' }),
+        ev('result', { written: true, characters: { wolverine: { tier: 'mua2', source: '0301' } }, refused: {}, stock: {} })
+    ], exit: 0 });
+    p.window.showMessageBox = async () => 1;
+    p.act('update').click();
+    await p.clock.until(() => /Writing complete/.test(p.$('.ul-models-progress-message')?.textContent || ''), 5000, 'publication');
+    p.act('cancel').click();
+    await p.clock.advance(100);
+    assert.ok(requested);
+    assert.ok(p.window.ModelsView._state('xml1').job.active, 'folder remains reserved while publication finishes');
+    p.backend.hold = false;
+    await p.settle();
+    assert.equal(p.window.ModelsView._state('xml1').outcome.kind, 'success');
+    assert.equal(p.window.ModelsView._state('xml1').job.exitCode, 0);
+});

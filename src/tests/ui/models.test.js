@@ -895,3 +895,25 @@ test('models: Verify of a stale pack shows the note, not an "intact" toast', asy
 
 // downloads.test.js drives the same fake backend with the Downloads tab loaded too.
 module.exports = { Backend, ev, scanResult, planRows, PORT };
+
+test('models: a channel switch refreshes an already drawn tool update without reopening its page', async () => {
+    const p = await open();
+    p.backend.toolVersion = '0.3.0';
+    p.backend.toolDev = false;
+    Object.assign(p.backend.release, { checking: false, latest: '0.4.0-beta.1', latestSize: 10,
+        channel: 'beta', updateAvailable: true });
+    p.window.dispatchEvent(new p.window.CustomEvent('gameInstallationUpdated', { detail: { game: null } }));
+    await p.clock.advance(0);
+    assert.match(p.$('.ul-models-tool-update').textContent, /0\.4\.0-beta\.1/);
+});
+
+test('models: channel refresh follows a tool lookup that finishes after the channel summary', async () => {
+    const p = await open();
+    p.backend.toolDev = false;
+    Object.assign(p.backend.release, { checking: true, latest: '', channel: 'beta', updateAvailable: false });
+    p.window.dispatchEvent(new p.window.CustomEvent('gameInstallationUpdated', { detail: { game: null } }));
+    await p.clock.advance(0);
+    Object.assign(p.backend.release, { checking: false, latest: '0.4.0-beta.1', updateAvailable: true });
+    await p.clock.advance(1500);
+    assert.match(p.$('.ul-models-tool-update').textContent, /0\.4\.0-beta\.1/);
+});

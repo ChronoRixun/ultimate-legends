@@ -34,7 +34,7 @@ namespace patch_policy
     }
 
     decision decide(const std::optional<std::string>& installed, const release_channel::outcome& found, const std::optional<consent>& consent,
-                    const bool recorded)
+                    const bool recorded, const release_channel::channel selected)
     {
         decision result{};
         result.from_cache = found.from_cache;
@@ -42,14 +42,14 @@ namespace patch_policy
 
         if (!found.chosen)
         {
-            if (!installed)
+            if (!installed && selected == release_channel::channel::stable)
             {
                 result.what = action::install_latest;
                 result.note = "the update channel can't be checked (" + found.error +
                               ") and there is no earlier result: the latest release's files are installed, each checked by its hash";
                 return result;
             }
-            result.note = (installed->empty() ? std::string("the fix") : *installed) + " stays: the update channel can't be checked (" +
+            result.note = (!installed || installed->empty() ? std::string("the fix") : *installed) + " stays: the update channel can't be checked (" +
                           found.error + ") and there is no earlier result";
             return result;
         }

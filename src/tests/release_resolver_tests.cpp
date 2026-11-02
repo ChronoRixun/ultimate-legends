@@ -422,3 +422,104 @@ TEST(release_tags_are_strict_dll_versions_are_not)
     CHECK(release_channel::compare("1.8.0-beta.10", "1.8.0-rc.1") < 0);
     CHECK(release_channel::compare("1.8.0-rc.1", "1.8.0") < 0);
 }
+
+TEST(channel_switch_invalidates_reused_answers_for_every_repository_and_retains_only_channel_local_fallback)
+{
+    fake github;
+    release_resolver::resolver resolver{github.io()};
+    for (const auto* repo : {fix_repo, "ChronoRixun/legends-classic", "ChronoRixun/ultimate-legends", "ChronoRixun/legends-models"})
+    {
+        const auto base = std::string("https://api.github.com/repos/") + repo + "/releases";
+        github.answers[base + "/latest"] = ok(release_json("v0.4.0", false));
+        github.answers[base + "?per_page=30"] = ok("[" + release_json("v0.6.0-beta.1", true) + "]");
+        CHECK(resolver.resolve(repo, channel::stable, fix_files).chosen->version == "0.4.0");
+        CHECK(resolver.resolve(repo, channel::beta, fix_files).chosen->version == "0.6.0-beta.1");
+    }
+    resolver.invalidate(); // settings switch: discard the ten-minute in-memory reuse
+    CHECK(!resolver.last(fix_repo, channel::stable));
+    CHECK(!resolver.last(fix_repo, channel::beta));
+    github.asked.clear();
+    for (const auto* repo : {fix_repo, "ChronoRixun/legends-classic", "ChronoRixun/ultimate-legends", "ChronoRixun/legends-models"})
+    {
+        const auto base = std::string("https://api.github.com/repos/") + repo + "/releases";
+        github.answers[base + "?per_page=30"] = {false, "offline", 0, {}};
+        const auto beta = resolver.resolve(repo, channel::beta, fix_files);
+        CHECK(beta.from_cache && beta.chosen && beta.chosen->version == "0.6.0-beta.1");
+        github.answers[base + "/latest"] = {false, "offline", 0, {}};
+        const auto stable = resolver.resolve(repo, channel::stable, fix_files);
+        CHECK(stable.from_cache && stable.chosen && stable.chosen->version == "0.4.0");
+    }
+    CHECK(github.asked.size() == 8); // every repository/channel really rechecked
+}
+
+TEST(channel_switch_during_a_feed_fetch_does_not_repopulate_the_reuse_cache)
+{
+    fake github;
+    auto io = github.io();
+    release_resolver::resolver* running = nullptr;
+    io.get = [&](const std::string&)
+    {
+        running->invalidate(); // deliberately switch while a response is in flight
+        return ok(release_json("v0.4.0", false));
+    };
+    release_resolver::resolver resolver{std::move(io)};
+    running = &resolver;
+    CHECK(resolver.resolve(fix_repo, channel::stable, fix_files).chosen.has_value());
+    CHECK(!resolver.last(fix_repo, channel::stable));
+}
+
+TEST(beta_without_a_fix_feed_or_beta_cache_never_falls_through_to_stable_latest)
+{
+    const release_channel::outcome unavailable{std::nullopt, false, "Could not reach GitHub."};
+    const auto beta = patch_policy::decide(std::nullopt, unavailable, std::nullopt, true, channel::beta);
+    CHECK(beta.what == patch_policy::action::keep);
+    CHECK(!beta.chosen);
+    CHECK(beta.note.find("can't be checked") != std::string::npos);
+    const auto stable = patch_policy::decide(std::nullopt, unavailable, std::nullopt);
+    CHECK(stable.what == patch_policy::action::install_latest); // preserve Stable's legacy fallback
+}
+
+TEST(offline_restart_resolves_only_the_persisted_selected_channel_without_any_http)
+{
+    fake github;
+    release_resolver::resolver before{github.io()};
+    github.latest(ok(release_json("v0.4.0", false)));
+    github.list(ok("[" + release_json("v0.6.0-beta.1", true) + "]"));
+    before.resolve(fix_repo, channel::stable, fix_files);
+    before.resolve(fix_repo, channel::beta, fix_files);
+    github.asked.clear();
+    release_resolver::resolver restarted{github.io()};
+    const auto beta = restarted.resolve(fix_repo, channel::beta, fix_files, false, true);
+    CHECK(beta.chosen && beta.chosen->version == "0.6.0-beta.1" && beta.from_cache);
+    const auto stable = restarted.resolve(fix_repo, channel::stable, fix_files, false, true);
+    CHECK(stable.chosen && stable.chosen->version == "0.4.0" && stable.from_cache);
+    CHECK(github.asked.empty());
+    CHECK(!restarted.resolve("no-selected-channel-record", channel::beta, fix_files, false, true).chosen);
+    CHECK(github.asked.empty());
+}
+
+TEST(invalidated_feed_cannot_overwrite_a_newer_persisted_selection)
+{
+    fake github;
+    auto io = github.io();
+    release_resolver::resolver* running = nullptr;
+    bool first = true;
+    io.get = [&](const std::string&)
+    {
+        if (first)
+        {
+            first = false;
+            running->invalidate(); // Stable -> Beta -> Stable while the old Stable request is alive
+            CHECK(running->resolve(fix_repo, channel::stable, fix_files).chosen->version == "0.5.0");
+            return ok(release_json("v0.4.0", false)); // original response arrives last
+        }
+        return ok(release_json("v0.5.0", false));
+    };
+    release_resolver::resolver resolver{std::move(io)};
+    running = &resolver;
+    resolver.resolve(fix_repo, channel::stable, fix_files);
+    const auto stored = release_channel::release_from_json(github.properties[release_resolver::cache_key(fix_repo, channel::stable)]);
+    CHECK(stored && stored->version == "0.5.0");
+    release_resolver::resolver offline_restart{github.io()};
+    CHECK(offline_restart.resolve(fix_repo, channel::stable, fix_files, false, true).chosen->version == "0.5.0");
+}

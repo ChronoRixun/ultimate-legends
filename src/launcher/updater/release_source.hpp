@@ -22,6 +22,7 @@ namespace release_source
     release_channel::channel current_channel();
     void set_channel(release_channel::channel value);
 
+    // With -offline this reads only that repository/channel's persisted metadata, without HTTP.
     // The release of `repo` for `channel` with every file in `required` (a release still uploading them
     // isn't one yet). `force` asks GitHub even when a recent answer is at hand (Check for updates).
     release_channel::outcome resolve(const std::string& repo, release_channel::channel channel, const std::vector<std::string>& required,

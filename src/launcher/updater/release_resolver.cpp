@@ -89,26 +89,24 @@ namespace release_resolver
     }
 
     release_channel::outcome resolver::resolve(const std::string& repo, const channel value, const std::vector<std::string>& required,
-                                               const bool force)
+                                               const bool force, const bool cache_only)
     {
         const auto id = answer_key(repo, value);
+        std::uint64_t generation;
         {
             std::lock_guard lock(this->mutex_);
-            if (const auto found = this->answers_.find(id); !force && found != this->answers_.end() && found->second.outcome.chosen &&
+            generation = this->generation_;
+            if (const auto found = this->answers_.find(id); !force && !cache_only && found != this->answers_.end() && found->second.outcome.chosen &&
                                                             !found->second.outcome.from_cache && this->io_.now() - found->second.at < reuse_for)
             {
                 return found->second.outcome;
             }
         }
 
-        std::string error;
-        auto fetched = this->fetch(repo, value, required, error);
+        std::string error = cache_only ? "Offline mode: using the last release checked for this channel." : std::string{};
+        auto fetched = cache_only ? std::optional<release_channel::release>{} : this->fetch(repo, value, required, error);
         std::optional<release_channel::release> cached;
-        if (fetched)
-        {
-            this->io_.store(cache_key(repo, value), release_channel::to_json(*fetched));
-        }
-        else if (const auto stored = this->io_.load(cache_key(repo, value)))
+        if (const auto stored = !fetched ? this->io_.load(cache_key(repo, value)) : std::nullopt)
         {
             // Only a choice that still has the files asked for (a cache from an older launcher may not).
             cached = release_channel::release_from_json(*stored);
@@ -120,8 +118,20 @@ namespace release_resolver
         auto outcome = release_channel::settle(std::move(fetched), error, cached);
 
         std::lock_guard lock(this->mutex_);
-        this->answers_[id] = {outcome, this->io_.now()};
+        if (generation == this->generation_)
+        {
+            // An old worker must not overwrite the selected channel's persisted fallback either.
+            if (outcome.chosen && !outcome.from_cache) this->io_.store(cache_key(repo, value), release_channel::to_json(*outcome.chosen));
+            this->answers_[id] = {outcome, this->io_.now()};
+        }
         return outcome;
+    }
+
+    void resolver::invalidate()
+    {
+        std::lock_guard lock(this->mutex_);
+        ++this->generation_;
+        this->answers_.clear();
     }
 
     std::optional<release_channel::outcome> resolver::last(const std::string& repo, const channel value)

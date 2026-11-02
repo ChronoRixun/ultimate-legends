@@ -184,8 +184,8 @@ test('update channel: the setting in English - Stable by default, the help text,
     assert.equal(t.document.querySelectorAll('#update-channel-versions .beta-badge').length, 0, 'no badge on a release');
     assert.equal(t.$('#update-channel-switch-back').hidden, true);
     assert.equal(t.$('#update-channel-note').hidden, true);
-    assert.deepEqual(t.backend.sent('get-update-channel').slice(0, 2), [{ refresh: false }, { refresh: true }],
-        'at start only what is installed; GitHub is asked when Settings opens');
+    assert.deepEqual(t.backend.sent('get-update-channel').slice(0, 2), [{ refresh: true }, { refresh: true }],
+        'startup (including self-update restart) and Settings both resolve the selected channel');
 });
 
 test('update channel: French and Spanish', async () => {

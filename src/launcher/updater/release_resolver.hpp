@@ -20,7 +20,8 @@
 // A valid choice is kept per repository and channel (`store`); when GitHub can't be asked or gives no
 // usable answer (no connection, its rate limit, an error, a latest release still uploading its files),
 // the last valid choice of the same repository and channel is used and the outcome says why
-// (from_cache, error). The other channel's choice never is. A cached choice is only metadata: what it
+// (from_cache, error). `cache_only` never calls HTTP (offline build admission after a restart).
+// The other channel's choice never is. A cached choice is only metadata: what it
 // names is downloaded and checked like any other. An answer is reused for a few minutes unless `force`.
 namespace release_resolver
 {
@@ -53,10 +54,13 @@ namespace release_resolver
         explicit resolver(io io);
 
         release_channel::outcome resolve(const std::string& repo, release_channel::channel channel, const std::vector<std::string>& required,
-                                         bool force = false);
+                                         bool force = false, bool cache_only = false);
 
         // The last outcome for `repo` and `channel` this run, without asking GitHub.
         std::optional<release_channel::outcome> last(const std::string& repo, release_channel::channel channel);
+
+        // Discard short-lived answers; retain the per-channel persisted fallback.
+        void invalidate();
 
     private:
         struct kept_answer
@@ -70,6 +74,7 @@ namespace release_resolver
 
         io io_;
         std::mutex mutex_;
+        std::uint64_t generation_{};
         std::map<std::string, kept_answer> answers_; // by "<repo>|<channel>"
     };
 }

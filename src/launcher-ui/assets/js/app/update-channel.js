@@ -53,6 +53,7 @@
             case 'launcher': return t('updateChannel.itemLauncher');
             case 'fix': return t('updateChannel.repoFix');
             case 'builder': return t('updateChannel.itemBuilder');
+            case 'models': return 'legends-models';
             default: return id;
         }
     }
@@ -82,8 +83,9 @@
                 back.dataset.bound = 'true';
                 back.addEventListener('click', () => this.offerSwitchBack());
             }
-            // What is installed; GitHub is asked when Settings opens (main.js: refresh(true)).
-            await this.refresh(false);
+            // Also on a self-update restart, before a port is configured: resolve every component
+            // for the persisted selection. Settings opening can ask again later.
+            await this.refresh(!window.IS_OFFLINE);
         },
 
         async refresh(ask) {
@@ -144,9 +146,14 @@
             try {
                 this.status = await run('set-update-channel', { channel: next });
                 this.render();
-                await this.follow();
-                // The launcher's own check follows the new channel.
-                if (window.LauncherUpdate && !window.IS_OFFLINE) await window.LauncherUpdate.check();
+                window.dispatchEvent(new CustomEvent('gameInstallationUpdated', { detail: { game: null } }));
+                // The backend invalidated all component checks. Poll the builder's manifest too:
+                // the repository summary alone does not update the port or setup wizard.
+                await Promise.all([
+                    this.follow(),
+                    window.Xml1Port && window.Xml1Port.checkBuilder && !window.IS_OFFLINE ? window.Xml1Port.checkBuilder(false) : null,
+                    window.LauncherUpdate && !window.IS_OFFLINE ? window.LauncherUpdate.check() : null
+                ]);
                 if (window.showToast) {
                     window.showToast(t(next === 'beta' ? 'updateChannel.nowBeta' : 'updateChannel.nowStable'), 'info', 6000);
                 }

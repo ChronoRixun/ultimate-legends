@@ -187,7 +187,8 @@
                     ? `<span class="xml1-warn">${escapeHtml(t('xml1.lowSpace', { free: bytes(this.free), need: bytes(NEED_BYTES) }))}</span>`
                     : escapeHtml(t('xml1.freeSpace', { free: bytes(this.free), need: bytes(NEED_BYTES) })));
             let builderText;
-            if (builder.installed && !builder.updateAvailable) builderText = t('xml1.builderInstalled', { version: builder.version });
+            if (builder.code && !builder.checking && !builder.installing) builderText = this.port().describe({ code: builder.code, msg: builder.error }).title;
+            else if (builder.installed && !builder.updateAvailable) builderText = t('xml1.builderInstalled', { version: builder.version });
             else if (builder.installed) builderText = t('xml1.builderUpdate', { version: builder.version, latest: builder.latest.version });
             else if (builder.notPublished) builderText = t('xml1.errors.L_BUILDER_UNPUBLISHED.msg');
             else if (builder.latest) builderText = t('xml1.builderWillDownload', { version: builder.latest.version, size: bytes(builder.latest.size) });

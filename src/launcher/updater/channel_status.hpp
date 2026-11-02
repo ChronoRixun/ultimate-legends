@@ -21,7 +21,8 @@ namespace channel_status
     // Asks GitHub again in the background (answers are reused for a few minutes; never -offline).
     void refresh();
 
-    // Stores the channel ("stable" / "beta"), tells the launcher's update and starts a refresh.
+    // Stores the channel ("stable" / "beta"), invalidates every component's resolved state and
+    // starts (or queues) fresh checks, including the builder and character-model manifests.
     void set_channel(const std::string& channel);
 
     // Switch back to Stable, approved by the player for exactly these versions and this attempt only:

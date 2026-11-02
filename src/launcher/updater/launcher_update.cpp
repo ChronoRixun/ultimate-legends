@@ -2,6 +2,7 @@
 #include "launcher_update.hpp"
 #include "progress_tracker.hpp"
 #include "release_source.hpp"
+#include "channel_refresh.hpp"
 #include "swap_retry.hpp"
 
 #include "tools/archive.hpp"
@@ -47,6 +48,7 @@ namespace launcher_update
             // idle, checking, up-to-date, check-failed, available, downloading, ready, failed
             std::string state = "idle";
             std::optional<release> latest; // the update channel's release
+            channel_refresh::ticket selection;
             release_channel::channel channel = release_channel::channel::stable; // the channel `latest` is of
             bool from_cache{};       // Beta: GitHub couldn't be asked; `latest` is the last one found
             std::string cache_error; // why
@@ -62,6 +64,7 @@ namespace launcher_update
 
         std::mutex mutex_;
         state_t state_;
+        channel_refresh::gate refresh_;
 
         template <typename F>
         void with_state(F&& f)
@@ -1084,24 +1087,43 @@ namespace launcher_update
         {
             return;
         }
+        std::optional<channel_refresh::ticket> work;
         {
             std::lock_guard lock(mutex_);
-            if (state_.state == "checking" || state_.state == "downloading" || state_.state == "ready")
+            if (state_.state == "checking" || state_.state == "downloading" || state_.state == "ready" ||
+                !(work = refresh_.begin(release_source::current_channel())))
             {
                 return;
             }
             state_.state = "checking";
         }
 
-        std::thread([]
+        std::thread([work = *work]
         {
-            const auto channel = release_source::current_channel();
+            bool success = false;
+            const auto finish = utils::finally([&]
+            {
+                bool again;
+                {
+                    std::lock_guard lock(mutex_);
+                    again = refresh_.finish(work, success);
+                    if (again)
+                    {
+                        state_.state = "idle";
+                        state_.latest.reset();
+                    }
+                }
+                if (again) check();
+            });
+            const auto channel = work.channel;
             std::string error;
             auto from_cache = false;
             const auto latest = fetch_release(channel, error, from_cache);
             const auto current = current_version();
             with_state([&](state_t& state)
             {
+                if (!refresh_.current(work)) return;
+                state.selection = work;
                 state.checked = std::chrono::system_clock::now();
                 state.channel = channel;
                 state.from_cache = false;
@@ -1114,6 +1136,7 @@ namespace launcher_update
                     state.error = error;
                     return;
                 }
+                success = true;
                 state.latest = latest;
                 state.from_cache = from_cache;
                 state.cache_error = from_cache ? error : std::string{};
@@ -1128,10 +1151,11 @@ namespace launcher_update
     bool start_download(const std::string& downgrade_to)
     {
         std::optional<release> latest;
+        channel_refresh::ticket selection;
         {
             std::lock_guard lock(mutex_);
             const auto current = current_version();
-            if (!can_install() || current.empty() || !state_.latest)
+            if (!can_install() || current.empty() || !state_.latest || !refresh_.ready(release_source::current_channel()))
             {
                 return false;
             }
@@ -1146,6 +1170,7 @@ namespace launcher_update
                 return false;
             }
             latest = state_.latest;
+            selection = state_.selection;
             state_.downgrade = back;
             state_.state = "downloading";
             state_.done = 0;
@@ -1154,11 +1179,22 @@ namespace launcher_update
             state_.install_error.clear();
         }
 
-        std::thread([latest]
+        std::thread([latest, selection]
         {
             const auto error = stage(*latest);
+            bool again = false;
             with_state([&](state_t& state)
             {
+                if (!refresh_.current(selection))
+                {
+                    remove_tree(updates_folder() / "ready");
+                    state.ready_version.clear();
+                    state.latest.reset();
+                    state.state = "idle";
+                    state.downgrade = false;
+                    again = true;
+                    return;
+                }
                 // Switched to Stable while a beta downloaded, or a switch back revoked meanwhile (Keep the
                 // beta, a channel change): it doesn't install.
                 const auto older = tool_install::compare_versions(latest->version, current_version()) < 0;
@@ -1190,6 +1226,7 @@ namespace launcher_update
                 state.state = "failed";
                 state.error = error;
             });
+            if (again) check();
         }).detach();
         return true;
     }
@@ -1302,26 +1339,24 @@ namespace launcher_update
 
     void channel_changed()
     {
-        std::lock_guard lock(mutex_);
-        revoke_locked();
-        // A beta downloaded on Beta and not installed yet doesn't install on Stable.
-        if (state_.state == "ready" && release_channel::is_prerelease(state_.ready_version) && can_install() &&
-            release_source::current_channel() == release_channel::channel::stable)
         {
-            if (remove_tree(updates_folder() / "ready"))
+            std::lock_guard lock(mutex_);
+            refresh_.invalidate();
+            revoke_locked();
+            // A staged download belongs to the previous selection. Re-resolve before offering it.
+            if (state_.state == "ready" && can_install() && remove_tree(updates_folder() / "ready"))
             {
-                trace("the update channel is Stable now: the downloaded beta {} was discarded", state_.ready_version);
+                trace("update channel changed: the staged launcher {} was discarded", state_.ready_version);
                 state_.ready_version.clear();
                 state_.state = "idle";
             }
-        }
-        if (state_.state != "checking" && state_.state != "downloading" && state_.state != "ready")
-        {
-            state_.state = "idle";
             state_.latest.reset();
             state_.from_cache = false;
             state_.cache_error.clear();
             state_.error.clear();
+            if (state_.state != "checking" && state_.state != "downloading" && state_.state != "ready") state_.state = "idle";
         }
+        // A check/download already running rechecks at its last line if its ticket was invalidated.
+        check();
     }
 }

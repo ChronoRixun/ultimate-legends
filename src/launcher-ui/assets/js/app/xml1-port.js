@@ -81,8 +81,8 @@
             }
             // A new builder installs quietly once the port is set up (never a rebuild: that is the
             // player's call, section 4.5).
-            if (this.status && this.status.install && !window.IS_OFFLINE) {
-                this.checkBuilder(true);
+            if (this.status && !window.IS_OFFLINE) {
+                this.checkBuilder(!!this.status.install);
             }
             setInterval(() => this.checkBuilderIfDue(RECHECK_MS), RECHECK_MS);
             document.addEventListener('visibilitychange', () => {
@@ -137,13 +137,20 @@
         // Checks the builder's release (and installs it when missing or older with `install`);
         // resolves the builder part of the status once that is done.
         async checkBuilder(install, onUpdate) {
-            await run('xml1-builder-check', { install: !!install });
             let status;
+            let started;
             do {
-                await sleep(250);
-                status = await run('get-xml1-status');
-                if (onUpdate) onUpdate(status.builder);
-            } while (status.builder.checking || status.builder.installing);
+                started = await run('xml1-builder-check', { install: !!install });
+                do {
+                    await sleep(250);
+                    status = await run('get-xml1-status');
+                    this.status = status;
+                    this.emit();
+                    if (onUpdate) onUpdate(status.builder);
+                } while (status.builder.checking || status.builder.installing);
+                // A check already running may only have looked, or may belong to the old channel.
+                // Once it ends, submit this caller's install intent rather than silently dropping it.
+            } while (!started && !window.IS_OFFLINE);
             this.lastCheck = Date.now();
             this.status = status;
             this.emit();
@@ -364,6 +371,14 @@
         },
 
         async startBuildNow(options, onFixWork) {
+            // Shared by the setup wizard, Resume and Rebuild: never trust a page's cached
+            // updateAvailable flag. The backend also validates the selected channel at admission.
+            if (!window.IS_OFFLINE) {
+                const builder = await this.checkBuilder(true);
+                if (!builder.installed || builder.code) {
+                    return { success: false, code: builder.code || 'L_BUILDER_MISSING', error: builder.error || '' };
+                }
+            }
             const out = options && options.out;
             let told = false;
             const tell = () => {
@@ -392,16 +407,6 @@
             if (!this.canRebuild()) {
                 if (window.Xml1Setup) window.Xml1Setup.show();
                 return null;
-            }
-            // The latest builder first: a release published since the last check would otherwise
-            // leave this build on the old content version.
-            if (!window.IS_OFFLINE && !(s.builder && (s.builder.checking || s.builder.installing))) {
-                try {
-                    await this.checkBuilder(true);
-                } catch (error) {
-                    console.error('xml1: builder check before the build failed', error);
-                }
-                s = this.status || s;
             }
             const iso = s.isoExists ? s.iso : '';
             const started = await this.startBuild({ iso, out: s.install, movies: s.movies, keepCache: s.keepCache, linkBase: s.linkBase });

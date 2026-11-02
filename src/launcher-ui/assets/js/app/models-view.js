@@ -1399,6 +1399,28 @@
         });
     });
 
+    window.addEventListener('gameInstallationUpdated', () => {
+        SUPPORTED.forEach(gameId => {
+            const s = getState(gameId);
+            s.toolChecked = false;
+            if (s.channelPolling) return;
+            s.channelPolling = true;
+            (async () => {
+                try {
+                    do {
+                        await loadStatus(gameId);
+                        render(gameId);
+                        const release = toolRelease(s);
+                        if (!release.checking && !release.installing) break;
+                        await new Promise(resolve => setTimeout(resolve, TOOL_POLL_MS));
+                    } while (true);
+                } finally {
+                    s.channelPolling = false;
+                }
+            })();
+        });
+    });
+
     // Opening the page: status, scan (once), plan, verify.
     document.addEventListener('click', event => {
         const item = event.target.closest && event.target.closest('.game-item[data-game]');

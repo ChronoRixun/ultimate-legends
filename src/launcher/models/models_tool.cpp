@@ -5,6 +5,9 @@
 #include "tools/tool_install.hpp"
 #include "updater/launcher_update.hpp"
 #include "updater/release_source.hpp"
+#include "updater/channel_refresh.hpp"
+
+#include <utils/finally.hpp>
 #include "xml1/builder_process.hpp"
 
 #include <utils/cryptography.hpp>
@@ -57,14 +60,11 @@ namespace models_tool
         // the runs' one.
         std::mutex check_mutex_;
         tool_check_state check_;
+        channel_refresh::gate refresh_;
         // cancel_tool_install(): read by the install's download and its wait for a run to finish.
         std::atomic<bool> tool_cancel_{};
 
-        void set_check(const std::function<void(tool_check_state&)>& change)
-        {
-            std::lock_guard lock(check_mutex_);
-            change(check_);
-        }
+
 
         tool_install::tool tool_def()
         {
@@ -102,7 +102,7 @@ namespace models_tool
             if (!outcome.chosen)
             {
                 not_published = outcome.error == "No release has been published.";
-                return !has_tool && !not_published;
+                return channel == release_channel::channel::stable && !has_tool && !not_published;
             }
             from_cache = outcome.from_cache;
             tool.manifest_url = release_source::file_url(tool_repo, *outcome.chosen, tool_manifest_name);
@@ -419,7 +419,23 @@ namespace models_tool
     tool_check_state tool_check()
     {
         std::lock_guard lock(check_mutex_);
-        return check_;
+        auto result = check_;
+        result.checking = !utils::flags::has_flag("offline") && (result.checking || (refresh_.busy() && !result.installing));
+        return result;
+    }
+
+    void channel_changed()
+    {
+        {
+            std::lock_guard lock(check_mutex_);
+            refresh_.invalidate();
+            check_.latest.reset();
+            check_.beta_version.clear();
+            check_.code.clear();
+            check_.error.clear();
+            check_.from_cache = false;
+        }
+        check_tool(false);
     }
 
     bool check_tool(const bool install, const bool force)
@@ -428,9 +444,10 @@ namespace models_tool
         {
             return false;
         }
+        std::optional<channel_refresh::ticket> work;
         {
             std::lock_guard lock(check_mutex_);
-            if (check_.checking || check_.installing)
+            if (check_.checking || check_.installing || !(work = refresh_.begin(release_source::current_channel())))
             {
                 return false;
             }
@@ -443,10 +460,31 @@ namespace models_tool
             check_.not_published = false;
         }
 
-        std::thread([install, force]
+        std::thread([install, force, work = *work]
         {
+            bool success = false;
+            const auto finish = utils::finally([&]
+            {
+                bool again;
+                {
+                    std::lock_guard lock(check_mutex_);
+                    again = refresh_.finish(work, success);
+                    if (again) check_ = tool_check_state{};
+                }
+                if (again) check_tool(false);
+            });
+            const auto current = [&]
+            {
+                std::lock_guard lock(check_mutex_);
+                return refresh_.current(work);
+            };
+            const auto publish = [&](const auto& change)
+            {
+                std::lock_guard lock(check_mutex_);
+                if (refresh_.current(work)) change(check_);
+            };
             auto tool = tool_def();
-            const auto channel = release_source::current_channel();
+            const auto channel = work.channel;
             std::string error;
             bool not_published = false;
             bool from_cache = false;
@@ -469,7 +507,7 @@ namespace models_tool
             if (!latest)
             {
                 utils::logger::write("legends-models: manifest {} ({}): {}", tool.manifest_url, release_channel::channel_name(channel), error);
-                set_check([&](tool_check_state& check)
+                publish([&](tool_check_state& check)
                 {
                     check.checking = false;
                     check.latest.reset();
@@ -483,10 +521,11 @@ namespace models_tool
                 return;
             }
 
+            if (!current()) return;
             const auto refuse = [&](const char* code, std::string message)
             {
                 utils::logger::write("legends-models {}: {}", latest->version, message);
-                set_check([&](tool_check_state& check)
+                publish([&](tool_check_state& check)
                 {
                     check.checking = false;
                     check.latest = latest;
@@ -514,7 +553,7 @@ namespace models_tool
             const auto installed = installed_tool();
             const auto newer = !installed || tool_install::compare_versions(latest->version, installed->version) > 0;
             const auto wanted = install && newer;
-            set_check([&](tool_check_state& check)
+            publish([&](tool_check_state& check)
             {
                 check.checking = false;
                 check.latest = latest;
@@ -526,19 +565,21 @@ namespace models_tool
             });
             if (!wanted)
             {
+                success = true;
                 return;
             }
 
             // Never while a run uses the current version (its folder must stay); start() refuses new runs
             // while the install runs.
-            while (busy() && !tool_cancel_)
+            while (busy() && !tool_cancel_ && current())
             {
                 std::this_thread::sleep_for(std::chrono::milliseconds(500));
             }
+            if (!current()) return;
             if (tool_cancel_)
             {
                 utils::logger::write("legends-models {}: install cancelled", latest->version);
-                set_check([&](tool_check_state& check)
+                publish([&](tool_check_state& check)
                 {
                     check.installing = false;
                     check.code = "L_TOOL_CANCELLED";
@@ -565,18 +606,20 @@ namespace models_tool
             }
             if (!result)
             {
-                result = tool_install::install(tool, *latest, [](const std::uint64_t done, const std::uint64_t total)
+                result = tool_install::install(tool, *latest, [&](const std::uint64_t done, const std::uint64_t total)
                 {
-                    set_check([&](tool_check_state& check)
+                    publish([&](tool_check_state& check)
                     {
                         check.done = done;
                         check.total = total;
                     });
-                }, [] { return tool_cancel_.load(); }, error);
+                }, [&] { return tool_cancel_.load() || !current(); }, error);
                 source = "download";
                 code = models_args::tool_install_code(error);
             }
 
+            if (!current()) return;
+            success = result.has_value();
             if (result)
             {
                 port_config().set(property_keys::MODELS_TOOL_VERSION, result->version);
@@ -584,7 +627,7 @@ namespace models_tool
                 tool_install::prune(tool, {result->version});
                 utils::logger::write("legends-models {} installed ({})", result->version, source);
             }
-            set_check([&](tool_check_state& check)
+            publish([&](tool_check_state& check)
             {
                 check.installing = false;
                 if (result)

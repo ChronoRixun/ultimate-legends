@@ -4,6 +4,11 @@
 #include "patch_channel.hpp"
 #include "patch_policy.hpp"
 #include "release_source.hpp"
+#include "channel_refresh.hpp"
+#include "patch_status.hpp"
+#include "models/models_tool.hpp"
+
+#include <utils/finally.hpp>
 
 #include "game_config.hpp"
 #include "xml1/xml1_port.hpp"
@@ -33,6 +38,7 @@ namespace channel_status
                 {"launcher", release_source::launcher_repo, {"ultimate-legends-{version}-win64-portable.zip", "SHA256SUMS.txt"}},
                 {"fix", release_source::xml2_fix_repo, {"ultimate-legends.json"}},
                 {"builder", release_source::builder_repo, {xml1_port::builder_manifest_name}},
+                {"models", models_tool::tool_repo, {models_tool::tool_manifest_name}},
             };
             return list;
         }
@@ -46,6 +52,7 @@ namespace channel_status
 
         std::mutex mutex_;
         bool checking_{};
+        channel_refresh::gate refresh_;
         std::map<std::string, found> found_; // by "<id>|<channel>"
 
         rapidjson::Value make_string(const std::string& text, rapidjson::Document::AllocatorType& allocator)
@@ -116,7 +123,7 @@ namespace channel_status
         out.AddMember("offline", utils::flags::has_flag("offline"), allocator);
 
         std::lock_guard lock(mutex_);
-        out.AddMember("checking", checking_, allocator);
+        out.AddMember("checking", !utils::flags::has_flag("offline") && (checking_ || refresh_.busy()), allocator);
         rapidjson::Value items(rapidjson::kArrayType);
         add_item(items, "launcher", nullptr, launcher, current, allocator, launcher_dev);
         if (xml2_fix)
@@ -159,18 +166,33 @@ namespace channel_status
         {
             return;
         }
+        std::optional<channel_refresh::ticket> work;
         {
             std::lock_guard lock(mutex_);
-            if (checking_)
+            if (checking_ || !(work = refresh_.begin(release_source::current_channel())))
             {
                 return;
             }
             checking_ = true;
         }
 
-        std::thread([]
+        // The repository summary and each component's resolved manifest are different state.
+        xml1_port::check_builder(false);
+        models_tool::check_tool(false);
+        launcher_update::check();
+        std::thread([work = *work]
         {
-            const auto current = release_source::current_channel();
+            const auto finish = utils::finally([&]
+            {
+                bool again;
+                {
+                    std::lock_guard lock(mutex_);
+                    again = refresh_.finish(work, true);
+                    checking_ = false;
+                }
+                if (again) refresh();
+            });
+            const auto current = work.channel;
             std::vector<channel> channels{channel::stable};
             if (current == channel::beta)
             {
@@ -188,11 +210,11 @@ namespace channel_status
             }
 
             std::lock_guard lock(mutex_);
+            if (!refresh_.current(work)) return;
             for (auto& [key, value] : results)
             {
                 found_[key] = std::move(value);
             }
-            checking_ = false;
         }).detach();
     }
 
@@ -204,6 +226,14 @@ namespace channel_status
         if (next != before)
         {
             utils::logger::write("update channel: {} -> {}", release_channel::channel_name(before), release_channel::channel_name(next));
+            {
+                std::lock_guard lock(mutex_);
+                refresh_.invalidate();
+                found_.clear();
+            }
+            patch_status::channel_changed();
+            xml1_port::channel_changed();
+            models_tool::channel_changed();
             launcher_update::channel_changed();
         }
         refresh();

@@ -12,6 +12,8 @@
 // game is launched from the launcher or verified.
 namespace patch_status
 {
+    void channel_changed(); // invalidate release-status checks, including in-flight results
+
     // {installed: "1.1.0" | "1.8.0-beta.2" (the release the launcher installed) | "" (no version resource)
     //  | null (no patch file), latest: "1.2.0" | null (the update channel's), page: the release's page,
     //  checking: bool, updateAvailable: bool, channel: "stable" | "beta", prerelease: bool,

@@ -141,7 +141,7 @@
                         ${button('report', t('xml1.report'))}
                     </div>
                 </div>`;
-        } else if (builder.code && !builder.installed && s.install) {
+        } else if (builder.code && s.install) {
             const described = port.describe({ code: builder.code, msg: builder.error });
             error = `<div class="xml1-note is-error">${escapeHtml(described.title)} ${escapeHtml(described.hint)}</div>`;
         }

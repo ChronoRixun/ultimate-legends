@@ -83,6 +83,9 @@ namespace xml1_port
     // channel's (Stable: the latest release; Beta: pre-releases too), from that release's tag. Never an
     // older builder than the installed one, unless `downgrade_to` names exactly the release offered
     // (Switch back to Stable, approved for this attempt).
+    // Invalidate the manifest and start (or queue) a check on the newly selected channel.
+    void channel_changed();
+
     bool check_builder(bool install, const std::optional<std::filesystem::path>& zip = std::nullopt, const std::string& downgrade_to = {});
 
     // The builder installed from a release ("" when none, or a Debug build's stand-in).

@@ -14,7 +14,28 @@ FullScreenMode=false AND DirectX AppControlledScreenMode=false produces a real
 1080p window and leaves the desktop at its saved resolution. Full gameplay and
 save/load tests have not happened; runtime packaging is not implemented.
 
-## Planned integration after runtime proof
+## Current preview implementation
+
+The MUAC entry now accepts a prepared existing installation and exposes eight
+options: display mode, resolution, frame limit, VSync, Xbox controller support,
+mouse capture, OpenSpy selection and diagnostic graphics watermark. The watermark
+is off in the test installation. Settings writes validate the entire request,
+preserve unrelated configuration/comments, roll back write failures and refuse
+changes while the game or another folder operation is active. Both graphics and
+engine capture settings are written together.
+
+The runtime is a new x86 dinput8.dll built in muac-fix. One Bluetooth controller
+was detected as a wired Xbox 360 controller; ambiguous multiple-XInput mappings
+are deliberately not synthesized. Actual in-game button bindings need a human
+check. OpenSpy DNS/adapter rules were ported from XML2 Fix; full hosting/joining
+testing was explicitly waived by the user.
+
+Validation: Debug/Release launcher builds; 133 existing native tests; the MUAC
+CEF integration checks (all eight controls, readback, comments, invalid requests,
+custom server precedence, running-game refusal); two failed-save UI regressions;
+native input/routing tests in muac-fix. The installed beta 3 is not replaced.
+
+## Remaining managed setup work
 
 1. Use the existing `muac` UI entry and register its own `game.exe` configuration.
 2. Offer ISO, extracted-disc folder and existing-game-folder sources; recognize
@@ -29,6 +50,7 @@ save/load tests have not happened; runtime packaging is not implemented.
 6. Test cancellation, failed extraction, repair, updates and uninstall, preserving
    player saves and mods, before enabling this entry in a launcher release.
 
-No launcher runtime code has changed. The installed launcher and its release
-channels are unaffected. The 2006 card intentionally remains Coming soon until
-the executable compatibility gate is resolved.
+No MUAC runtime release/download manifest is configured yet. The existing stable/
+beta selection logic for other games is unchanged. The preview requires prepared
+runtime components and refuses Play when they are missing; automated disc import
+and runtime dependency packaging remain separate follow-up work.

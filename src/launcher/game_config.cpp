@@ -127,9 +127,22 @@ namespace game_config
     // deletes the game itself. X-Men Legends is a community port that the player's PC builds from
     // their own Xbox disc image and their XML2 install (xml1-builder, xml1/xml1_port.hpp); the
     // builder is the only code that writes or deletes its files, and it runs on the XML2 engine
-    // with the same XML2 Fix. Marvel: Ultimate Alliance (2006 PC) is listed in the UI as coming
-    // soon and gets an entry here once its executable has been checked against real installs.
+    // with the same XML2 Fix. MUA 2006 currently accepts a prepared existing installation;
+    // its runtime components are verified separately before Play is allowed.
     const std::unordered_map<std::string, game_config_t> game_configs_ = {
+        {
+            "muac",
+            {
+                .game_key = "muac",
+                .display_name = "Marvel: Ultimate Alliance (2006 PC)",
+                .id = "muac",
+                .exe_name = "Game.exe",
+                .patch_file = "dinput8.dll",
+                .valid_game_files = {"Game.exe", "libIGCore.dll", "libIGGfx.dll", "data/herostat.engb", "build.ini"},
+                .check_running_exes = {"Game.exe"},
+                .required_redists = {"dx_jun2010"}
+            }
+        },
         {
             "mua",
             {
@@ -256,7 +269,7 @@ namespace game_config
         {
             return utils::io::file_exists(path / utils::string::utf8_to_path(file));
         };
-        if (config->built)
+        if (config->built || game == "muac")
         {
             return !config->valid_game_files.empty() && std::all_of(config->valid_game_files.begin(), config->valid_game_files.end(), has);
         }

@@ -25,6 +25,7 @@
 #include "fix/online_launch.hpp"
 #include "fix/online_settings.hpp"
 #include "fix/online_status.hpp"
+#include "muac/settings.hpp"
 
 #include <map>
 
@@ -661,6 +662,17 @@ namespace commands::game_commands
                 }
             }
 
+            if (config->game_key == "muac")
+            {
+                const auto folder = config->get_install_path();
+                if (!folder || !game_config::validate_game_path("muac", *folder) || !muac::missing_runtime(*folder).empty())
+                {
+                    const std::string message = "MUA 2006 needs its prepared game folder and compatibility components. Check the MUAC options page.";
+                    refuse(refusal("no_fix", message), message);
+                    return;
+                }
+            }
+
             // A built game starts only from a finished build, and never while its builder writes the
             // folder; the launch's patch update is patch work there, so no build starts during it.
             std::shared_ptr<updater::folder_work> work;
@@ -869,7 +881,9 @@ namespace commands::game_commands
                     // the build in its folder finished: Verify Files also runs on an unfinished one,
                     // whose folder may still hold the stamp of the build before).
                     const auto folder = config.get_install_path();
-                    const auto complete = !config.built || (folder && xml1_port::is_playable(*folder));
+                    const auto complete = config.game_key == "muac"
+                        ? folder && muac::missing_runtime(*folder).empty()
+                        : !config.built || (folder && xml1_port::is_playable(*folder));
                     if (patch_fetched && complete)
                     {
                         config.set_installed(true);

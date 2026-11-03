@@ -14,6 +14,7 @@
 #include "xml1_commands.hpp"
 #include "models_commands.hpp"
 #include "update_commands.hpp"
+#include "muac_commands.hpp"
 
 namespace commands
 {
@@ -47,5 +48,6 @@ namespace commands
         xml1_commands::register_commands(cef_ui, ctx);
         models_commands::register_commands(cef_ui, ctx);
         update_commands::register_commands(cef_ui, ctx);
+        muac_commands::register_commands(cef_ui, ctx);
     }
 }

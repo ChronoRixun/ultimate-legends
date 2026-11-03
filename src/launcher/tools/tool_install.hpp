@@ -70,6 +70,9 @@ namespace tool_install
     // Parses a manifest (exposed for tests and for manifests read from disk).
     std::optional<manifest> parse_manifest(const std::string& json, const std::string& manifest_url, std::string& error);
 
+    // Last validated companion manifest for this exact installed tool version (no HTTP).
+    std::optional<manifest> cached_manifest(const tool& tool, const std::string& version);
+
     using progress_callback = std::function<void(std::uint64_t done, std::uint64_t total)>;
     using cancel_check = std::function<bool()>;
 

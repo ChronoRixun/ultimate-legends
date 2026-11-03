@@ -3,6 +3,7 @@
 #include "client_updater.hpp"
 #include "client_store.hpp"
 #include "patch_channel.hpp"
+#include "staged_patch.hpp"
 
 #include <utils/cryptography.hpp>
 #include <utils/http.hpp>
@@ -200,6 +201,26 @@ namespace client_updater
         this->store_applied_manifest();
 
         std::this_thread::sleep_for(1s);
+    }
+
+    void client_updater::prepare() const
+    {
+        if (this->manifest_files_.empty()) return;
+        if (std::none_of(this->manifest_files_.begin(), this->manifest_files_.end(), [&](const auto& file) {
+            return file.name == this->config_.patch_file;
+        })) throw std::runtime_error("The XML2 Fix manifest does not include its DLL.");
+        const auto outdated = this->get_outdated_files(this->manifest_files_);
+        std::vector<std::filesystem::path> names;
+        for (const auto& file : outdated) names.push_back(utils::string::utf8_to_path(file.name));
+        updater::staged_patch::apply(this->install_path_, names, [&](const std::filesystem::path& stage)
+        {
+            auto staged = *this;
+            staged.install_path_ = stage;
+            if (this->progress_listener_) this->progress_listener_->update_files(outdated, updater::progress_mode::downloading);
+            staged.update_files(outdated);
+        }, [&] { return this->is_update_cancelled(); });
+        this->remove_stale_files();
+        this->store_applied_manifest();
     }
 
     void client_updater::update_file(const updater::file_info& file) const

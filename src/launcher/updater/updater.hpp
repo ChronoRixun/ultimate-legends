@@ -13,6 +13,10 @@ namespace client_updater
     bool run(const game_config::game_config_t& config, updater::ui_progress_listener* listener = nullptr,
              const std::optional<std::filesystem::path>& install_path = std::nullopt);
 
+    // Transactional patch preparation before a builder reads its companion DLL.
+    bool prepare(const game_config::game_config_t& config, updater::ui_progress_listener* listener,
+                 const std::filesystem::path& install_path);
+
     // One patch update and what it did, for a caller that must know (Switch back to Stable: a started
     // update is not an installed release). `consent`: an older release approved for this attempt only.
     struct attempt

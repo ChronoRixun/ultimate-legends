@@ -1,5 +1,6 @@
 #include "std_include.hpp"
 #include "xml1_port.hpp"
+#include "build_requirements.hpp"
 
 #include "display/xml2_display.hpp"
 #include "game_config.hpp"
@@ -133,6 +134,14 @@ namespace xml1_port
                 return std::nullopt;
             }
             return builder_exe{installed->exe, installed->version, false};
+        }
+
+        std::optional<std::string> builder_fix_requirement(const builder_exe& builder)
+        {
+            if (builder.dev) return check_.latest ? check_.latest->requires_xml2fix : std::string{};
+            if (check_.latest && check_.latest->version == builder.version) return check_.latest->requires_xml2fix;
+            const auto manifest = tool_install::cached_manifest(builder_tool(), builder.version);
+            return manifest ? std::optional(manifest->requires_xml2fix) : std::nullopt;
         }
 
         // The XML2 install the launcher knows (its xml2 entry), when it still holds the game.
@@ -736,6 +745,18 @@ namespace xml1_port
             return std::nullopt;
         }
 
+        const auto required = builder_fix_requirement(*builder);
+        const auto installed_fix = patch_channel::installed_version(game, options.out);
+        if (!xml1::build_fix_ready(required, installed_fix))
+        {
+            error = {"L_FIX_REQUIRED", !required
+                ? "The installed builder's XML2 Fix requirement could not be checked. Check for builder updates online, then try Build again."
+                : "Install the selected update channel's XML2 Fix before building. This builder requires " +
+                  (required->empty() ? std::string("an installed XML2 Fix.") : *required + ".") +
+                  " The fix preparation failed, was cancelled, or this channel cannot meet that requirement."};
+            return std::nullopt;
+        }
+
         // Remember the choices now, so a cancelled or failed build can be resumed.
         game.set_install_path(options.out);
         game.set_installed(false);
@@ -856,9 +877,9 @@ namespace xml1_port
 
     bool start_fix_update(const std::filesystem::path& out, failure& error)
     {
-        if (out.empty() || !utils::io::file_exists(out / L"dinput.dll"))
+        if (out.empty())
         {
-            error = {"L_NO_FIX", "There is no XML2 Fix in the folder to update."};
+            error = {"L_USAGE", "Choose a build folder first."};
             return false;
         }
         const auto folder = utils::string::path_to_utf8(out);
@@ -895,14 +916,14 @@ namespace xml1_port
         {
             try
             {
-                const auto fetched = client_updater::run(config(), listener.get(), out);
+                const auto fetched = client_updater::prepare(config(), listener.get(), out);
                 if (listener->is_update_cancelled())
                 {
-                    utils::logger::write("xml1: the XML2 Fix update in {} was cancelled; the build starts with the fix there", folder);
+                    utils::logger::write("xml1: the XML2 Fix update in {} was cancelled; build admission will check the fix still there", folder);
                 }
                 else if (!fetched)
                 {
-                    utils::logger::write("xml1: the XML2 Fix release could not be reached; the build in {} starts with the fix there", folder);
+                    utils::logger::write("xml1: the XML2 Fix release could not be reached; build admission in {} will check the fix still there", folder);
                 }
                 else
                 {
@@ -912,12 +933,12 @@ namespace xml1_port
             catch (const updater::update_cancelled&)
             {
                 listener->cancel_update();
-                utils::logger::write("xml1: the XML2 Fix update in {} was cancelled; the build starts with the fix there", folder);
+                utils::logger::write("xml1: the XML2 Fix update in {} was cancelled; build admission will check the fix still there", folder);
             }
             catch (const std::exception& e)
             {
                 listener->cancel_update();
-                utils::logger::write("xml1: the XML2 Fix in {} could not be updated ({}); the build starts with the fix there", folder, e.what());
+                utils::logger::write("xml1: the XML2 Fix in {} could not be updated ({}); build admission will check the fix still there", folder, e.what());
             }
             listener->done_update();
         }).detach();
@@ -1085,6 +1106,23 @@ namespace xml1_port
             });
             if (!wanted)
             {
+                if (installed && !installed->dev && installed->version != latest->version &&
+                    !tool_install::cached_manifest(tool, installed->version))
+                {
+                    auto retained = tool;
+                    retained.manifest_url = release_channel::download_url(release_source::builder_repo, "v" + installed->version, builder_manifest_name);
+                    std::string retained_error;
+                    const auto contract = tool_install::fetch_manifest(retained, retained_error);
+                    if (!contract || contract->version != installed->version)
+                    {
+                        publish([&](builder_check& check)
+                        {
+                            check.code = "L_BUILDER_OFFLINE";
+                            check.error = "Could not check the retained builder's XML2 Fix requirement. " + retained_error;
+                        });
+                        return;
+                    }
+                }
                 success = true;
                 return;
             }

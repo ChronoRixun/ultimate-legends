@@ -11,6 +11,8 @@ function open({ channel = 'stable', install = 'O:/Games/Legends', failed = false
     const calls = [];
     const builder = { installed: true, version: '0.4.0', channel: 'stable', latestChannel: 'stable',
         latest: { version: '0.4.0', size: 1 }, updateAvailable: false, checking: false, installing: false };
+    let fixing = false;
+    let fixInstalled = false;
     const status = () => ({ install, state: 'ready', xml2: { setUp: true }, builder: { ...builder }, work: null });
     p = page({ scripts: ['core/utils.js', 'core/i18n.js', 'app/xml1-port.js', 'app/xml1-view.js', 'app/xml1-setup.js', 'app/update-channel.js'],
         body: '<div id="xml1-build-panel"></div>',
@@ -40,13 +42,19 @@ function open({ channel = 'stable', install = 'O:/Games/Legends', failed = false
                     return true;
                 }
                 case 'get-xml1-status': return status();
-                case 'xml1-folder': return { updating: false, fix: false };
+                case 'xml1-folder': return { updating: fixing, fix: fixInstalled };
+                case 'xml1-update-fix':
+                    fixing = true;
+                    p.clock.setTimeout(() => { fixing = false; fixInstalled = true; }, 500);
+                    return { started: true };
+                case 'get-update-progress': return { active: fixing, progress: 50, message: 'Preparing fix' };
                 case 'xml1-build-start': return { success: true, id: 7, builder: builder.version };
                 case 'get-xml1-build': return null;
                 default: return null;
             }
         } }
     });
+    p.window.ProgressManager = { show() {}, update() {}, hide() {} };
     p.window.LauncherUpdate = { check: async () => calls.push(['launcher-check', selected]) };
     return { ...p, calls, builder, status, port: p.window.Xml1Port };
 }
@@ -153,3 +161,40 @@ test('channel refresh: setup wizard displays a failed lookup even with an instal
     await p.window.Xml1Setup.show();
     assert.match(p.document.querySelector('.xml1-setup').textContent, /release page could not be reached/);
 });
+
+test('channel refresh: an open setup wizard replaces the Stable installed answer after choosing Beta', async () => {
+    const p = open();
+    await p.port.refresh();
+    await p.window.UpdateChannel.init();
+    await p.window.Xml1Setup.show();
+    assert.match(p.document.querySelector('.xml1-setup').textContent, /0\.4\.0/);
+    await p.clock.advance(0); // initial free-space answer may redraw the form
+    const field = p.document.querySelector('.xml1-setup input');
+    field.value = 'O:/Discs/player-typing.iso';
+    field.dispatchEvent(new p.window.Event('input', { bubbles: true }));
+    field.focus();
+    await complete(p, p.window.UpdateChannel.choose('beta'));
+    assert.ok(p.document.activeElement === field, 'builder-only refresh preserves the input focus');
+    assert.equal(field.value, 'O:/Discs/player-typing.iso');
+    const text = p.document.querySelector('.xml1-setup').textContent;
+    assert.match(text, /0\.6\.0-beta\.1/);
+    assert.match(p.document.querySelector('#xml1-build-panel').textContent, /0\.6\.0-beta\.1/);
+    p.document.querySelector('.xml1-setup [data-act="builder-zip"]').click();
+    await p.clock.advance(0);
+    assert.ok(p.calls.some(call => call[0] === 'browse-file'), 'the refreshed builder zip action remains bound');
+});
+
+for (const channel of ['stable', 'beta']) {
+    test(`build preparation: ${channel} resolves builder, installs missing fix, waits, then starts`, async () => {
+        const p = open({ channel });
+        await p.port.refresh();
+        const result = await complete(p, p.port.startBuildNow({ out: 'O:/Games/Fresh' }));
+        assert.equal(result.success, true);
+        const names = p.calls.map(call => call[0]);
+        const check = names.indexOf('xml1-builder-check');
+        const fix = names.indexOf('xml1-update-fix');
+        const build = names.indexOf('xml1-build-start');
+        assert.ok(check < fix && fix < build);
+        assert.equal(result.builder, channel === 'beta' ? '0.6.0-beta.1' : '0.4.0');
+    });
+}

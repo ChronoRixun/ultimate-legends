@@ -18,6 +18,8 @@ namespace client_updater
                        const std::optional<patch_policy::consent>& consent = std::nullopt);
 
         void run() const;
+        // Pre-build: stage changed files and roll back a failed/cancelled publication.
+        void prepare() const;
         void delete_client() const;
 
         // True when the game has a patch but its manifest could not be fetched or parsed.

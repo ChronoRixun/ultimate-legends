@@ -41,10 +41,11 @@
         const selected = select.options[select.selectedIndex];
         const label = selected ? selected.label : '';
         if (button.textContent !== label) button.textContent = label;
-        button.disabled = select.disabled;
+        button.disabled = select.disabled && select.dataset.keepFocus !== 'true';
+        setAttribute(button, 'aria-disabled', select.disabled);
         button.hidden = select.hidden;
         if (active === control) {
-            if (button.disabled || !button.isConnected || !button.getClientRects().length) close();
+            if (select.disabled || !button.isConnected || !button.getClientRects().length) close();
             else if (selectionChanged) {
                 control.index = select.selectedIndex;
                 renderOptions();

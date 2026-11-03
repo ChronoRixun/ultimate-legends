@@ -76,6 +76,8 @@
             const select = el('update-channel-select');
             if (select && !select.dataset.bound) {
                 select.dataset.bound = 'true';
+                // Keep the in-page trigger focusable while lookups temporarily lock the choice.
+                select.dataset.keepFocus = 'true';
                 select.addEventListener('change', () => this.choose(select.value));
             }
             const back = el('update-channel-switch-back');
@@ -181,8 +183,8 @@
             const stable = ahead.map(item => `${itemName(item)} ${item.stable}`).join(', ');
             const choice = await window.showMessageBox(t('updateChannel.switchBackTitle'),
                 `${escapeHtml(t('updateChannel.switchBackBody', { current, stable }))}<br><br>${escapeHtml(t('updateChannel.switchBackDetail'))}`,
-                [t('updateChannel.switchBackYes'), { label: t('updateChannel.keepBeta'), cancel: true }]);
-            if (choice !== 0) {
+                [{ label: t('updateChannel.keepBeta'), cancel: true }, t('updateChannel.switchBackYes')]);
+            if (choice !== 1) {
                 try {
                     await run('keep-beta');
                 } catch (error) {

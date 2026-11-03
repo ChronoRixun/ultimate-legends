@@ -45,8 +45,10 @@ HERE = pathlib.Path(__file__).resolve().parent
 FAKE = HERE / "fake_legends_models.py"
 XML1_PROPS = ["install", "is-installed", "models-tool", "models-mode", "models-mirror", "models-costumes", "models-terms",
               "models-tool-version", "models-manifest"]
-LAUNCHER_PROPS = ["dev-release-api", "launcher-update-channel", "dev-launcher-version"]
 TOOL_REPO = "ChronoRixun/legends-models"
+LAUNCHER_PROPS = ["dev-release-api", "launcher-update-channel", "dev-launcher-version"] + [
+    f"release-cache-{channel}-{TOOL_REPO}" for channel in ("stable", "beta")
+]
 
 
 def tool_release(folder, version, shim):
@@ -223,7 +225,17 @@ def main():
             import threading
             threading.Thread(target=server.serve_forever, daemon=True).start()
             base = f"http://127.0.0.1:{server.server_address[1]}"
-            launcher.command("set-property", {"dev-release-api": base, "launcher-update-channel": "stable"})
+            launcher.command("set-property", {"dev-release-api": base})
+            # A startup request/cache may predate the fake API. Invalidate that generation
+            # through the real setter, then clear only the tool's persisted fallbacks (saved
+            # above and restored below). An empty fake feed must never reuse a real release's
+            # GitHub asset URL, even on a sandbox with working internet.
+            current = launcher.command("get-update-channel")["channel"]
+            if current == "beta":
+                launcher.command("set-update-channel", {"channel": "stable"})
+            launcher.command("set-update-channel", {"channel": "beta"})
+            launcher.command("set-property", {f"release-cache-{channel}-{TOOL_REPO}": "" for channel in ("stable", "beta")})
+            launcher.command("set-update-channel", {"channel": "stable"})
         open_page()
         status = launcher.command("get-models-status")
         check(status["tool"]["found"] is real_tool, "get-models-status: the tool as found")

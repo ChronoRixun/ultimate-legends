@@ -6,6 +6,15 @@ generates the project, so a release only needs this entry and the tag.
 ## 0.5.0-beta.3 (unreleased: a pre-release for the Beta update channel)
 
 ### Fixed
+- **A first X-Men Legends build installs the XML2 Fix before it starts.** New folders, Resume and Rebuild now
+  prepare the fix from your update channel after checking the builder. The launcher checks the fix against what
+  that builder needs before starting; a cancelled or failed download leaves no partial fix in the folder.
+- **Changing update channel refreshes every component without a restart.** The X-Men Legends page, setup wizard
+  and Character models section now show the builder and model tool offered by the channel you just chose. Every
+  build checks the builder again before it starts, so switching to Beta does not reuse an old Stable answer.
+- **Switch back to Stable is the highlighted action** in the beta confirmation, with Keep the beta as the
+  secondary choice. Escape / B still keeps what is installed. The update-channel box keeps keyboard/controller
+  focus while checking the new channel.
 - **Every drop-down opens under Proton / Wine (Steam Deck, Linux).** Clicking a drop-down there showed nothing: the
   list is a separate popup window that Proton closes before it is drawn, so the update channel could only be changed
   blind from the keyboard. Every drop-down is now drawn inside the launcher's own page instead: Settings' language,

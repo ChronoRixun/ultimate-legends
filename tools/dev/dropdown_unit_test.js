@@ -31,6 +31,30 @@ async function fixture(markup) {
 }
 let retainedMenu;
 
+for (const pad of [false, true]) test(`a busy channel keeps ${pad ? 'pad' : 'keyboard'} focus while refusing a second pick`, async () => {
+        const { select, button } = await fixture();
+        select.dataset.keepFocus = 'true';
+        select.addEventListener('change', () => { select.disabled = true; });
+        button.focus();
+        const press = value => pad
+            ? window.LauncherDropdowns.handleKey(button, new Event('keydown', { key: value, bubbles: true, cancelable: true }))
+            : key(button, value);
+        press('Enter'); press('ArrowDown'); press('Enter');
+        await tick();
+        assert.equal(select.value, 'beta');
+        assert.equal(select.disabled, true);
+        assert.equal(button.disabled, false);
+        assert.equal(button.getAttribute('aria-disabled'), 'true');
+        assert.equal(document.activeElement, button);
+        press('Enter');
+        button.click();
+        assert.equal(menu().hidden, true, 'busy choice cannot reopen');
+        select.disabled = false;
+        await tick();
+        assert.equal(document.activeElement, button);
+        assert.equal(button.getAttribute('aria-disabled'), 'false');
+});
+
 test('dynamic selects get a named focusable combobox and listbox with selected/disabled options', async () => {
     const { select, button } = await fixture();
     assert.ok(button, 'select has no in-page trigger');
@@ -265,14 +289,18 @@ test('real update-channel selection emits the original value/change and persists
     assert.equal(writes.length, 1);
 });
 
-test('real update-channel busy state disables the trigger and restores Stable after a refused save', async () => {
+test('real update-channel busy state keeps focus, locks the choice, and restores Stable after a refused save', async () => {
     let refuse;
     const { select, button } = await channelFixture(async command => {
         if (command === 'set-update-channel') return new Promise((_, reject) => { refuse = reject; });
         return { channel: 'stable', checking: false, items: [] };
     });
-    key(button, 'Enter'); key(button, 'End'); key(button, 'Enter'); await tick();
-    assert.equal(button.disabled, true);
+    button.focus(); key(button, 'Enter'); key(button, 'End'); key(button, 'Enter'); await tick();
+    assert.equal(button.disabled, false);
+    assert.equal(button.getAttribute('aria-disabled'), 'true');
+    assert.equal(document.activeElement, button);
+    key(button, 'Enter');
+    assert.equal(menu().hidden, true);
     const originalConsole = context.console;
     context.console = { ...console, error: (...args) => {
         if (args[0] !== 'update channel: switching failed') originalConsole.error(...args);

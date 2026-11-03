@@ -40,11 +40,12 @@
             this.startError = null;
             this.zipNote = null;    // how installing a builder zip the player chose went: { ok, text }
             this.rendered = '';
-            // The build's steps follow every change; the other steps only re-render on the player's
-            // actions (a re-render would drop the focus of a field being typed in).
+            // Build steps follow every change. Requirements updates only its builder row
+            // during a lookup so typing in the disc/output fields is uninterrupted.
             this.onChange = () => {
                 const step = this.currentStep();
-                if (step !== this.rendered || !['requirements', 'check'].includes(step)) this.render();
+                if (step === 'requirements' && this.rendered === step) this.refreshBuilderRow();
+                else if (step !== this.rendered || step !== 'check') this.render();
             };
         }
 
@@ -177,15 +178,27 @@
             return !!(s.xml2.setUp && this.form.iso.trim() && this.form.out.trim() && (builder.installed || !builder.notPublished));
         }
 
-        requirementsHTML() {
-            const s = this.port().status;
-            const builder = s.builder || {};
-            const f = this.form;
-            const ready = this.canCheck();
-            const freeText = this.free == null ? ''
-                : (this.free < NEED_BYTES
-                    ? `<span class="xml1-warn">${escapeHtml(t('xml1.lowSpace', { free: bytes(this.free), need: bytes(NEED_BYTES) }))}</span>`
-                    : escapeHtml(t('xml1.freeSpace', { free: bytes(this.free), need: bytes(NEED_BYTES) })));
+        // Refresh only the builder row while Requirements is open; leave the disc/output
+        // fields (and their focus/selection) alone when a channel lookup finishes.
+        refreshBuilderRow() {
+            if (!this.backdrop) return;
+            const row = this.backdrop.querySelector('[data-req="builder"]');
+            if (!row) return;
+            const holder = document.createElement('div');
+            holder.innerHTML = this.builderRowHTML();
+            const next = holder.querySelector('[data-req="builder"]');
+            const focused = row.contains(document.activeElement);
+            row.className = next.className;
+            row.innerHTML = next.innerHTML;
+            this.bind(row, 'requirements');
+            if (focused) {
+                const link = row.querySelector('[data-act="builder-zip"]');
+                if (link) link.focus();
+            }
+        }
+
+        builderRowHTML() {
+            const builder = this.port().status.builder || {};
             let builderText;
             if (builder.code && !builder.checking && !builder.installing) builderText = this.port().describe({ code: builder.code, msg: builder.error }).title;
             else if (builder.installed && !builder.updateAvailable) builderText = t('xml1.builderInstalled', { version: builder.version });
@@ -199,6 +212,26 @@
             const offerZip = !builder.notPublished && (!builder.installed || builder.updateAvailable) && !builder.installing;
             const zipNote = this.zipNote
                 ? `<div class="xml1-req-detail xml1-zip-note ${this.zipNote.ok ? 'is-ok' : 'is-error'}">${escapeHtml(this.zipNote.text)}</div>` : '';
+            return `
+                    <div class="xml1-req ${builder.installed ? 'is-ok' : (builder.notPublished ? 'is-missing' : 'is-todo')}" data-req="builder">
+                        <span class="xml1-mark"></span>
+                        <div class="xml1-req-body">
+                            <div class="xml1-req-title">${escapeHtml(t('xml1.reqBuilder'))}</div>
+                            <div class="xml1-req-detail">${escapeHtml(builderText)}</div>
+                            ${zipNote}
+                            ${offerZip ? `<div class="xml1-req-detail"><a href="#" data-act="builder-zip">${escapeHtml(t('xml1.useBuilderZip'))}</a></div>` : ''}
+                        </div>
+                    </div>`;
+        }
+
+        requirementsHTML() {
+            const s = this.port().status;
+            const f = this.form;
+            const ready = this.canCheck();
+            const freeText = this.free == null ? ''
+                : (this.free < NEED_BYTES
+                    ? `<span class="xml1-warn">${escapeHtml(t('xml1.lowSpace', { free: bytes(this.free), need: bytes(NEED_BYTES) }))}</span>`
+                    : escapeHtml(t('xml1.freeSpace', { free: bytes(this.free), need: bytes(NEED_BYTES) })));
             const resumeNote = s.state === 'incomplete'
                 ? `<p class="xml1-note is-info">${escapeHtml(t(s.isoExists || s.cacheHasDisc ? 'xml1.resumeNote' : 'xml1.resumeNeedsDisc'))}</p>` : '';
 
@@ -236,15 +269,7 @@
                             <div class="xml1-req-detail xml1-free">${freeText || escapeHtml(t('xml1.destinationHint'))}</div>
                         </div>
                     </div>
-                    <div class="xml1-req ${builder.installed ? 'is-ok' : (builder.notPublished ? 'is-missing' : 'is-todo')}" data-req="builder">
-                        <span class="xml1-mark"></span>
-                        <div class="xml1-req-body">
-                            <div class="xml1-req-title">${escapeHtml(t('xml1.reqBuilder'))}</div>
-                            <div class="xml1-req-detail">${escapeHtml(builderText)}</div>
-                            ${zipNote}
-                            ${offerZip ? `<div class="xml1-req-detail"><a href="#" data-act="builder-zip">${escapeHtml(t('xml1.useBuilderZip'))}</a></div>` : ''}
-                        </div>
-                    </div>
+                    ${this.builderRowHTML()}
                 </div>
                 <p class="install-note xml1-byoc">${escapeHtml(t('xml1.byoc'))}</p>
                 <div class="popup-actions">

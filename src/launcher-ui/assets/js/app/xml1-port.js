@@ -343,13 +343,11 @@
             }
         },
 
-        // The XML2 Fix in the build's folder is brought up to date before the builder runs, so a build
-        // never meets an older one: a Rebuild over an older folder used to, and builders before 0.2.2
-        // failed their last step on it (0.2.2 warns: W_XML2FIX_OLD). When it can't be (offline, a failed
-        // download, a cancel), the build starts anyway once the updater has ended: the backend logs it,
-        // the builder's warning says it, and the fix is installed after the build as always.
+        // Install the channel's fix even into a fresh folder. After the worker ends, native build
+        // admission checks the installed DLL against the resolved builder's companion requirement.
+        // A failed/cancelled update may proceed only when the fix already there is compatible.
         async updateFixBefore(out, folder, onFixWork) {
-            if (!out || !folder || !folder.fix) return;
+            if (!out) return;
             if (window.IS_OFFLINE) {
                 // Starts nothing offline; the backend logs that the build keeps the fix in the folder.
                 await run('xml1-update-fix', { out }).catch(() => null);
@@ -366,7 +364,7 @@
                     completeMessage: t('progress.verificationComplete')
                 });
             } catch (error) {
-                console.error('xml1: the XML2 Fix update before the build failed; building anyway', error);
+                console.error('xml1: the XML2 Fix preparation failed; checking build requirements', error);
             }
         },
 

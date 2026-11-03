@@ -917,3 +917,22 @@ test('models: channel refresh follows a tool lookup that finishes after the chan
     await p.clock.advance(1500);
     assert.match(p.$('.ul-models-tool-update').textContent, /0\.4\.0-beta\.1/);
 });
+
+test('models D6: an open Stable-only beta hint becomes the Beta install offer after a channel switch', async () => {
+    const p = await open({ tool: false }, { refresh: false });
+    p.backend.releaseScript = () => [{ checking: false, channel: 'stable', notPublished: true, code: 'L_TOOL_UNPUBLISHED',
+        error: 'No release has been published.', betaVersion: '0.3.0-beta.3' }];
+    await p.window.ModelsView.refresh('xml1');
+    await p.clock.advance(1500);
+    assert.match(p.$('.ul-models-missing').textContent, /choose Beta under Settings/);
+    // The native channel setter starts the new lookup; the event follows its status.
+    p.backend.releaseSteps = [
+        { channel: 'beta', checking: true, notPublished: false, code: '', error: '', betaVersion: '', latest: '' },
+        { checking: false, latest: '0.3.0-beta.3', latestSize: 100, updateAvailable: true }
+    ];
+    p.window.dispatchEvent(new p.window.CustomEvent('gameInstallationUpdated', { detail: { game: null } }));
+    await p.clock.advance(1500);
+    assert.doesNotMatch(p.$('.ul-models-missing').textContent, /choose Beta under Settings/);
+    assert.match(p.$('.ul-models-missing').textContent, /0\.3\.0-beta\.3, a beta on your Beta update channel, is ready to install/);
+    assert.ok(p.act('tool-install'));
+});

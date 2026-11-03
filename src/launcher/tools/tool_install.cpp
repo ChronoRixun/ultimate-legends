@@ -15,6 +15,11 @@ namespace tool_install
 {
     namespace
     {
+        std::filesystem::path manifest_cache_path(const tool& tool, const std::string& version)
+        {
+            return utils::properties::get_appdata_path() / "tool-manifests" / utils::string::utf8_to_path(tool.id) / (version + ".json");
+        }
+
         std::string json_string(const rapidjson::Value& object, const char* key)
         {
             const auto member = object.FindMember(key);
@@ -351,7 +356,18 @@ namespace tool_install
             error = std::format("The release page answered HTTP {}.", result->response_code);
             return std::nullopt;
         }
-        return parse_manifest(result->buffer, tool.manifest_url, error);
+        const auto parsed = parse_manifest(result->buffer, tool.manifest_url, error);
+        if (parsed) utils::io::write_file(manifest_cache_path(tool, parsed->version), result->buffer, false);
+        return parsed;
+    }
+
+    std::optional<manifest> cached_manifest(const tool& tool, const std::string& version)
+    {
+        if (!is_safe_version(version)) return std::nullopt;
+        std::string json, error;
+        if (!utils::io::read_file(manifest_cache_path(tool, version), &json)) return std::nullopt;
+        auto parsed = parse_manifest(json, tool.manifest_url, error);
+        return parsed && parsed->version == version ? parsed : std::nullopt;
     }
 
     std::optional<installed> install(const tool& tool, const manifest& manifest, const progress_callback& progress,

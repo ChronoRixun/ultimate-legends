@@ -773,23 +773,21 @@ def main():
             check(wait_for(lambda: test.state() == "ready", 30) and test.status()["fix"]["version"].startswith("1.2.0"), "XML2 Fix 1.2.0; ready")
             test_mode_kept("the XML2 Fix updated before a Rebuild")
 
-            print("... and when it can't be updated (no release reachable), the build still runs and the page says so")
+            print("... and when an incompatible fix cannot be updated, no builder starts")
             test.prop("patch-manifest", f"{base}/missing/ultimate-legends.json")
             shutil.copy2(native.fix_dll("1.1.0"), out / "dinput.dll")
+            old_fix = (out / "dinput.dll").read_bytes()
+            previous = cmd("get-xml1-build")
             test.refresh_port()
             test.click("#xml1-build-panel [data-act='rebuild']")
             test.message_box(1)
-            job = test.build_done(90)
-            notice = next((n for n in job.get("notices", []) if n.get("code") == "W_XML2FIX_OLD"), None)
-            detail = (notice or {}).get("detail") or {}
-            check(job["exitCode"] == 0 and notice is not None and detail.get("count") == len(fix_keys())
-                  and len(detail.get("missing") or []) == len(fix_keys()), f"built, W_XML2FIX_OLD names the keys the old fix lacks: {detail}")
-            check(wait_for(lambda: f"older than this build needs ({len(fix_keys())} settings" in
-                           (test.text("#xml1-build-panel .xml1-notice[data-code='W_XML2FIX_OLD']") or ""), 30),
-                  "the page shows that warning, with the count")
-            ini = (out / "xml2-fix.ini").read_text()
-            check(all(f"{key}=" in ini for key in fix_keys()), "the ini got every key anyway")
-            test.shot("fix-old-warning", "#xml1-page .detail-build")
+            check(wait_for(lambda: "This builder requires >=1.2.0" in (test.text("#message-box.visible .mb-content") or ""), 30),
+                  "the launcher explains the required fix before starting the builder")
+            current = cmd("get-xml1-build")
+            check(current and previous and current["id"] == previous["id"], "no new build job after the failed fix preparation")
+            check((out / "dinput.dll").read_bytes() == old_fix, "the existing DLL is untouched")
+            test.shot("fix-required", "#message-box")
+            test.message_box(0)
             test.prop("patch-manifest", f"{base}/fix/ultimate-legends.json")
             check(wait_for(lambda: test.click("#xml1-build-panel [data-act='install-fix']"), 30), "Install the XML2 Fix offered")
             check(wait_for(lambda: test.status()["fix"]["version"].startswith("1.2.0") and test.state() == "ready", 30), "installed: ready again")
@@ -991,7 +989,7 @@ def main():
                       "and Host / Join are off meanwhile, with the build as the reason")
                 # Read again here: the sections first loaded before the fix was in the folder.
                 check(js("Promise.all([window.DisplayView.reload('xml1'), window.PresenceView.reload('xml1')]).then(() => { "
-                         "const display = [...document.querySelectorAll('#xml1-display-panel .ul-display-select, #xml1-display-panel .toggle-btn')]; "
+                         "const display = [...document.querySelectorAll('#xml1-display-panel select.ul-display-select, #xml1-display-panel .toggle-btn')]; "
                          "const presence = [...document.querySelectorAll('#xml1-presence-panel .toggle-btn')]; "
                          "return display.length === 8 && presence.length === 6 && display.concat(presence).every(c => c.disabled); })"),
                       "and the Display and Discord controls are disabled meanwhile")

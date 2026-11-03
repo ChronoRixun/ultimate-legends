@@ -1,8 +1,8 @@
 """MUAC settings integration tests against the isolated Debug launcher (CDP).
 
 Uses synthetic game files and a local build of muac-fix's DLL for its version
-resource only. Does not load a real game. Restores the game's Resolution registry
-value and launcher properties afterwards. --fix is a built x86 muac-fix DLL.
+resource only. Does not load a real game. Uses a Debug-only isolated registry leaf
+and restores launcher properties afterwards. --fix is a built x86 muac-fix DLL.
 """
 import argparse
 import json
@@ -12,12 +12,10 @@ import subprocess
 import tempfile
 import time
 import winreg
+import uuid
 
 import native
 from launcher_cdp import Launcher, wait_for
-
-KEY = r'Software\Activision\Marvel Ultimate Alliance\Settings\Display'
-
 
 def main():
     parser = argparse.ArgumentParser()
@@ -31,12 +29,10 @@ def main():
     def get(): return launcher.command('get-muac-settings')
     def put(values): return launcher.command('set-muac-settings', {'values': values})
     original = {suffix: launcher.command('get-game-property', {'game': 'muac', 'suffix': suffix})
-                for suffix in ['install', 'is-installed']}
-    try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, KEY) as key:
-            old_resolution = winreg.QueryValueEx(key, 'Resolution')
-    except FileNotFoundError:
-        old_resolution = None
+                for suffix in ['install', 'is-installed', 'test-registry-key']}
+    token=uuid.uuid4().hex
+    registry_key='Software\\UltimateLegendsTests\\MUAC\\'+token
+    launcher.command('set-game-property',{'game':'muac','suffix':'test-registry-key','value':token})
     process = None
     try:
         with tempfile.TemporaryDirectory(prefix='ul-muac-') as tmp:
@@ -77,11 +73,11 @@ def main():
             for values in [{'Watermark': []}, {'CaptureMouse': None}, {'Resolution': '../x'},
                            {'Resolution': '1x1'}, {'FrameLimit': 10}, {'Unknown': True}, {'Mode': 'windowed\x00bad'}]:
                 check(not put(values)['success'], f'rejects invalid values {values!r}')
-            check(put({'Mode': 'borderless', 'FrameLimit': 120, 'VSync': True, 'ControllerSupport': False,
+            check(put({'Mode': 'borderless', 'FrameLimit': 120, 'VSync': True, 'ControllerSupport': False, 'RunInBackground': False,
                        'Resolution': '1280x720'})['success'], 'writes display and input settings')
             values = get()['values']
             check(all(values[k] == v for k, v in {'Mode': 'borderless', 'FrameLimit': '120', 'VSync': '1',
-                      'ControllerSupport': '0', 'Resolution': '1280x720'}.items()), 'reads back saved values')
+                      'ControllerSupport': '0', 'RunInBackground': '0', 'Resolution': '1280x720'}.items()), 'reads back saved values')
             with inputs.open('a') as stream: stream.write('\n[Online]\nDomain=off\nServer=127.0.0.1\n')
             check(get()['values']['OnlineService'] == 'custom', 'custom server takes precedence over Domain=off')
             check(put({'OnlineService': 'off'})['success'] and get()['values']['OnlineService'] == 'off', 'Off clears the server override')
@@ -90,7 +86,7 @@ def main():
             check(put({'Mode': 'windowed', 'ControllerSupport': True, 'FrameLimit': 60})['success'], 'returns to windowed defaults')
             launcher.evaluate("document.querySelector('.game-item[data-game=\"muac\"]').click(); true")
             launcher.evaluate('MuacView.reload()')
-            check(launcher.evaluate("document.querySelectorAll('#muac-options-panel select').length") == 8, 'all eight controls are rendered')
+            check(launcher.evaluate("document.querySelectorAll('#muac-options-panel select').length") == 9, 'all nine controls are rendered')
             launcher.evaluate("(()=>{const s=document.querySelector('#muac-Watermark');s.value='1';s.dispatchEvent(new Event('change',{bubbles:true}));return true;})()")
             check(wait_for(lambda: get()['values']['Watermark'] == '1', 10), 'UI change reaches the native backend')
             # An ordinary test process at the registered Game.exe path exercises the live guard.
@@ -109,11 +105,8 @@ def main():
         if process is not None: process.terminate(); process.wait(timeout=10)
         for suffix, value in original.items():
             launcher.command('set-game-property', {'game': 'muac', 'suffix': suffix, 'value': value or ''})
-        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, KEY) as key:
-            if old_resolution is None:
-                try: winreg.DeleteValue(key, 'Resolution')
-                except FileNotFoundError: pass
-            else: winreg.SetValueEx(key, 'Resolution', 0, old_resolution[1], old_resolution[0])
+        try: winreg.DeleteKey(winreg.HKEY_CURRENT_USER,registry_key)
+        except FileNotFoundError: pass
     print(json.dumps({'failures': failures}))
     return bool(failures)
 

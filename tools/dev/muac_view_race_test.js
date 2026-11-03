@@ -11,7 +11,7 @@ const source = fs.readFileSync(sourcePath, 'utf8');
 const fixture = {
     installed: true, runtimeReady: true, running: false, missing: [], modes: ['800x600'],
     values: { Mode: 'windowed', Resolution: '800x600', FrameLimit: '60', VSync: '0',
-        Watermark: '0', CaptureMouse: '0', ControllerSupport: '1', OnlineService: 'openspy' }
+        Watermark: '0', CaptureMouse: '0', ControllerSupport: '1', RunInBackground: '1', OnlineService: 'openspy' }
 };
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function deferred() {
@@ -66,7 +66,7 @@ async function harness() {
     }, { filename: sourcePath });
     window.MuacView.render();
     await tick();
-    assert.equal(controls.length, 8, 'The initial fixture must render all eight controls');
+    assert.equal(controls.length, 9, 'The initial fixture must render all nine controls');
     return {
         readQueue,
         poll: () => interval(),

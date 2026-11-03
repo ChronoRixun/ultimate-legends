@@ -16,24 +16,27 @@ save/load tests have not happened; runtime packaging is not implemented.
 
 ## Current preview implementation
 
-The MUAC entry now accepts a prepared existing installation and exposes eight
+The MUAC entry now accepts a prepared existing installation and exposes nine
 options: display mode, resolution, frame limit, VSync, Xbox controller support,
-mouse capture, OpenSpy selection and diagnostic graphics watermark. The watermark
+mouse capture, Run in background, OpenSpy selection and diagnostic graphics watermark. The watermark
 is off in the test installation. Settings writes validate the entire request,
 preserve unrelated configuration/comments, roll back write failures and refuse
 changes while the game or another folder operation is active. Both graphics and
 engine capture settings are written together.
 
-The runtime is a new x86 dinput8.dll built in muac-fix. One Bluetooth controller
-was detected as a wired Xbox 360 controller; ambiguous multiple-XInput mappings
+The runtime is a new x86 dinput8.dll (0.1.1 minimum) built in muac-fix. One Bluetooth controller
+was detected as a wired Xbox 360 controller; owner confirmed free mouse movement
+and Xbox glyphs after the process-API guard and name-based identity correction.
+Ambiguous multiple-XInput mappings
 are deliberately not synthesized. Actual in-game button bindings need a human
 check. OpenSpy DNS/adapter rules were ported from XML2 Fix; full hosting/joining
 testing was explicitly waived by the user.
 
 Validation: Debug/Release launcher builds; 133 existing native tests; the MUAC
-CEF integration checks (all eight controls, readback, comments, invalid requests,
+CEF integration checks (all nine controls, readback, comments, invalid requests,
 custom server precedence, running-game refusal); two failed-save UI regressions;
-native input/routing tests in muac-fix. The installed beta 3 is not replaced.
+native input/routing tests and hidden focus-window/registry-profile tests in muac-fix.
+The integration tests use a Debug-only isolated registry leaf. The installed beta 3 is not replaced.
 
 ## Remaining managed setup work
 

@@ -12,6 +12,7 @@
                 frameLimit: 'Frame limit',
                 frameBody: 'An upper limit on rendering. The game may impose a lower limit.',
                 vsyncBody: 'Synchronize frames with the display to reduce tearing.',
+                backgroundBody: 'Keep the game active when you switch windows. Applies in windowed and borderless modes; the minimize button still works.',
                 controller: 'Xbox controller support',
                 controllerBody: 'Normalize one connected Xbox-compatible controller, including Bluetooth. Multiple-controller mapping is still in development.',
                 capture: 'Capture mouse',

@@ -44,6 +44,7 @@
             row('Resolution', 'display.resolution', 'muac.resolutionBody', (data.modes || []).map(value => [value, value.replace('x', ' × ')])),
             row('FrameLimit', 'muac.frameLimit', 'muac.frameBody', [30, 60, 120, 144, 165, 240].map(fps => [String(fps), `${fps} FPS`]).concat([['0', t('display.frameRateUnlimited')]])),
             row('VSync', 'display.vsync', 'muac.vsyncBody', flags()),
+            row('RunInBackground', 'display.runInBackground', 'muac.backgroundBody', flags()),
             row('ControllerSupport', 'muac.controller', 'muac.controllerBody', flags()),
             row('CaptureMouse', 'muac.capture', 'muac.captureBody', flags()),
             row('OnlineService', 'muac.online', 'muac.onlineBody', [['openspy', 'OpenSpy'], ['off', t('display.off')]]),

@@ -22,10 +22,13 @@ namespace client_store
 
     // The patch release the launcher last installed into `install_path`: its version (empty when it
     // came from releases/latest, whose tag the update didn't need) and the SHA-1 of the patch's main
-    // file (release_channel::effective_patch_version). Nothing for another folder, as above.
+    // file (release_channel::effective_patch_version). Records for different folders coexist;
+    // legacy single-folder records remain readable and are preserved when another folder is added.
+    // active_install also mirrors that folder at the root for older launchers on Switch back.
     std::optional<release_channel::patch_record> read_release(const std::string& client_id, const std::filesystem::path& install_path);
-    bool write_release(const std::string& client_id, const std::filesystem::path& install_path, const release_channel::patch_record& record);
-    void forget_release(const std::string& client_id);
+    bool write_release(const std::string& client_id, const std::filesystem::path& install_path,
+                       const release_channel::patch_record& record, bool active_install);
+    void forget_release(const std::string& client_id, const std::filesystem::path& install_path);
 
     // True when `path` lies strictly inside `folder` (never the folder itself).
     bool is_below(const std::filesystem::path& path, const std::filesystem::path& folder);

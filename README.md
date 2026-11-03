@@ -17,7 +17,7 @@ Ultimate Legends never downloads or distributes game files. Every game runs from
 | Marvel: Ultimate Alliance 2 | `mua2` | 2016 PC (Steam app 433320) | Finds your Steam install; installs the [MUA Controller Fix](https://github.com/ChronoRixun/mua-controller-fix), as for MUA |
 | X-Men Legends II: Rise of Apocalypse | `xml2` | 2005 PC | Launches your existing install; installs the [XML2 Fix](https://github.com/ChronoRixun/xml2-fix) for native Xbox controller support and online play through OpenSpy; a Display section edits the fix's window mode, resolution, frame rate limit and VSync, and a Discord section turns its Rich Presence on or off (on by default; `xml2-fix.ini` next to the game) |
 | Marvel: Ultimate Alliance (2006 PC) | `muac` | 2006 PC | Coming soon |
-| X-Men Legends | `xml1` | Community port ([Legends Classic](https://github.com/ChronoRixun/legends-classic)) | Builds a PC version on your PC from your own Xbox disc image and your X-Men Legends II install, then runs it with the XML2 Fix ([details](#x-men-legends-community-port)) |
+| X-Men Legends | `xml1` | Community port ([Legends Classic](https://github.com/ChronoRixun/legends-classic)) | Builds a PC version on your PC from your own Xbox disc image or extracted XML1 install folder and your X-Men Legends II for PC install, then runs it with the XML2 Fix ([details](#x-men-legends-community-port)) |
 
 ## X-Men Legends (community port)
 
@@ -25,9 +25,8 @@ X-Men Legends (2004) never came to PC. [Legends Classic](https://github.com/Chro
 community port, rebuilds it on the engine of X-Men Legends II's PC version, and Ultimate Legends sets it up for you:
 
 1. Set up X-Men Legends II first.
-2. On the X-Men Legends card, choose **Set up**, pick a disc image of **your own** X-Men Legends Xbox disc and a
-   folder for the new game.
-3. The launcher downloads the port's builder, which checks your disc image and your XML2 install and builds the
+2. On the X-Men Legends card, choose **Set up**, pick an ISO/XISO of **your own** X-Men Legends Xbox disc **or an extracted XML1 install folder** (such as your XML1-recomp folder), then a folder for the new game. **X-Men Legends II for PC is still required.**
+3. The launcher downloads the port's builder, which checks your XML1 source and your XML2 install and builds the
    game in that folder, on your PC. The first build takes a while (it converts every sound bank); you can hide,
    cancel and resume it.
 4. The launcher installs the XML2 Fix into the new folder. Play.
@@ -54,6 +53,21 @@ that start, and **Play** removes them, so a normal start never opens a room (LAN
 folder (Verify Files installs it); Play does not. Public games connect players directly, so they can see each other's
 internet address: share a private code to play only with friends. Joining a campaign already in progress, you wait on
 the game's Joined Game screen and come in at the next level change.
+
+The X-Men Legends **Appearance** section offers **Classic conversation box (XML1 look)** when
+Legends Classic builder 0.6.0-beta.2 or newer is installed. It is off by default. Choose it and rebuild to use
+the blue conversation background from your own XML1 source; turn it off and rebuild to restore the PC look.
+A newer builder being available does not enable the option until it is installed.
+
+**Save import preview:** **Import an X-Men Legends save** on the built game's page opens an offline
+campaign picker, source summary and empty-slot preview. Choose an extracted Xbox save folder, an
+XML1-recomp installation/save folder, or a standalone raw/QCOW2 xemu HDD image and the installation's actual `SaveLC` folder. Image campaigns are
+read without mounting or extracting files. The preview lists heroes, levels, checkpoint progress and
+every reset or omitted field. Encrypted, unknown, corrupt or locked images explain their refusal;
+a busy writer must exit before an explicit read retry. Recomp saves are normally in the recomp
+installation at `UDATA/4156001e/<campaign>/save.dat`; the launcher forwards `--source-kind recomp`
+and displays the converter's losses list. Player installation, profile merging and undo remain disabled
+until the converter's compatibility checks are accepted. See [save-import checks](docs/testing/save-import.md).
 
 For testers, a **Test mode** section switches the XML2 Fix's (1.6.0 or later) `[TestMode]` keys in the port's
 `xml2-fix.ini`: the Forge at every Xtraction point, and the F8/F9/F10 test hotkeys. While either is on, the fix turns

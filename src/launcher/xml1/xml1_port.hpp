@@ -1,6 +1,7 @@
 #pragma once
 
 #include "builder_process.hpp"
+#include "save_import_args.hpp"
 #include "tools/tool_install.hpp"
 #include "updater/folder_work.hpp"
 
@@ -41,6 +42,7 @@ namespace xml1_port
         bool movies = true;
         bool keep_cache = true;
         bool link_base = false;
+        bool classic_conversation = false;
     };
 
     // Start a builder run; the id to poll with job(), or nullopt with `error`.
@@ -56,6 +58,11 @@ namespace xml1_port
     std::optional<int> start_clean(bool mods, bool cache, failure& error);
     // Deletes the build cache only (keeps the game).
     std::optional<int> start_free_cache(failure& error);
+
+    // Offline save operations share the existing job/event transport. Destination
+    // and build holds last until process exit, including cancellation.
+    std::optional<int> start_save_import(const save_import_args::request& request, failure& error);
+    bool cancel_save_import(int id);
 
     bool cancel_build();
 

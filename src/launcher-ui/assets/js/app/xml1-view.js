@@ -188,6 +188,9 @@
             </div>` : '';
 
         const actions = [];
+        if (s.install && s.build && s.build.stamp && window.Xml1SaveImport) {
+            actions.push(button('import-save', t('saveImport.title'), blocked || s.running ? 'disabled' : ''));
+        }
         if (state === 'building') {
             actions.push(button('cancel-build', t('xml1.cancelBuild'), job && job.cancelRequested ? 'disabled' : ''));
             actions.push(button('show-progress', t('xml1.showProgress')));
@@ -199,7 +202,8 @@
                 if (port.canVerifyUnfinished()) actions.push(button('verify-files', t('common.verify'), disabled));
             } else if (state === 'damaged') actions.push(button('rebuild', t('xml1.repair'), disabled), button('report', t('xml1.reportProblem')));
             else if (state === 'absent') actions.push(button('setup', t('xml1.build')));
-            else if (state === 'needs-fix') actions.push(button('install-fix', t('xml1.installFix'), disabled));
+            else if (state === 'needs-fix' || (s.fix && s.fix.installed && !s.fix.ok))
+                actions.push(button('install-fix', t('xml1.installFix'), disabled));
             if (['ready', 'stale', 'needs-fix'].includes(state)) actions.push(button('rebuild', t('xml1.rebuild'), disabled));
             if (s.build && s.build.stamp) actions.push(button('verify', t('xml1.verifyBuild'), blocked || !builder.installed ? 'disabled' : ''));
             actions.push(button('open-log', t('xml1.openLog')));
@@ -207,6 +211,18 @@
             actions.push(button('setup', t('common.setUp')));
         }
 
+        const appearanceFocus = host.contains(document.activeElement) && document.activeElement?.dataset?.option === 'classicConversation';
+        const appearance = builder.installed && builder.classicConversation ? `
+            <div class="xml1-appearance">
+                <h3>${escapeHtml(t('xml1.appearance'))}</h3>
+                <label class="xml1-option">
+                    <span class="xml1-option-text"><strong>${escapeHtml(t('xml1.classicConversation'))}</strong>
+                        <small>${escapeHtml(t('xml1.classicConversationBody'))}</small></span>
+                    <span class="ul-mod-toggle"><input type="checkbox" data-option="classicConversation"
+                        ${s.classicConversation ? 'checked' : ''} ${blocked ? 'disabled' : ''}><span class="ul-mod-switch"></span></span>
+                </label>
+            </div>` : '';
+        const importFocus = window.Xml1SaveImport && window.Xml1SaveImport.captureFocus();
         host.innerHTML = `
             <div class="ul-display xml1-view" data-state="${escapeHtml(state)}">
                 <div class="xml1-state is-${escapeHtml(state)}">
@@ -219,9 +235,17 @@
                 ${state !== 'building' ? verifyHTML(port) : ''}
                 ${state !== 'building' && !failed ? noticesHTML(port, job) : ''}
                 ${rows}
+                ${appearance}
                 <div class="xml1-actions">${actions.join('')}</div>
+                <div id="xml1-save-import"></div>
             </div>`;
 
+        const appearanceBox = host.querySelector('[data-option="classicConversation"]');
+        if (appearanceBox) {
+            appearanceBox.addEventListener('change', () => port.setClassicConversation(appearanceBox.checked));
+            if (appearanceFocus) appearanceBox.focus();
+        }
+        if (window.Xml1SaveImport) window.Xml1SaveImport.mount(importFocus);
         host.querySelectorAll('[data-act]').forEach(element => {
             element.addEventListener('click', () => act(gameId, element.dataset.act));
         });
@@ -244,6 +268,9 @@
         const port = window.Xml1Port;
         const s = port.status;
         switch (action) {
+            case 'import-save':
+                window.Xml1SaveImport.open();
+                break;
             case 'setup':
             case 'show-progress':
             case 'change-disc':

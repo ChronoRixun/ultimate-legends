@@ -546,7 +546,7 @@ namespace client_updater
         }
 
         utils::io::remove_file(client_store::manifest_cache_path(this->client_id_));
-        client_store::forget_release(this->client_id_);
+        client_store::forget_release(this->client_id_, this->install_path_);
 
         std::vector<updater::file_info> files_to_delete;
         for (const auto& file : candidates)

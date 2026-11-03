@@ -36,6 +36,7 @@ namespace property_keys
     constexpr const char* BUILD_ISO = "iso";                         // the disc image the last build used
     constexpr const char* BUILD_MOVIES = "movies";                   // "true" / "false"; default true
     constexpr const char* BUILD_KEEP_CACHE = "keep-cache";           // "true" / "false"; default true
+    constexpr const char* BUILD_CLASSIC_CONVERSATION = "classic-conversation"; // "true" / "false"; default false
     constexpr const char* BUILD_LINK_BASE = "link-base";             // "true" / "false"; default false
     constexpr const char* BUILD_CACHE = "cache";                     // the build cache folder; default <launcher data>\cache\xml1
     constexpr const char* BUILDER_VERSION = "builder-version";       // the installed builder to use

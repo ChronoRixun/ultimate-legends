@@ -26,7 +26,8 @@ namespace commands::xml1_commands
                 return {};
             }
             const auto member = value.FindMember(key);
-            return member != value.MemberEnd() && member->value.IsString() ? member->value.GetString() : std::string{};
+            return member != value.MemberEnd() && member->value.IsString()
+                ? std::string(member->value.GetString(), member->value.GetStringLength()) : std::string{};
         }
 
         bool json_bool(const rapidjson::Value& value, const char* key, const bool fallback)
@@ -206,6 +207,30 @@ namespace commands::xml1_commands
             write_started(response, id, error);
         });
 
+        // The build comes from the installed game entry, never from the page.
+        cef_ui.add_command("xml1-import-start", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            save_import_args::request request{};
+            request.mode = json_string(value, "mode");
+            request.campaign = json_string(value, "campaign");
+            request.source = json_path(value, "source").value_or(std::filesystem::path{});
+            if (value.IsObject() && value.HasMember("sourceKind")) request.source_kind = json_string(value, "sourceKind");
+            request.save_dir = json_path(value, "saveDir").value_or(std::filesystem::path{});
+            if (value.IsObject() && value.HasMember("slot") && value["slot"].IsInt()) request.slot = value["slot"].GetInt();
+            request.merge_unlocks = json_bool(value, "mergeUnlocks", false);
+            request.allow_inferred = json_bool(value, "allowInferred", false);
+            request.confirmed = json_bool(value, "confirmed", false);
+            request.preview_token = json_string(value, "previewToken");
+            request.transaction_id = json_string(value, "transactionId");
+            xml1_port::failure error{};
+            const auto id = models_tool::busy() ? (error = models_running(), std::optional<int>{}) : xml1_port::start_save_import(request, error);
+            write_started(response, id, error);
+        });
+        cef_ui.add_command("xml1-import-cancel", [](const rapidjson::Value& value, rapidjson::Document& response)
+        {
+            response.SetBool(value.IsObject() && value.HasMember("id") && value["id"].IsInt() && xml1_port::cancel_save_import(value["id"].GetInt()));
+        });
+
         cef_ui.add_command("xml1-verify", [](const rapidjson::Value&, rapidjson::Document& response)
         {
             xml1_port::failure error{};
@@ -222,6 +247,7 @@ namespace commands::xml1_commands
             options.movies = json_bool(value, "movies", true);
             options.keep_cache = json_bool(value, "keepCache", true);
             options.link_base = json_bool(value, "linkBase", false);
+            options.classic_conversation = json_bool(value, "classicConversation", false);
             xml1_port::failure error{};
             // The character-model tool reads the port's Actors while it runs and writes its mods folder.
             const auto id = models_tool::busy() ? (error = models_running(), std::optional<int>{}) : xml1_port::start_build(options, error);

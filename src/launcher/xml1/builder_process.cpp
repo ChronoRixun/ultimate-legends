@@ -375,7 +375,8 @@ namespace xml1
         PROCESS_INFORMATION process{};
         const auto folder = exe.parent_path().wstring();
         const auto created = CreateProcessW(exe.wstring().c_str(), command_line.data(), nullptr, nullptr, TRUE,
-                                            CREATE_NO_WINDOW | CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT,
+                                            CREATE_NO_WINDOW | CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT |
+                                                (this->state_->snapshot.command == "import-xml1-save" ? IDLE_PRIORITY_CLASS : 0),
                                             nullptr, folder.c_str(), &startup.StartupInfo, &process);
         const auto create_error = GetLastError();
         DeleteProcThreadAttributeList(attributes);
@@ -499,6 +500,13 @@ namespace xml1
                         add_tail(snapshot, "error " + error.code + ": " + error.msg);
                         snapshot.errors.push_back(std::move(error));
                     }
+                }
+                if (snapshot.command == "import-xml1-save" && !snapshot.result.empty() && !killed &&
+                    snapshot.exit_code != static_cast<int>(exit_code))
+                {
+                    snapshot.exit_code = exit_code == 0 ? 1 : static_cast<int>(exit_code);
+                    snapshot.errors.push_back({"import", "E_XML1_PROTOCOL",
+                        "The save converter's result did not match its process exit. Check the target slot before retrying.", "", "{}"});
                 }
                 snapshot.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - state->started).count();
                 copy = snapshot;

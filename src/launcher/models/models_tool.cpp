@@ -39,6 +39,7 @@ namespace models_tool
             std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
             HANDLE process{};
             HANDLE job{};
+            std::filesystem::path cancel_file;
         };
 
         std::mutex mutex_;
@@ -252,7 +253,8 @@ namespace models_tool
                 for (auto* entry = block; *entry; entry += wcslen(entry) + 1)
                 {
                     const std::wstring_view text(entry);
-                    if (!text.starts_with(L"PYTHONIOENCODING=") && !text.starts_with(L"PYTHONUTF8="))
+                    if (!text.starts_with(L"PYTHONIOENCODING=") && !text.starts_with(L"PYTHONUTF8=") &&
+                        !text.starts_with(L"LEGENDS_MODELS_CANCEL="))
                     {
                         environment.append(text).push_back(L'\0');
                     }
@@ -261,6 +263,10 @@ namespace models_tool
             }
             environment.append(L"PYTHONIOENCODING=utf-8").push_back(L'\0');
             environment.append(L"PYTHONUTF8=1").push_back(L'\0');
+            if (!state->cancel_file.empty())
+            {
+                environment.append(L"LEGENDS_MODELS_CANCEL=").append(state->cancel_file.wstring()).push_back(L'\0');
+            }
             environment.push_back(L'\0');
 
             PROCESS_INFORMATION process{};
@@ -356,13 +362,14 @@ namespace models_tool
                 CloseHandle(state->process);
                 state->process = nullptr;
                 auto& snapshot = state->snapshot;
-                snapshot.exit_code = snapshot.cancel_requested ? 130 : static_cast<int>(exit_code);
+                snapshot.exit_code = snapshot.cancel_requested && state->cancel_file.empty() ? 130 : static_cast<int>(exit_code);
+                if (!state->cancel_file.empty()) utils::io::remove_file(state->cancel_file);
                 snapshot.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - state->started).count();
                 snapshot.active = false;
                 snapshot.finished = true;
                 active_ = false;
                 utils::logger::write("legends-models: {} exited with {}{}", snapshot.command, exit_code,
-                                     snapshot.cancel_requested ? " (cancelled by the launcher)" : "");
+                                     snapshot.cancel_requested ? " (cancellation requested by the launcher)" : "");
             }).detach();
 
             return true;
@@ -833,6 +840,11 @@ namespace models_tool
         }
 
         utils::io::create_directory(work_folder());
+        if (request.command == "build" && tool_install::compare_versions(tool->version, "0.3.0-beta.4") >= 0)
+        {
+            state->cancel_file = work_folder() / (".cancel-" + std::to_string(GetCurrentProcessId()) + "-" +
+                std::to_string(GetTickCount64()) + "-" + std::to_string(state->snapshot.id));
+        }
         std::string spawn_error;
         if (!spawn(state, tool->exe, *args, spawn_error))
         {
@@ -891,10 +903,18 @@ namespace models_tool
         {
             return false;
         }
-        // LAUNCHER-API.md: kill the process to cancel; staging folders are cleaned on the next run and
-        // the previous pack stays as it was.
-        found->second->snapshot.cancel_requested = true;
-        TerminateJobObject(found->second->job, 130);
+        // beta.4 checks this request during conversion and before publication. Once publication
+        // starts it completes consistently; retain the folder reservation until the process exits.
+        const auto& state = found->second;
+        if (!state->cancel_file.empty())
+        {
+            if (!utils::io::write_file(state->cancel_file, "cancel\n")) return false;
+        }
+        else
+        {
+            TerminateJobObject(state->job, 130);
+        }
+        state->snapshot.cancel_requested = true;
         utils::logger::write("legends-models: {} cancelled", found->second->snapshot.command);
         return true;
     }

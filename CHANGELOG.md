@@ -3,7 +3,30 @@
 The launcher's version comes from its release tag (`v0.3.2`): premake reads it with `git describe` when it
 generates the project, so a release only needs this entry and the tag.
 
-## 0.5.0-beta.3 (unreleased: a pre-release for the Beta update channel)
+## 0.5.0-beta.4 (unreleased: a pre-release for the Beta update channel)
+
+### Added
+- **Classic conversation box (XML1 look)** under X-Men Legends' Appearance and advanced build options.
+  It starts off. Turn it on and rebuild to use the blue background from your own XML1 source; turn it off
+  and rebuild to restore the PC look. It appears only with an installed Legends Classic builder
+  0.6.0-beta.2 or newer; an available update alone does not enable it. The companion builder must ship separately.
+- Setup can read an extracted XML1 install folder as well as an ISO/XISO. X-Men Legends II for PC is still required.
+- Save-import preview screens and transport are included for testing. Player save installation and Undo remain
+  disabled pending companion and real-save acceptance.
+
+### Fixed
+- Cancelling Rebuild before the builder changes a completed build keeps it ready. A build that has started
+  changing the folder still offers Resume build.
+- Preparing the XML2 Fix in a second build folder keeps the first folder's recorded release, including its beta
+  version. Removing a fix clears only that folder's record.
+- An installed XML2 Fix that is too old has an **Install the XML2 Fix** recovery button after a refused Rebuild.
+- The wizard says a newer builder **will be installed when you build**, instead of claiming installation has begun.
+- The local X-Men Legends CDP test uses its fake release answer as well as its fake download, so real Sandbox
+  internet cannot change the test's expected XML2 Fix version.
+- Character-model progress retains accepted-cache/refit explanations and reports a completed installation when
+  cancellation arrives after publication has begun.
+
+## 0.5.0-beta.3 (2026-11-02: a pre-release for the Beta update channel)
 
 ### Fixed
 - **A first X-Men Legends build installs the XML2 Fix before it starts.** New folders, Resume and Rebuild now

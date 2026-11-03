@@ -221,7 +221,7 @@ def self_test():
     # A publish that lost the pre-release flag: fails.
     gh = FakeGitHub([stable("v0.4.0")], "v0.4.0")
     gh.ignore = {"--prerelease"}
-    error = attempt(gh, "v0.5.0-beta.3", "0.5.0-beta.3")
+    error = attempt(gh, "v0.5.0-beta.4", "0.5.0-beta.4")
     check(error is not None and "prerelease=False, not True" in error, "the pre-release flag missing: fails")
 
     # A file that never arrived: fails.

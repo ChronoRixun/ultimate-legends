@@ -62,6 +62,8 @@ def main():
                                 '[DirectX]\nAppControlledScreenMode=true\n[Other]\nKeep=yes\n', encoding='ascii')
             inputs.write_text('[Input]\nCaptureMouse=1 ; user comment\n[Other]\nKeep=yes\n', encoding='ascii')
             check(get()['runtimeReady'], 'recognizes the MUA Classic Fix version resource')
+            defaults = get()['values']
+            check(defaults['Watermark'] == '1' and defaults['FrameLimit'] == '0', 'missing graphics keys use the wrapper defaults')
             check(put({'Mode': 'windowed', 'CaptureMouse': False, 'Watermark': False})['success'], 'writes windowed defaults')
             text = graphics.read_text().lower().replace(' ', '')
             check('fullscreenmode=false' in text and 'appcontrolledscreenmode=false' in text,

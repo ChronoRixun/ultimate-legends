@@ -71,19 +71,19 @@ namespace {
 
 values read(const std::filesystem::path& folder) {
     const auto graphics=folder/L"dgVoodoo.conf", input=folder/L"muac-fix.ini";
-    const bool full=flag(key_value(graphics,L"General","FullScreenMode","false"),false) ||
-                    flag(key_value(graphics,L"DirectX","AppControlledScreenMode","false"),false);
+    const bool full=flag(key_value(graphics,L"General","FullScreenMode","true"),true) ||
+                    flag(key_value(graphics,L"DirectX","AppControlledScreenMode","true"),true);
     const auto attributes=utils::string::to_lower(key_value(graphics,L"GeneralExt","WindowedAttributes",""));
     const auto domain=utils::string::to_lower(key_value(input,L"Online","Domain","openspy.net"));
     const auto server=key_value(input,L"Online","Server","");
     return {{"Mode",full?"fullscreen":attributes.find("borderless")!=std::string::npos?"borderless":"windowed"},
         {"Resolution",resolution()},
-        {"FrameLimit",key_value(graphics,L"GeneralExt","FPSLimit","60")},
+        {"FrameLimit",key_value(graphics,L"GeneralExt","FPSLimit","0")},
         {"VSync",flag(key_value(graphics,L"DirectX","ForceVerticalSync","false"),false)?"1":"0"},
-        {"Watermark",flag(key_value(graphics,L"DirectX","dgVoodooWatermark","false"),false)?"1":"0"},
+        {"Watermark",flag(key_value(graphics,L"DirectX","dgVoodooWatermark","true"),true)?"1":"0"},
         {"ControllerSupport",flag(key_value(input,L"Input","ControllerSupport","1"),true)?"1":"0"},
         {"CaptureMouse",(flag(key_value(input,L"Input","CaptureMouse","0"),false) ||
-                          flag(key_value(graphics,L"General","CaptureMouse","false"),false))?"1":"0"},
+                          flag(key_value(graphics,L"General","CaptureMouse","true"),true))?"1":"0"},
         {"OnlineService",ipv4(server)?"custom":domain=="off"?"off":domain=="openspy.net"?"openspy":"custom"}};
 }
 

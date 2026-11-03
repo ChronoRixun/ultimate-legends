@@ -152,7 +152,6 @@ user*.bat
 deps/cef
 deps/cef_
 
-CLAUDE.md
 .claude
 # Python caches (tools/dev)
 __pycache__/

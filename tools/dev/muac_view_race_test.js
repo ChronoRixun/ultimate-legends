@@ -20,12 +20,13 @@ function deferred() {
     return { promise, resolve };
 }
 
-async function harness() {
-    let controls = [], interval, onChange;
+async function harness(online = 'openspy') {
+    let controls = [], interval, onChange, focused, markup;
     const readQueue = [];
     const status = {};
     const body = {
-        set innerHTML(markup) {
+        set innerHTML(value) {
+            markup = value;
             // Track replacement controls and their actual rendered disabled attributes.
             controls = [...markup.matchAll(/<select\b([^>]*)>/g)].map(match => {
                 const attributes = match[1];
@@ -33,7 +34,7 @@ async function harness() {
                 const control = {
                     disabled: /\bdisabled\b/.test(attributes),
                     dataset: { muacSetting: key }, value: fixture.values[key],
-                    focus() {}, closest() { return this; }
+                    focus() { focused = this; }, closest() { return this; }
                 };
                 return control;
             });
@@ -55,7 +56,9 @@ async function harness() {
         executeCommand(name) {
             if (name === 'set-muac-settings') return Promise.resolve({ success: false, error: 'Fixture write failure' });
             assert.equal(name, 'get-muac-settings');
-            return readQueue.length ? readQueue.shift()() : Promise.resolve(structuredClone(fixture));
+            const response = structuredClone(fixture);
+            response.values.OnlineService = online;
+            return readQueue.length ? readQueue.shift()() : Promise.resolve(response);
         }
     };
     vm.runInNewContext(source, {
@@ -69,6 +72,8 @@ async function harness() {
     assert.equal(controls.length, 9, 'The initial fixture must render all nine controls');
     return {
         readQueue,
+        markup: () => markup,
+        focused: () => controls.includes(focused) && focused.dataset.muacSetting,
         poll: () => interval(),
         disabled: () => controls.some(control => control.disabled),
         save: () => {
@@ -88,20 +93,29 @@ async function pendingRefresh() {
     const disabledAfterSave = app.disabled();
     pending.resolve(structuredClone(fixture));
     await poll;
+    await new Promise(resolve => setTimeout(resolve, 5));
     assert.equal(disabledAfterSave, false, 'A failed save must restore controls while an older poll is pending');
     assert.equal(app.disabled(), false, 'An unchanged poll result must not leave controls disabled');
+    assert.equal(app.focused(), 'VSync', 'Failed save must restore focus to the replacement control');
 }
 
 async function failedRecoveryRead() {
     const app = await harness();
     app.readQueue.push(() => Promise.reject(new Error('Fixture refresh failure')));
     await app.save();
+    await new Promise(resolve => setTimeout(resolve, 5));
     assert.equal(app.disabled(), false, 'A failed recovery read must not leave controls disabled');
+    assert.equal(app.focused(), 'VSync', 'Failed recovery must restore focus');
+}
+
+async function customService() {
+    const app = await harness('custom');
+    assert.match(app.markup(), /value="custom" selected>muac.customService<\/option>/);
 }
 
 (async () => {
     let failures = 0;
-    for (const [name, test] of [['pending refresh / failed save', pendingRefresh], ['failed recovery read', failedRecoveryRead]]) {
+    for (const [name, test] of [['pending refresh / failed save', pendingRefresh], ['failed recovery read', failedRecoveryRead], ['custom server label', customService]]) {
         try { await test(); console.log(`PASS ${name}`); }
         catch (error) { ++failures; console.error(`FAIL ${name}: ${error.message}`); }
     }

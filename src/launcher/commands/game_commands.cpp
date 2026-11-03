@@ -662,6 +662,15 @@ namespace commands::game_commands
                 }
             }
 
+            // A built game starts only from a finished build, and never while its builder writes the
+            // folder; the launch's patch update is patch work there, so no build starts during it.
+            std::shared_ptr<updater::folder_work> work;
+            if (!begin_patch_work(*config, work))
+            {
+                const auto message = folder_held(*config, "Wait for the build to finish, or cancel it, before playing.");
+                refuse(refusal("busy", message), message);
+                return;
+            }
             if (config->game_key == "muac")
             {
                 const auto folder = config->get_install_path();
@@ -673,15 +682,6 @@ namespace commands::game_commands
                 }
             }
 
-            // A built game starts only from a finished build, and never while its builder writes the
-            // folder; the launch's patch update is patch work there, so no build starts during it.
-            std::shared_ptr<updater::folder_work> work;
-            if (!begin_patch_work(*config, work))
-            {
-                const auto message = folder_held(*config, "Wait for the build to finish, or cancel it, before playing.");
-                refuse(refusal("busy", message), message);
-                return;
-            }
             if (config->built)
             {
                 const auto folder = config->get_install_path();

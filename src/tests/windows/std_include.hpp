@@ -1,0 +1,15 @@
+#pragma once
+#include <Windows.h>
+#include <algorithm>
+#include <cctype>
+#include <cstdint>
+#include <cstring>
+#include <filesystem>
+#include <format>
+#include <functional>
+#include <map>
+#include <memory>
+#include <optional>
+#include <stdexcept>
+#include <string>
+#include <vector>

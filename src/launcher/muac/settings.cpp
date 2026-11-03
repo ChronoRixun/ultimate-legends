@@ -9,6 +9,9 @@
 namespace muac {
 namespace {
     std::wstring display_key() {
+#ifdef MUAC_SETTINGS_TEST
+        return L"Software\\UltimateLegendsTests\\MUAC\\native-" + std::to_wstring(GetCurrentProcessId());
+#else
 #ifdef _DEBUG
         // Isolate integration tests from the owner's live game settings. Only a
         // bounded leaf under our test namespace is accepted; never an arbitrary key.
@@ -20,6 +23,7 @@ namespace {
         }
 #endif
         return L"Software\\Activision\\Marvel Ultimate Alliance\\Settings\\Display";
+#endif
     }
     std::string key_value(const std::filesystem::path& file, const wchar_t* section, const char* key, const char* fallback) {
         auto values=fix_ini::read(file,section,{key});

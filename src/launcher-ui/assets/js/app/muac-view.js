@@ -10,7 +10,8 @@
     const row = (key, title, body, options) => {
         const current = data.values[key];
         const choices = options.slice();
-        if (!choices.some(([value]) => value === current)) choices.push([current, t('muac.custom', { value: current })]);
+        if (!choices.some(([value]) => value === current)) choices.push([current,
+            key === 'OnlineService' && current === 'custom' ? t('muac.customService') : t('muac.custom', { value: current })]);
         return `<div class="ul-display-row" data-row="${esc(key)}">
             <div class="ul-display-info"><label class="ul-display-label" for="muac-${esc(key)}">${esc(t(title))}</label>
                 <span class="ul-display-description">${esc(t(body))}</span></div>
@@ -79,6 +80,7 @@
             renderBody(); // Always release controls, even if a refresh is pending or fails.
             await load();
             status(error.message || String(error), true);
+            setTimeout(() => panel()?.querySelector(`[data-muac-setting="${key}"]`)?.focus({ preventScroll: true }), 0);
         }
     }
     function render() {

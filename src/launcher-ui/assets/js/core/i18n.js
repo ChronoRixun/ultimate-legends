@@ -7,6 +7,7 @@
                 setUp: 'Choose your prepared MUA 2006 game folder with Set up to enable these options.',
                 missing: 'Compatibility components are missing: {{files}}. Finish preparing the installation before playing or changing these options.',
                 custom: '{{value}} (custom)',
+                customService: 'Custom server',
                 modeBody: 'Windowed keeps normal window controls. Borderless fills the screen without changing the desktop display mode.',
                 resolutionBody: 'The game’s render resolution, shared with its video options. Borderless scales this to the desktop.',
                 frameLimit: 'Frame limit',

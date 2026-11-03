@@ -309,11 +309,22 @@ files {"./src/tests/**.hpp", "./src/tests/**.cpp", "./src/launcher/tools/tool_ch
        "./src/launcher/updater/update_cancelled.cpp", "./src/launcher/updater/release_channel.cpp",
        "./src/launcher/updater/release_resolver.cpp", "./src/launcher/updater/patch_policy.cpp",
        "./src/launcher/updater/file_hash_cache.cpp", "./src/launcher/models/models_args.cpp"}
+removefiles {"./src/tests/windows/**"}
 
 -- src/tests first: its std_include.hpp stands in for the launcher's precompiled header. rapidjson
 -- (header-only) for updater/release_channel.cpp, which reads GitHub's release JSON.
 includedirs {"./src/tests", "./src/launcher", path.join(dependencies.basePath, "rapidjson/include")}
 defines {"RAPIDJSON_HAS_STDSTRING"}
+
+-- Real Win32 profile/registry I/O against synthetic files and a test-only registry namespace.
+project "ultimate-legends-muac-tests"
+kind "ConsoleApp"
+language "C++"
+files {"./src/tests/windows/**.hpp", "./src/tests/windows/**.cpp",
+       "./src/launcher/muac/settings.cpp", "./src/launcher/fix/fix_ini.cpp"}
+includedirs {"./src/tests/windows", "./src/launcher", "./src/common"}
+defines {"MUAC_SETTINGS_TEST", "NOMINMAX", "WIN32_LEAN_AND_MEAN"}
+links {"common", "Version", "Advapi32", "Shell32", "User32", "Ole32"}
 
 group "Dependencies"
 dependencies.projects()

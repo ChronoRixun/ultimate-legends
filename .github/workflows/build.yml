@@ -83,6 +83,7 @@ jobs:
         run: |
           node --version
           node src/tests/ui/run.js
+          node tools/dev/muac_view_race_test.js
 
       - name: Upload ${{ matrix.configuration }} binary
         uses: actions/upload-artifact@v7

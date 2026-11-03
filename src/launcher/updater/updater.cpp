@@ -13,6 +13,14 @@ namespace client_updater
         return !client_updater.manifest_fetch_failed();
     }
 
+    bool prepare(const game_config::game_config_t& config, updater::ui_progress_listener* listener,
+                 const std::filesystem::path& install_path)
+    {
+        const client_updater update{config, listener, install_path};
+        update.prepare();
+        return !update.manifest_fetch_failed();
+    }
+
     attempt run_attempt(const game_config::game_config_t& config, updater::ui_progress_listener* listener,
                         const std::optional<std::filesystem::path>& install_path, const std::optional<patch_policy::consent>& consent)
     {

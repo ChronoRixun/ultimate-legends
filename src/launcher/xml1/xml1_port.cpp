@@ -1,11 +1,13 @@
 #include "std_include.hpp"
 #include "xml1_port.hpp"
+#include "build_requirements.hpp"
 
 #include "display/xml2_display.hpp"
 #include "game_config.hpp"
 #include "updater/launcher_update.hpp"
 #include "updater/patch_channel.hpp"
 #include "updater/release_source.hpp"
+#include "updater/channel_refresh.hpp"
 #include "updater/updater.hpp"
 
 #include <utils/finally.hpp>
@@ -51,6 +53,7 @@ namespace xml1_port
             std::string cache_error; // why
         };
         builder_check check_;
+        channel_refresh::gate refresh_;
 
         game_config::game_config_t config()
         {
@@ -84,10 +87,9 @@ namespace xml1_port
         // The builder's manifest on the update channel (release_source: Stable, GitHub's latest release;
         // Beta, pre-releases too), from the chosen release's tag, so the manifest and the zip next to it
         // come from one release; the channel's last choice when GitHub can't be asked (`from_cache`,
-        // `error`). With no choice at all: into a PC without a builder, the latest release's manifest (as
-        // launcher 0.3 did; its zip is still checked by size and SHA-256); else false with `error`, and
-        // the installed builder stays.
-        bool channel_manifest(tool_install::tool& tool, const release_channel::channel channel, const bool has_builder, bool& from_cache,
+        // `error`). Without a choice, refuse: falling through to releases/latest on Beta would
+        // silently install the Stable builder, potentially alongside a Beta XML2 Fix.
+        bool channel_manifest(tool_install::tool& tool, const release_channel::channel channel, bool& from_cache,
                               std::string& error)
         {
             from_cache = false;
@@ -99,11 +101,6 @@ namespace xml1_port
             error = outcome.error;
             if (!outcome.chosen)
             {
-                if (!has_builder)
-                {
-                    utils::logger::write("xml1-builder: the update channel can't be checked ({}); the latest release is used", error);
-                    return true;
-                }
                 return false;
             }
             from_cache = outcome.from_cache;
@@ -137,6 +134,14 @@ namespace xml1_port
                 return std::nullopt;
             }
             return builder_exe{installed->exe, installed->version, false};
+        }
+
+        std::optional<std::string> builder_fix_requirement(const builder_exe& builder)
+        {
+            if (builder.dev) return check_.latest ? check_.latest->requires_xml2fix : std::string{};
+            if (check_.latest && check_.latest->version == builder.version) return check_.latest->requires_xml2fix;
+            const auto manifest = tool_install::cached_manifest(builder_tool(), builder.version);
+            return manifest ? std::optional(manifest->requires_xml2fix) : std::nullopt;
         }
 
         // The XML2 install the launcher knows (its xml2 entry), when it still holds the game.
@@ -433,11 +438,7 @@ namespace xml1_port
             return {"L_FIX_UPDATING", "The XML2 Fix is being installed or updated in this folder. Wait for it to finish, then try again."};
         }
 
-        void set_check(const std::function<void(builder_check&)>& change)
-        {
-            std::lock_guard lock(mutex_);
-            change(check_);
-        }
+
     }
 
     folder_facts inspect_folder(const std::filesystem::path& folder)
@@ -702,6 +703,37 @@ namespace xml1_port
             error = {"L_BUILD_RUNNING", "A build is already running."};
             return std::nullopt;
         }
+        const auto builder = find_builder();
+        const auto selected = release_source::current_channel();
+        const auto offline = utils::flags::has_flag("offline");
+        auto expected = check_.latest ? check_.latest->version : std::string{};
+        if (offline)
+        {
+            // No manifest fetch and no HTTP: reuse only this channel's persisted release choice.
+            const auto cached = release_source::resolve(release_source::builder_repo, selected, {builder_manifest_name});
+            expected = cached.chosen ? cached.chosen->version : std::string{};
+        }
+        if (!builder || (!builder->dev && (!channel_refresh::builder_ready(refresh_, selected, builder->version, expected, offline) ||
+                                          (!offline && !check_.code.empty()))))
+        {
+            error = {"L_BUILDER_CHANNEL", offline
+                ? "The installed Legends Classic builder does not match a release previously checked for this update channel. Go online and check for updates before building."
+                : "Check or update Legends Classic for the selected update channel before building. " + check_.error};
+            return std::nullopt;
+        }
+        // A fresh build must not fall back to Stable's fix when Beta could not be resolved.
+        // Debug-only local manifests use their configured stand-in, as before.
+        const auto game = config();
+        if (!builder->dev && game.update_manifest_url == release_channel::latest_download_url(release_source::xml2_fix_repo, "ultimate-legends.json"))
+        {
+            const auto fix = offline ? std::optional(release_source::resolve(release_source::xml2_fix_repo, selected, {"ultimate-legends.json"}))
+                                     : release_source::last(release_source::xml2_fix_repo, selected);
+            if (!fix || !fix->chosen)
+            {
+                error = {"L_BUILDER_CHANNEL", "The XML2 Fix release for the selected update channel could not be checked. Go online and check for updates, then try Build again."};
+                return std::nullopt;
+            }
+        }
         // The folder is the builder's alone until it has exited: never while patch work is under way in
         // it (verify-game, a launch's update, delete-game, the update before a build - from any game
         // entry pointed at it, and even one whose progress bar a cancel already hid), and no patch work
@@ -713,8 +745,19 @@ namespace xml1_port
             return std::nullopt;
         }
 
+        const auto required = builder_fix_requirement(*builder);
+        const auto installed_fix = patch_channel::installed_version(game, options.out);
+        if (!xml1::build_fix_ready(required, installed_fix))
+        {
+            error = {"L_FIX_REQUIRED", !required
+                ? "The installed builder's XML2 Fix requirement could not be checked. Check for builder updates online, then try Build again."
+                : "Install the selected update channel's XML2 Fix before building. This builder requires " +
+                  (required->empty() ? std::string("an installed XML2 Fix.") : *required + ".") +
+                  " The fix preparation failed, was cancelled, or this channel cannot meet that requirement."};
+            return std::nullopt;
+        }
+
         // Remember the choices now, so a cancelled or failed build can be resumed.
-        const auto game = config();
         game.set_install_path(options.out);
         game.set_installed(false);
         if (!options.iso.empty())
@@ -834,9 +877,9 @@ namespace xml1_port
 
     bool start_fix_update(const std::filesystem::path& out, failure& error)
     {
-        if (out.empty() || !utils::io::file_exists(out / L"dinput.dll"))
+        if (out.empty())
         {
-            error = {"L_NO_FIX", "There is no XML2 Fix in the folder to update."};
+            error = {"L_USAGE", "Choose a build folder first."};
             return false;
         }
         const auto folder = utils::string::path_to_utf8(out);
@@ -873,14 +916,14 @@ namespace xml1_port
         {
             try
             {
-                const auto fetched = client_updater::run(config(), listener.get(), out);
+                const auto fetched = client_updater::prepare(config(), listener.get(), out);
                 if (listener->is_update_cancelled())
                 {
-                    utils::logger::write("xml1: the XML2 Fix update in {} was cancelled; the build starts with the fix there", folder);
+                    utils::logger::write("xml1: the XML2 Fix update in {} was cancelled; build admission will check the fix still there", folder);
                 }
                 else if (!fetched)
                 {
-                    utils::logger::write("xml1: the XML2 Fix release could not be reached; the build in {} starts with the fix there", folder);
+                    utils::logger::write("xml1: the XML2 Fix release could not be reached; build admission in {} will check the fix still there", folder);
                 }
                 else
                 {
@@ -890,12 +933,12 @@ namespace xml1_port
             catch (const updater::update_cancelled&)
             {
                 listener->cancel_update();
-                utils::logger::write("xml1: the XML2 Fix update in {} was cancelled; the build starts with the fix there", folder);
+                utils::logger::write("xml1: the XML2 Fix update in {} was cancelled; build admission will check the fix still there", folder);
             }
             catch (const std::exception& e)
             {
                 listener->cancel_update();
-                utils::logger::write("xml1: the XML2 Fix in {} could not be updated ({}); the build starts with the fix there", folder, e.what());
+                utils::logger::write("xml1: the XML2 Fix in {} could not be updated ({}); build admission will check the fix still there", folder, e.what());
             }
             listener->done_update();
         }).detach();
@@ -930,11 +973,28 @@ namespace xml1_port
         return found && !found->dev ? found->version : std::string{};
     }
 
-    bool check_builder(const bool install, const std::optional<std::filesystem::path>& zip, const std::string& downgrade_to)
+    void channel_changed()
     {
         {
             std::lock_guard lock(mutex_);
-            if (check_.checking || check_.installing)
+            refresh_.invalidate();
+            check_.latest.reset();
+            check_.code.clear();
+            check_.error.clear();
+            check_.from_cache = false;
+            check_.cache_error.clear();
+        }
+        // A busy worker's finalizer starts the new check; its old result cannot publish.
+        check_builder(false);
+    }
+
+    bool check_builder(const bool install, const std::optional<std::filesystem::path>& zip, const std::string& downgrade_to)
+    {
+        if (utils::flags::has_flag("offline")) return false;
+        std::optional<channel_refresh::ticket> work;
+        {
+            std::lock_guard lock(mutex_);
+            if (check_.checking || check_.installing || !(work = refresh_.begin(release_source::current_channel())))
             {
                 return false;
             }
@@ -945,16 +1005,37 @@ namespace xml1_port
             check_.source.clear();
         }
 
-        std::thread([install, zip, downgrade_to]
+        std::thread([install, zip, downgrade_to, work = *work]
         {
+            bool success = false;
+            const auto finish = utils::finally([&]
+            {
+                bool again;
+                {
+                    std::lock_guard lock(mutex_);
+                    again = refresh_.finish(work, success);
+                    if (again) check_ = builder_check{};
+                }
+                if (again) check_builder(false);
+            });
+            const auto current = [&]
+            {
+                std::lock_guard lock(mutex_);
+                return refresh_.current(work);
+            };
+            const auto publish = [&](const auto& change)
+            {
+                std::lock_guard lock(mutex_);
+                if (refresh_.current(work)) change(check_);
+            };
             auto tool = builder_tool();
-            const auto channel = release_source::current_channel();
+            const auto channel = work.channel;
             std::string error;
             std::string cache_error;
             bool not_published = false;
             bool from_cache = false;
             std::optional<tool_install::manifest> latest;
-            if (channel_manifest(tool, channel, find_builder().has_value(), from_cache, cache_error))
+            if (channel_manifest(tool, channel, from_cache, cache_error))
             {
                 latest = tool_install::fetch_manifest(tool, error, &not_published);
             }
@@ -966,7 +1047,7 @@ namespace xml1_port
             if (!latest)
             {
                 utils::logger::write("xml1-builder: manifest {} ({}): {}", tool.manifest_url, release_channel::channel_name(channel), error);
-                set_check([&](builder_check& check)
+                publish([&](builder_check& check)
                 {
                     check.checking = false;
                     check.latest.reset(); // what an earlier check found no longer holds
@@ -981,12 +1062,14 @@ namespace xml1_port
                 return;
             }
 
+            if (!current()) return;
+
             // The whole version (a beta launcher, 0.5.0-beta.1, is not yet the 0.5.0 a builder may need).
             const auto launcher_version = launcher_update::running_version();
             if (!latest->min_launcher.empty() && launcher_version != "0.0.0" &&
                 tool_install::compare_versions(launcher_version, latest->min_launcher) < 0)
             {
-                set_check([&](builder_check& check)
+                publish([&](builder_check& check)
                 {
                     check.checking = false;
                     check.latest = latest;
@@ -1010,7 +1093,7 @@ namespace xml1_port
             {
                 utils::logger::write("xml1-builder: the switch back to {} was not done: the update channel offers {}", downgrade_to, latest->version);
             }
-            set_check([&](builder_check& check)
+            publish([&](builder_check& check)
             {
                 check.checking = false;
                 check.latest = latest;
@@ -1023,15 +1106,34 @@ namespace xml1_port
             });
             if (!wanted)
             {
+                if (installed && !installed->dev && installed->version != latest->version &&
+                    !tool_install::cached_manifest(tool, installed->version))
+                {
+                    auto retained = tool;
+                    retained.manifest_url = release_channel::download_url(release_source::builder_repo, "v" + installed->version, builder_manifest_name);
+                    std::string retained_error;
+                    const auto contract = tool_install::fetch_manifest(retained, retained_error);
+                    if (!contract || contract->version != installed->version)
+                    {
+                        publish([&](builder_check& check)
+                        {
+                            check.code = "L_BUILDER_OFFLINE";
+                            check.error = "Could not check the retained builder's XML2 Fix requirement. " + retained_error;
+                        });
+                        return;
+                    }
+                }
+                success = true;
                 return;
             }
 
             // Never while a build runs with the current version (its folder must stay).
-            while (is_working())
+            while (is_working() && current())
             {
                 std::this_thread::sleep_for(std::chrono::seconds(1));
             }
 
+            if (!current()) return;
             std::optional<tool_install::installed> result;
             std::string code;
             std::string source;
@@ -1063,14 +1165,14 @@ namespace xml1_port
                 }
                 if (!result)
                 {
-                    result = tool_install::install(tool, *latest, [](const std::uint64_t done, const std::uint64_t total)
+                    result = tool_install::install(tool, *latest, [&](const std::uint64_t done, const std::uint64_t total)
                     {
-                        set_check([&](builder_check& check)
+                        publish([&](builder_check& check)
                         {
                             check.done = done;
                             check.total = total;
                         });
-                    }, {}, error);
+                    }, [&] { return !current(); }, error);
                     source = "download";
                     code = error.find("SHA-256") != std::string::npos ? "L_BUILDER_HASH"
                          : error.find("zip") != std::string::npos || error.find("unpack") != std::string::npos ? "L_BUILDER_EXTRACT"
@@ -1078,13 +1180,15 @@ namespace xml1_port
                 }
             }
 
+            if (!current()) return;
+            success = result.has_value();
             if (result)
             {
                 const auto game = config();
                 game.set(property_keys::BUILDER_VERSION, result->version);
                 game.set(property_keys::BUILDER_CONTENT, std::to_string(latest->content_version));
             }
-            set_check([&](builder_check& check)
+            publish([&](builder_check& check)
             {
                 check.installing = false;
                 if (result)
@@ -1236,7 +1340,7 @@ namespace xml1_port
             builder.AddMember("channel", rapidjson::StringRef(release_channel::channel_name(release_source::current_channel())), allocator);
 
             std::lock_guard lock(mutex_);
-            builder.AddMember("checking", check_.checking, allocator);
+            builder.AddMember("checking", !utils::flags::has_flag("offline") && (check_.checking || (refresh_.busy() && !check_.installing)), allocator);
             builder.AddMember("installing", check_.installing, allocator);
             builder.AddMember("done", check_.done, allocator);
             builder.AddMember("total", check_.total, allocator);

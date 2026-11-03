@@ -99,6 +99,8 @@ namespace models_tool
     // tool yet or the release is newer than the installed one (waits for a running tool to finish first).
     // `force` asks GitHub even when a recent answer is at hand (Check again). false when a check or
     // install is already running, or with -offline.
+    void channel_changed(); // invalidate and start (or queue) a selected-channel manifest check
+
     bool check_tool(bool install, bool force = false);
     tool_check_state tool_check();
 

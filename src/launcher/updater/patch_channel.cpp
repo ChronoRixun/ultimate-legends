@@ -47,7 +47,7 @@ namespace patch_channel
         const auto installed = installed_fix(config, folder);
         const auto channel = release_source::current_channel();
         const auto found = release_source::resolve(config.patch_repo, channel, {manifest_name});
-        const auto decision = patch_policy::decide(installed.version, found, consent, installed.recorded);
+        const auto decision = patch_policy::decide(installed.version, found, consent, installed.recorded, channel);
         utils::logger::write("XML2 Fix update ({}, {}): {}", config.game_key, release_channel::channel_name(channel), decision.note);
 
         switch (decision.what)

@@ -45,6 +45,7 @@ namespace patch_status
 
         std::mutex mutex_;
         std::unordered_map<std::string, release_check> checks_; // by release URL (Stable) or "<repo>|beta"
+        std::uint64_t generation_{};
 
         rapidjson::Value make_string(const std::string& text, rapidjson::Document::AllocatorType& allocator)
         {
@@ -140,7 +141,8 @@ namespace patch_status
             }
 
             check.checking = true;
-            std::thread([key, url, repo, channel]
+            const auto generation = generation_;
+            std::thread([key, url, repo, channel, generation]
             {
                 std::string version;
                 std::string page;
@@ -165,6 +167,7 @@ namespace patch_status
                 }
 
                 std::lock_guard lock(mutex_);
+                if (generation != generation_) return;
                 auto& done = checks_[key];
                 done.checking = false;
                 done.checked = clock::now();
@@ -178,6 +181,13 @@ namespace patch_status
                 }
             }).detach();
         }
+    }
+
+    void channel_changed()
+    {
+        std::lock_guard lock(mutex_);
+        ++generation_;
+        checks_.clear();
     }
 
     std::optional<std::string> installed_version(const std::filesystem::path& file)

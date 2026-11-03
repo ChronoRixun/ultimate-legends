@@ -3,6 +3,7 @@
 #include "release_resolver.hpp"
 
 #include <utils/http.hpp>
+#include <utils/flags.hpp>
 #include <utils/logger.hpp>
 #include <utils/properties.hpp>
 #include <utils/property_keys.hpp>
@@ -74,12 +75,13 @@ namespace release_source
 
     void set_channel(const channel value)
     {
+        if (current_channel() != value) shared().invalidate();
         utils::properties::store(property_keys::UPDATE_CHANNEL, release_channel::channel_name(value));
     }
 
     release_channel::outcome resolve(const std::string& repo, const channel value, const std::vector<std::string>& required, const bool force)
     {
-        auto outcome = shared().resolve(repo, value, required, force);
+        auto outcome = shared().resolve(repo, value, required, force, utils::flags::has_flag("offline"));
         if (!outcome.chosen || outcome.from_cache)
         {
             utils::logger::write("release channel: {} ({}): {}{}", repo, release_channel::channel_name(value), outcome.error,

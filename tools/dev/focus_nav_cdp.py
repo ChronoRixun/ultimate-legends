@@ -212,23 +212,26 @@ def main():
     check(js("document.querySelector('#reduce-motion-toggle .toggle-btn.active').dataset.value") == before, f"{back}: back to {before}")
 
     print("a select: picked, then put back")
-    check(seek("ArrowUp", lambda f: f == "settings-page|#theme-select", 10), f"Up to Theme ({focused()})")
+    check(seek("ArrowUp", lambda f: f == "settings-page|#theme-select-button", 10), f"Up to Theme ({focused()})")
     theme = js("document.getElementById('theme-select').value")
     applied = js("[document.documentElement.getAttribute('data-theme'), document.documentElement.getAttribute('data-accent')].join()")
     press("ArrowDown")
-    check(focused() != "settings-page|#theme-select" and js("document.getElementById('theme-select').value") == theme,
+    check(focused() != "settings-page|#theme-select-button" and js("document.getElementById('theme-select').value") == theme,
           "not picking: Down moves on and the theme stays")
     press("ArrowUp")
     press("Enter")
     check(js("document.getElementById('theme-select').classList.contains('is-picking')"), "Enter: picking")
     press("ArrowDown")
-    check(js("document.getElementById('theme-select').value") != theme, "Down: the next theme shows in the box")
+    check(js("document.getElementById('theme-select').value") == theme and
+          js("document.querySelector('#launcher-dropdown-list .is-active').textContent") !=
+          js("document.getElementById('theme-select-button').textContent"),
+          "Down: highlights the next theme without committing")
     press("Escape")
     time.sleep(0.3)
     check(js("document.getElementById('theme-select').value") == theme and
           js("[document.documentElement.getAttribute('data-theme'), document.documentElement.getAttribute('data-accent')].join()") == applied
           and page() == "settings-page",
-          "Escape: the old theme back, never applied, still on Settings")
+          "Escape: the highlighted theme was never applied, still on Settings")
 
     print("a pad through the Gamepad API (pretend)")
     js("""(() => {

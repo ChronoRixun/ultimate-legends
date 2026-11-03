@@ -184,8 +184,8 @@ test('update channel: the setting in English - Stable by default, the help text,
     assert.equal(t.document.querySelectorAll('#update-channel-versions .beta-badge').length, 0, 'no badge on a release');
     assert.equal(t.$('#update-channel-switch-back').hidden, true);
     assert.equal(t.$('#update-channel-note').hidden, true);
-    assert.deepEqual(t.backend.sent('get-update-channel').slice(0, 2), [{ refresh: false }, { refresh: true }],
-        'at start only what is installed; GitHub is asked when Settings opens');
+    assert.deepEqual(t.backend.sent('get-update-channel').slice(0, 2), [{ refresh: true }, { refresh: true }],
+        'startup (including self-update restart) and Settings both resolve the selected channel');
 });
 
 test('update channel: French and Spanish', async () => {
@@ -281,7 +281,7 @@ test('update channel: with a controller - A, D-pad down, A picks Beta; B while p
 
 test('update channel: back to Stable on a beta asks first; Keep the beta installs nothing and keeps the offer', async () => {
     const t = await open({ channel: 'beta', items: BETA_ITEMS });
-    const asked = answer(t, 1);
+    const asked = answer(t, 0);
     choose(t, 'stable');
     await t.clock.advance(5000);
     assert.deepEqual(t.backend.sent('set-update-channel'), [{ channel: 'stable' }]);
@@ -289,8 +289,8 @@ test('update channel: back to Stable on a beta asks first; Keep the beta install
     const [title, body, buttons] = asked[0];
     assert.equal(title, 'You are on a beta');
     assert.match(body, /You&#39;re on a beta \(Ultimate Legends 0\.5\.0-beta\.1, XML2 Fix \(X-Men Legends II\) 1\.8\.0-beta\.2, XML2 Fix \(X-Men Legends\) 1\.8\.0-beta\.2, Legends Classic builder 0\.3\.0-beta\.1\)\. Switch back to Ultimate Legends 0\.4\.0, XML2 Fix \(X-Men Legends II\) 1\.7\.1, XML2 Fix \(X-Men Legends\) 1\.7\.1, Legends Classic builder 0\.2\.4\?/);
-    assert.equal(buttons[0], 'Switch back');
-    assert.deepEqual(buttons[1], { label: 'Keep the beta', cancel: true }, 'Escape / B keeps the beta');
+    assert.equal(buttons[1], 'Switch back');
+    assert.deepEqual(buttons[0], { label: 'Keep the beta', cancel: true }, 'Escape / B keeps the beta');
 
     assert.deepEqual(t.backend.sent('switch-back-to-stable'), [], 'never a downgrade without the answer');
     assert.deepEqual(t.verified, []);
@@ -302,7 +302,7 @@ test('update channel: back to Stable on a beta asks first; Keep the beta install
 
 test('update channel: Switch back installs exactly the versions shown, checks each, then offers Rebuild', async () => {
     const t = await open({ channel: 'beta', items: BETA_ITEMS });
-    const asked = answer(t, 0, 0);
+    const asked = answer(t, 1, 0);
     choose(t, 'stable');
     await t.clock.advance(20000);
     assert.deepEqual(t.backend.sent('switch-back-to-stable'), [{ launcher: '0.4.0', builder: '0.2.4' }], 'the exact versions approved');
@@ -323,7 +323,7 @@ test('update channel: Switch back installs exactly the versions shown, checks ea
 
 test('update channel: a builder that did not switch back is said, and no Rebuild is offered', async () => {
     const t = await open({ channel: 'beta', items: BETA_ITEMS, outcome: { builder: 'failed' } });
-    const asked = answer(t, 0, 0, 0);
+    const asked = answer(t, 1, 0, 0);
     choose(t, 'stable');
     await t.clock.advance(20000);
     assert.equal(asked.length, 2, 'the prompt and the report - no Rebuild');
@@ -342,7 +342,7 @@ test('update channel: a builder that did not switch back is said, and no Rebuild
 test('update channel: a cancelled or failed fix, or one that could not start, is said; no Rebuild without the port\'s fix', async () => {
     for (const [result, reason] of [['cancelled', 'cancelled'], ['failed', 'Failed to download: dinput\\.dll'], ['busy', 'it could not start now']]) {
         const t = await open({ channel: 'beta', items: [BETA_ITEMS[1], BETA_ITEMS[2], BETA_ITEMS[3]], outcome: { fix: { xml1: result } } });
-        const asked = answer(t, 0, 0, 0);
+        const asked = answer(t, 1, 0, 0);
         choose(t, 'stable');
         await t.clock.advance(20000);
         assert.equal(asked.length, 2, `${result}: the prompt and the report`);
@@ -355,7 +355,7 @@ test('update channel: a cancelled or failed fix, or one that could not start, is
 
 test('update channel: a launcher download that failed is said; nothing is waiting to install', async () => {
     const t = await open({ channel: 'beta', items: [BETA_ITEMS[0], BETA_ITEMS[1]], outcome: { launcher: 'failed' } });
-    const asked = answer(t, 0, 0);
+    const asked = answer(t, 1, 0);
     choose(t, 'stable');
     await t.clock.advance(20000);
     assert.match(asked[1][1], /Ultimate Legends: still 0\.5\.0-beta\.1 \(Switching back to 0\.4\.0 failed: the download was interrupted\. Your launcher was not changed\.\)/);
@@ -366,14 +366,14 @@ test('update channel: a launcher download that failed is said; nothing is waitin
 test('update channel: a retry asks again and carries a fresh approval; Keep the beta between sends only its revocation', async () => {
     const t = await open({ items: [BETA_ITEMS[2]], outcome: { fix: { xml1: 'cancelled' } } });
     const back = t.$('#update-channel-switch-back');
-    let asked = answer(t, 0, 0);
+    let asked = answer(t, 1, 0);
     back.click();
     await t.clock.advance(20000);
     assert.equal(asked.length, 2, 'the prompt, then the report');
     assert.equal(back.hidden, false, 'still offered');
 
     // Later: Keep the beta. Nothing is sent but the revocation.
-    asked = answer(t, 1);
+    asked = answer(t, 0);
     back.click();
     await t.clock.advance(5000);
     assert.equal(t.backend.sent('verify-game').length, 1);
@@ -381,7 +381,7 @@ test('update channel: a retry asks again and carries a fresh approval; Keep the 
 
     // Then a retry that works: asked again, a fresh approval with this attempt's versions; Rebuild offered.
     t.backend.outcome.fix.xml1 = 'done';
-    asked = answer(t, 0, 0);
+    asked = answer(t, 1, 0);
     back.click();
     await t.clock.advance(20000);
     assert.equal(asked[0][0], 'You are on a beta', 'asked again');
@@ -395,7 +395,7 @@ test('update channel: a retry asks again and carries a fresh approval; Keep the 
 
 test('update channel: the switch-back report in French and Spanish', async () => {
     const fr = await open({ language: 'fr', channel: 'beta', items: [BETA_ITEMS[3]], outcome: { builder: 'failed' } });
-    const askedFr = answer(fr, 0, 0);
+    const askedFr = answer(fr, 1, 0);
     choose(fr, 'stable');
     await fr.clock.advance(20000);
     assert.equal(askedFr[1][0], 'Revenir a Stable');
@@ -403,7 +403,7 @@ test('update channel: the switch-back report in French and Spanish', async () =>
     assert.match(askedFr[1][1], /Constructeur Legends Classic : toujours 0\.3\.0-beta\.1 \(download failed\)\./);
 
     const es = await open({ language: 'es', channel: 'beta', items: [BETA_ITEMS[1]], outcome: { fix: { xml2: 'cancelled' } } });
-    const askedEs = answer(es, 0, 0);
+    const askedEs = answer(es, 1, 0);
     choose(es, 'stable');
     await es.clock.advance(20000);
     assert.equal(askedEs[1][0], 'Volver a Estable');
@@ -418,7 +418,8 @@ test('update channel: with a pad - Switch back, the report closed with B, the of
     await t.clock.advance(100);
     t.window.FocusNav.sync();
     assert.match(t.document.querySelector('#message-box .mb-title').textContent, /You are on a beta/);
-    t.window.FocusNav.press('Enter', 'pad'); // A on Switch back (the box's first button has the focus)
+    t.window.FocusNav.press('ArrowRight', 'pad'); // the affirmative action is the second, primary button
+    t.window.FocusNav.press('Enter', 'pad');
     await t.clock.advance(20000);
     t.window.FocusNav.sync();
     const buttons = t.document.querySelectorAll('#message-box .mb-buttons button');
@@ -437,7 +438,7 @@ test('update channel: the Switch back button offers the same choice later; no Re
     const back = t.$('#update-channel-switch-back');
     assert.equal(back.hidden, false);
     assert.equal(back.textContent, 'Switch back to Stable');
-    const asked = answer(t, 0);
+    const asked = answer(t, 1);
     back.click();
     await t.clock.advance(20000);
     assert.match(asked[0][1], /You&#39;re on a beta \(XML2 Fix \(X-Men Legends II\) 1\.8\.0-beta\.2\)\. Switch back to XML2 Fix \(X-Men Legends II\) 1\.7\.1\?/);
@@ -449,20 +450,20 @@ test('update channel: the Switch back button offers the same choice later; no Re
 
 test('update channel: the switch-back prompt in French and Spanish', async () => {
     const fr = await open({ language: 'fr', channel: 'beta', items: [BETA_ITEMS[1]] });
-    const askedFr = answer(fr, 1);
+    const askedFr = answer(fr, 0);
     choose(fr, 'stable');
     await fr.clock.advance(5000);
     assert.equal(askedFr[0][0], 'Vous etes sur une beta');
     assert.match(askedFr[0][1], /Vous etes sur une beta \(XML2 Fix \(X-Men Legends II\) 1\.8\.0-beta\.2\)\. Revenir a XML2 Fix \(X-Men Legends II\) 1\.7\.1 \?/);
-    assert.deepEqual(askedFr[0][2], ['Revenir', { label: 'Garder la beta', cancel: true }]);
+    assert.deepEqual(askedFr[0][2], [{ label: 'Garder la beta', cancel: true }, 'Revenir']);
 
     const es = await open({ language: 'es', channel: 'beta', items: [BETA_ITEMS[3]] });
-    const askedEs = answer(es, 1);
+    const askedEs = answer(es, 0);
     choose(es, 'stable');
     await es.clock.advance(5000);
     assert.equal(askedEs[0][0], 'Estas en una beta');
     assert.match(askedEs[0][1], /Estas en una beta \(Constructor de Legends Classic 0\.3\.0-beta\.1\)\. ¿Volver a Constructor de Legends Classic 0\.2\.4\?/);
-    assert.deepEqual(askedEs[0][2], ['Volver', { label: 'Mantener la beta', cancel: true }]);
+    assert.deepEqual(askedEs[0][2], [{ label: 'Mantener la beta', cancel: true }, 'Volver']);
 });
 
 test('update channel: the prompt is a real message box a pad can answer (B keeps the beta)', async () => {
@@ -471,7 +472,7 @@ test('update channel: the prompt is a real message box a pad can answer (B keeps
     await t.clock.advance(5000);
     t.window.FocusNav.sync();
     const buttons = t.document.querySelectorAll('#message-box .mb-buttons button');
-    assert.deepEqual(Array.from(buttons, button => button.textContent), ['Switch back', 'Keep the beta']);
+    assert.deepEqual(Array.from(buttons, button => button.textContent), ['Keep the beta', 'Switch back']);
     assert.equal(t.document.activeElement, buttons[0], 'the box takes the focus');
     t.window.FocusNav.press('Escape', 'pad');
     await t.clock.advance(5000);

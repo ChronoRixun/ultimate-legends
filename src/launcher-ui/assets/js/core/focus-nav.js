@@ -5,7 +5,8 @@
 // API (gamepad-nav.js, which sends the same keys through press()).
 //
 // - Inside a toggle group (OFF / ON), Left and Right switch the value; at either end they stay put.
-// - A <select> is picked in place: Enter or Space starts, Up / Down (or Left / Right) step through its
+// - The shared in-page dropdown (ui/dropdown.js) handles an enhanced select's open picker. A remaining
+//   <select> is picked in place: Enter or Space starts, Up / Down (or Left / Right) step through its
 //   options, Enter keeps the choice (one change event) and Escape puts the old one back. Chromium 113's
 //   own dropdown can't be opened from script, and a pad's keys could not drive it anyway.
 // - In a text field Left / Right move the caret (and leave the field at either end), Backspace deletes.
@@ -433,6 +434,8 @@
     function handle(action, event) {
         const element = current();
         const layer = topLayer();
+
+        if (window.LauncherDropdowns && window.LauncherDropdowns.handleKey(element, event)) return true;
 
         if (picking) {
             if (!element || element !== picking.select) stopPicking(true);

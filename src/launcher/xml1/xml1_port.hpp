@@ -59,13 +59,10 @@ namespace xml1_port
 
     bool cancel_build();
 
-    // Brings the XML2 Fix already in `out` (its dinput.dll) up to date before a build into it: the
-    // patch install of verify-game (client_updater), into that folder, in the background with the
-    // same progress (get-update-progress). So a build never meets an older fix: a Rebuild over an
-    // older folder used to, and builders before 0.2.2 failed their last step on it (0.2.2 warns,
-    // W_XML2FIX_OLD). False with `error` when nothing was started: no fix in the folder, offline,
-    // a build running, the game running from it. An update that fails is logged; the page starts
-    // the build anyway (the fix is installed after it, as always).
+    // Installs or updates the selected channel's XML2 Fix in `out`, including a fresh build
+    // folder. Changed files are staged; cancellation/failure rolls back publication. Progress
+    // uses get-update-progress. False with error when offline, busy, or the game is running.
+    // Build admission checks the actual builder's companion requirement after the worker ends.
     bool start_fix_update(const std::filesystem::path& out, failure& error);
 
 
@@ -83,6 +80,9 @@ namespace xml1_port
     // channel's (Stable: the latest release; Beta: pre-releases too), from that release's tag. Never an
     // older builder than the installed one, unless `downgrade_to` names exactly the release offered
     // (Switch back to Stable, approved for this attempt).
+    // Invalidate the manifest and start (or queue) a check on the newly selected channel.
+    void channel_changed();
+
     bool check_builder(bool install, const std::optional<std::filesystem::path>& zip = std::nullopt, const std::string& downgrade_to = {});
 
     // The builder installed from a release ("" when none, or a Debug build's stand-in).
@@ -107,7 +107,7 @@ namespace xml1_port
         bool empty{};
         bool builder{};       // _build\stamp.json or _build\building.json: the builder made it
         bool launcher_only{};
-        bool fix{};           // dinput.dll: the XML2 Fix (start_fix_update brings it up to date)
+        bool fix{};           // dinput.dll: the XML2 Fix (start_fix_update installs or updates it)
     };
     folder_facts inspect_folder(const std::filesystem::path& folder);
 

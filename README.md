@@ -100,6 +100,24 @@ release page. Development builds (Debug, or built from anything but a release ta
 Help, bug reports and co-op partners: the community Discord, [discord.gg/tFxwHtZv8k](https://discord.gg/tFxwHtZv8k).
 No game files, disc images or links to them there either.
 
+### Update channel (Stable / Beta)
+
+**Settings > Updates > Update channel** picks which releases you get. **Stable** (the default) gets only full
+releases. **Beta** also gets test versions (pre-releases) as soon as they are out; they may have bugs. The channel
+covers the launcher's own update, the XML2 Fix for X-Men Legends II and for X-Men Legends, the Legends Classic
+builder that makes X-Men Legends, and the legends-models tool of the Character models section. Under the setting,
+the launcher, the fixes and the builder are listed with the exact version you have, with a Beta badge on a test
+version. After a switch to Beta, the test versions install the same way as updates: the bar at the top for the
+launcher, the game page (Play, Verify or Update now) for a fix, and the next build or Rebuild of X-Men Legends for the
+builder.
+
+You can switch back to Stable any time. If something you have is a beta newer than the latest full release, the
+launcher asks first: **Switch back** reinstalls the full release of each (the launcher's on its next restart) and
+then offers to rebuild X-Men Legends if it was built with the beta; your settings, games, saves, mods and builds are kept. **Keep the beta** changes
+nothing and leaves you on those versions until a newer full release comes out; **Switch back to Stable** under the
+setting asks again later. Nothing is ever downgraded without that answer. The channel is checked with the rest of
+the launcher's update check (see [Privacy](#privacy)); `-offline` turns it off.
+
 ## Controller and keyboard
 
 Every page works with a controller or the keyboard as well as the mouse and a touchscreen. The arrow keys (a Steam
@@ -107,6 +125,10 @@ Deck's D-pad under Steam Input's desktop layout) move between controls, Enter or
 Backspace closes a popup or goes back a page. An Xbox-style pad works without Steam Input too, through the Gamepad
 API: D-pad or left stick, A to press, B to go back, Y for a game card's menu, LB / RB for the previous / next page in
 the sidebar.
+
+Drop-downs (the update channel, language, theme, Display rows and costume choosers) open as a list inside the
+launcher window, so they work under Proton on a Steam Deck too: Enter, Space or A opens the list, Up / Down move
+through it, Enter or A picks, and Escape, Backspace or B closes it without changing anything.
 
 ## Command line arguments
 

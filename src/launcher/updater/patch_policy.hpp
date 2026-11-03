@@ -50,7 +50,8 @@ namespace patch_policy
     // its version can't be read). `recorded`: that version is the launcher's install record for exactly
     // these files (false: it is only the DLL's numeric VERSIONINFO).
     decision decide(const std::optional<std::string>& installed, const release_channel::outcome& found,
-                    const std::optional<consent>& consent, bool recorded = true);
+                    const std::optional<consent>& consent, bool recorded = true,
+                    release_channel::channel selected = release_channel::channel::stable);
 
     // Whether Settings offers Switch back to Stable for this fix: a recorded pre-release newer than the
     // latest release (release_channel::is_ahead_of), or a fix without a record whose numbers are newer

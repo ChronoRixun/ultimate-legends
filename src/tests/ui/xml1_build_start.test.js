@@ -21,7 +21,7 @@ const key = folder => String(folder).toLowerCase().replace(/[\\/]+$/, '');
 // output-folder clean for the builder; one patch worker per command, alive until the test lets it
 // end (or `autoFinish` does); the shared progress tracker.
 class Backend {
-    constructor(clock, { state = 'ready', fix = true, autoFinish = {}, installs = {} } = {}) {
+    constructor(clock, { state = 'ready', fix = true, autoFinish = {}, installs = {}, requireCurrent = false } = {}) {
         this.clock = clock;
         this.state = state;
         this.fix = fix;              // dinput.dll in the port's folder
@@ -35,6 +35,7 @@ class Backend {
         this.log = [];
         this.progress = { active: false, cancelled: false };
         this.build = null;
+        this.requireCurrent = !!requireCurrent;
     }
 
     // updater::reserve: a release function, or null when the folder can't be held for `use` now.
@@ -125,7 +126,6 @@ class Backend {
                 return this.patchCommand('delete-game', data.game);
             case 'xml1-update-fix': {
                 if (this.offline) return { started: false, code: 'L_OFFLINE' };
-                if (!this.fix) return { started: false, code: 'L_NO_FIX' };
                 if (this.patching(data.out)) return { started: false, code: 'L_FIX_UPDATING' };
                 const release = this.reserve(data.out, 'patch');
                 if (!release) return { started: false, code: 'L_BUILD_RUNNING' };
@@ -138,6 +138,7 @@ class Backend {
                 this.progress.cancelled = true; // a worker stuck fetching the manifest doesn't see it
                 return true;
             case 'xml1-build-start': {
+                if (!this.fix || (this.requireCurrent && !this.fixCurrent)) return { success: false, code: 'L_FIX_REQUIRED', error: 'Install the XML2 Fix required by this builder.' };
                 if (this.build && this.build.active) return { success: false, code: 'L_BUILD_RUNNING', error: 'A build is already running.' };
                 const release = this.reserve(data.out, 'builder');
                 if (!release) return { success: false, code: 'L_FIX_UPDATING', error: 'The XML2 Fix is being installed or updated in this folder.' };
@@ -319,12 +320,46 @@ test('offline: no update, the build starts with the fix in the folder', async ()
     assert.equal(backend.calls('xml1-update-fix').length, 1, 'the backend was told (it logs the skipped update)');
 });
 
-test('no fix in the folder: no update, the build starts at once', async () => {
-    const { clock, backend, port } = await open({ state: 'incomplete', fix: false });
-    port.resume();
-    await clock.until(() => backend.calls('xml1-build-start').length === 1, 5000, 'the build');
-    assert.equal(backend.calls('xml1-update-fix').length, 0);
-    assert.equal(backend.workers.length, 0);
+for (const state of ['absent', 'incomplete', 'ready']) {
+    test(`first build / Resume / Rebuild (${state}): installs a missing fix before starting`, async () => {
+        const { clock, backend, port } = await open({ state, fix: false, requireCurrent: true, autoFinish: { 'xml1-update-fix': 250 } });
+        let result;
+        port.startBuild({ out: PORT }).then(value => { result = value; });
+        await clock.until(() => result, 10000, 'fix preparation and build');
+        assert.equal(result.success, true);
+        assert.equal(backend.calls('xml1-update-fix').length, 1);
+        assert.equal(backend.build.fixCurrent, true);
+        assert.ok(backend.build.at >= backend.workers[0].endedAt);
+        assert.equal(backend.build.alive, 0);
+    });
+}
+
+for (const cancelled of [false, true]) {
+    test(`missing required fix: ${cancelled ? 'cancelled' : 'failed'} preparation blocks the builder`, async () => {
+        const { clock, backend, port, window } = await open({ state: 'incomplete', fix: false, requireCurrent: true });
+        let result;
+        port.startBuild({ out: PORT }).then(value => { result = value; });
+        await clock.until(() => backend.alive().length === 1, 5000, 'preparation worker');
+        if (cancelled) window.DownloadQueueManager.cancel('xml1', 'install');
+        backend.alive()[0].finish(false);
+        await clock.until(() => result, 10000, 'admission refusal');
+        assert.equal(result.success, false);
+        assert.equal(result.code, 'L_FIX_REQUIRED');
+        assert.equal(backend.build, null, 'no builder process');
+        assert.equal(backend.fix, false, 'no partial DLL exposed');
+    });
+}
+
+test('older incompatible fix: a failed preparation refuses the build before a builder starts', async () => {
+    const { clock, backend, port } = await open({ state: 'ready', fix: true, requireCurrent: true });
+    let result;
+    port.startBuild({ out: PORT }).then(value => { result = value; });
+    await clock.until(() => backend.alive().length === 1, 5000, 'preparation');
+    backend.alive()[0].finish(false);
+    await clock.until(() => result, 10000, 'refusal');
+    assert.equal(result.code, 'L_FIX_REQUIRED');
+    assert.equal(backend.build, null);
+    assert.equal(backend.fix, true, 'the original DLL stays');
 });
 
 test('one start at a time: a second Rebuild gets the first one\'s answer', async () => {
@@ -375,7 +410,7 @@ test('R1: Uninstall with nothing running cleans and removes the patch straight a
 });
 
 test('R2: Verify Files for an X-Men Legends II entry in the port\'s folder starts nothing during a build', async () => {
-    const { window, clock, backend, port } = await open({ state: 'ready', fix: false, installs: { xml2: PORT } });
+    const { window, clock, backend, port } = await open({ state: 'ready', fix: false, installs: { xml2: PORT }, autoFinish: { 'xml1-update-fix': 200 } });
     port.startBuild({ out: PORT });
     await clock.until(() => backend.build && backend.build.active, 5000, 'the build');
     window.verifyGame('xml2'); // the X-Men Legends II page's Verify Files (its buttons go by game id)
@@ -386,11 +421,11 @@ test('R2: Verify Files for an X-Men Legends II entry in the port\'s folder start
 });
 
 test('R2: separate installs are not held by a port build', async () => {
-    const { window, clock, backend, port } = await open({ state: 'ready', fix: false, autoFinish: { 'verify-game': 300 } });
+    const { window, clock, backend, port } = await open({ state: 'ready', fix: false, autoFinish: { 'verify-game': 300, 'xml1-update-fix': 200 } });
     port.startBuild({ out: PORT });
     await clock.until(() => backend.build && backend.build.active, 5000, 'the build');
     window.verifyGame('xml2'); // X-Men Legends II in its own folder: as before
     await clock.until(() => backend.workers.some(worker => worker.kind === 'verify-game' && worker.done), 5000, 'its Verify');
     assert.equal(backend.refused.length, 0);
-    assert.equal(key(backend.workers[0].folder), key(XML2));
+    assert.equal(key(backend.workers.find(worker => worker.kind === 'verify-game').folder), key(XML2));
 });

@@ -186,8 +186,7 @@ namespace commands::xml1_commands
         // and it is missing or older); get-xml1-status shows how it went.
         cef_ui.add_command("xml1-builder-check", [](const rapidjson::Value& value, rapidjson::Document& response)
         {
-            xml1_port::check_builder(json_bool(value, "install", false));
-            response.SetBool(true);
+            response.SetBool(xml1_port::check_builder(json_bool(value, "install", false)));
         });
 
         // { path }: installs a builder zip the player already has, once it matches the release

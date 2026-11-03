@@ -18,9 +18,14 @@ generates the project, so a release only needs this entry and the tag.
   author's GitHub release (pinned SHA-256), then imports and verifies the game files on your PC without running
   the original installer. The package includes MUA Classic Fix and a source-built SafeDiscLoader2 (by
   nckstwrt); dgVoodoo2 is by Dege. Game.exe is not changed, and no game files are downloaded or shipped.
-  Cancelling or a failed import leaves no staging folder and registers nothing; a folder that is not empty is
-  refused. Only a completed, verified setup makes the game ready to play.
+  Cancelling or a failed import registers nothing; a folder that is not empty is refused. Only a completed,
+  verified setup makes the game ready to play.
 - Needs the MUA Classic Fix setup package 0.2.0 or newer, published separately.
+
+### Known issues
+- Cancelling setup can leave a `.muac-stage-*` folder when the setup helper's cleanup takes longer than the
+  launcher's 15 s cancel grace (slow destination drives); nothing is registered.
+- Managed MUA 2006 setup is refused under Proton/Wine ("Linked folders are not supported for setup.").
 
 ## 0.5.0-beta.4 (unreleased: a pre-release for the Beta update channel)
 

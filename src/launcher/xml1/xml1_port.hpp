@@ -42,6 +42,7 @@ namespace xml1_port
         bool movies = true;
         bool keep_cache = true;
         bool link_base = false;
+        bool classic_conversation = false;
     };
 
     // Start a builder run; the id to poll with job(), or nullopt with `error`.

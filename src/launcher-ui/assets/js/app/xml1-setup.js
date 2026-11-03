@@ -63,6 +63,7 @@
                     out: s.install || s.defaultOut || '',
                     movies: s.movies !== false,
                     keepCache: s.keepCache !== false,
+                    classicConversation: !!s.classicConversation,
                     linkBase: LINK_BASE_SUPPORTED && !!s.linkBase
                 };
             }
@@ -402,6 +403,7 @@
                 <p class="xml1-estimate">${escapeHtml(t(estimate.first_build_s ? 'xml1.estimate' : 'xml1.estimateUnknown', { minutes, cores: estimate.cores || '?' }))}</p>
                 <details class="xml1-advanced">
                     <summary>${escapeHtml(t('xml1.advanced'))}</summary>
+                    ${this.port().status.builder?.classicConversation ? this.optionHTML('classicConversation', t('xml1.classicConversation'), t('xml1.classicConversationBody'), f.classicConversation) : ''}
                     ${this.optionHTML('movies', t('xml1.optMovies'), t('xml1.optMoviesBody'), f.movies)}
                     ${this.optionHTML('keepCache', t('xml1.optKeepCache'), t('xml1.optKeepCacheBody'), f.keepCache)}
                     ${LINK_BASE_SUPPORTED ? this.optionHTML('linkBase', t('xml1.optLinkBase'), t('xml1.optLinkBaseBody'), f.linkBase) : ''}
@@ -426,7 +428,8 @@
             const f = this.form;
             // An XML2 Fix already in the folder is updated (after any patch work under way there) before the
             // build starts: the check step says so.
-            const started = await port.startBuild({ iso: f.iso.trim(), out: f.out.trim(), movies: f.movies, keepCache: f.keepCache, linkBase: f.linkBase },
+            const started = await port.startBuild({ iso: f.iso.trim(), out: f.out.trim(), movies: f.movies, keepCache: f.keepCache, linkBase: f.linkBase,
+                classicConversation: !!port.status.builder?.classicConversation && !!f.classicConversation },
                 () => {
                     this.busy = t('xml1.updatingFix');
                     this.render();

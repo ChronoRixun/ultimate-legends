@@ -1,6 +1,8 @@
 #include <std_include.hpp>
 
 #include "client_store.hpp"
+#include "patch_records.hpp"
+#include <mutex>
 
 #include <utils/io.hpp>
 #include <utils/properties.hpp>
@@ -125,47 +127,84 @@ namespace client_store
         }
     }
 
-    // Format: {"install": "<install folder>", "version": "1.8.0-beta.2", "sha1": "<hex>"}
+    namespace
+    {
+        std::mutex release_mutex;
+
+        rapidjson::Document load_releases(const std::string& client_id)
+        {
+            std::string data;
+            rapidjson::Document doc;
+            if (utils::io::read_file(release_path(client_id), &data)) doc.Parse(data.data(), data.size());
+            if (doc.HasParseError() || !doc.IsObject()) doc.SetObject();
+            return doc;
+        }
+
+        bool legacy_matches(const rapidjson::Value& doc, const std::filesystem::path& folder)
+        {
+            const auto install = member_string(doc, "install");
+            return !install.empty() && path_key(utils::string::utf8_to_path(install)) == path_key(folder);
+        }
+
+        std::string release_key(const std::filesystem::path& folder)
+        {
+            return utils::string::path_to_utf8(std::filesystem::path(path_key(folder)));
+        }
+
+        bool save_releases(const std::string& client_id, const rapidjson::Document& doc)
+        {
+            rapidjson::StringBuffer buffer;
+            rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+            doc.Accept(writer);
+            const auto file = release_path(client_id);
+            auto staged = file;
+            staged += L".tmp";
+            std::error_code error;
+            std::filesystem::create_directories(file.parent_path(), error);
+            if (error) return false;
+            std::ofstream stream(staged, std::ios::binary | std::ios::trunc);
+            stream.write(buffer.GetString(), static_cast<std::streamsize>(buffer.GetSize()));
+            stream.flush();
+            const auto written = stream.good();
+            stream.close();
+            if (!written || stream.fail())
+            {
+                utils::io::remove_file(staged);
+                return false;
+            }
+            if (MoveFileExW(staged.c_str(), file.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) return true;
+            utils::io::remove_file(staged);
+            return false;
+        }
+    }
+
+    // Folder records coexist in the existing file. A beta prep in a second destination,
+    // including one whose build is refused, never discards the original port's full version.
     std::optional<release_channel::patch_record> read_release(const std::string& client_id, const std::filesystem::path& install_path)
     {
-        std::string data{};
-        if (!utils::io::read_file(release_path(client_id), &data) || data.empty())
-        {
-            return std::nullopt;
-        }
-        rapidjson::Document doc{};
-        doc.Parse(data.data(), data.size());
-        if (doc.HasParseError() || !doc.IsObject() ||
-            path_key(utils::string::utf8_to_path(member_string(doc, "install"))) != path_key(install_path))
-        {
-            return std::nullopt;
-        }
-        return release_channel::patch_record{member_string(doc, "version"), member_string(doc, "sha1")};
+        std::lock_guard lock(release_mutex);
+        const auto doc = load_releases(client_id);
+        return patch_records::read(doc, release_key(install_path), legacy_matches(doc, install_path));
     }
 
-    bool write_release(const std::string& client_id, const std::filesystem::path& install_path, const release_channel::patch_record& record)
+    bool write_release(const std::string& client_id, const std::filesystem::path& install_path,
+                       const release_channel::patch_record& record, const bool active_install)
     {
-        rapidjson::Document doc{rapidjson::kObjectType};
-        auto& allocator = doc.GetAllocator();
-        const auto add = [&](const char* key, const std::string& text)
-        {
-            rapidjson::Value value{};
-            value.SetString(text.data(), static_cast<rapidjson::SizeType>(text.size()), allocator);
-            doc.AddMember(rapidjson::StringRef(key), value, allocator);
-        };
-        add("install", utils::string::path_to_utf8(install_path));
-        add("version", record.version);
-        add("sha1", record.sha1);
-
-        rapidjson::StringBuffer buffer{};
-        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-        doc.Accept(writer);
-        return utils::io::write_file(release_path(client_id), std::string{buffer.GetString(), buffer.GetSize()}, false);
+        std::lock_guard lock(release_mutex);
+        auto doc = load_releases(client_id);
+        const auto legacy = member_string(doc, "install");
+        if (!legacy.empty()) patch_records::preserve_legacy(doc, release_key(utils::string::utf8_to_path(legacy)));
+        patch_records::write(doc, release_key(install_path), record);
+        if (active_install) patch_records::mirror_active(doc, utils::string::path_to_utf8(install_path), record);
+        return save_releases(client_id, doc);
     }
 
-    void forget_release(const std::string& client_id)
+    void forget_release(const std::string& client_id, const std::filesystem::path& install_path)
     {
-        utils::io::remove_file(release_path(client_id));
+        std::lock_guard lock(release_mutex);
+        auto doc = load_releases(client_id);
+        patch_records::forget(doc, release_key(install_path), legacy_matches(doc, install_path));
+        save_releases(client_id, doc);
     }
 
     bool is_below(const std::filesystem::path& path, const std::filesystem::path& folder)

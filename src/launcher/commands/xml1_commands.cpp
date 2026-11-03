@@ -247,6 +247,7 @@ namespace commands::xml1_commands
             options.movies = json_bool(value, "movies", true);
             options.keep_cache = json_bool(value, "keepCache", true);
             options.link_base = json_bool(value, "linkBase", false);
+            options.classic_conversation = json_bool(value, "classicConversation", false);
             xml1_port::failure error{};
             // The character-model tool reads the port's Actors while it runs and writes its mods folder.
             const auto id = models_tool::busy() ? (error = models_running(), std::optional<int>{}) : xml1_port::start_build(options, error);

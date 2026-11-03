@@ -2,6 +2,7 @@
 #include "patch_channel.hpp"
 #include "client_store.hpp"
 #include "file_hash_cache.hpp"
+#include "folder_work.hpp"
 #include "patch_status.hpp"
 #include "release_source.hpp"
 
@@ -73,7 +74,9 @@ namespace patch_channel
         {
             return;
         }
-        client_store::write_release(config.game_key, folder, {version, utils::string::to_lower(patch_sha1)});
+        const auto active = config.get_install_path();
+        client_store::write_release(config.game_key, folder, {version, utils::string::to_lower(patch_sha1)},
+                                    active && updater::folder_key(*active) == updater::folder_key(folder));
     }
 
     installed_state installed_fix(const game_config::game_config_t& config, const std::filesystem::path& folder)

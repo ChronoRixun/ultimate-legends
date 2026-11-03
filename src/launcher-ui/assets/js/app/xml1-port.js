@@ -368,6 +368,13 @@
             }
         },
 
+        async setClassicConversation(enabled) {
+            if (!this.status?.builder?.classicConversation || this.isWorking()) return;
+            await run('set-game-property', { game: GAME, suffix: 'classic-conversation', value: enabled ? 'true' : 'false' });
+            this.status.classicConversation = !!enabled;
+            this.emit();
+        },
+
         async startBuildNow(options, onFixWork) {
             // Shared by the setup wizard, Resume and Rebuild: never trust a page's cached
             // updateAvailable flag. The backend also validates the selected channel at admission.
@@ -377,6 +384,8 @@
                     return { success: false, code: builder.code || 'L_BUILDER_MISSING', error: builder.error || '' };
                 }
             }
+            options = { ...options, classicConversation: options?.classicConversation ??
+                (!!this.status?.builder?.classicConversation && !!this.status?.classicConversation) };
             const out = options && options.out;
             let told = false;
             const tell = () => {

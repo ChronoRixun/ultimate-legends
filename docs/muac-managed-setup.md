@@ -21,8 +21,21 @@ runs in the existing job-object runner, including cancellation and kill-on-launc
 Readiness requires the actual process exit to be zero, a matching complete/prepared result,
 and native installation/runtime checks. Errors and cancellation leave the previous selected
 installation unchanged. The companion helper cleans its own managed staging on handled
-failure/cancellation; a forced kill can still leave diagnostic staging. Retries
-use a new or empty destination. Resume and repair of a partially imported folder are not claimed.
+failure/cancellation. Managed helpers with the contained-stage contract create
+`<output>/.muac-stage-*` and report that exact path in an `extract` stage event.
+After ending an unresponsive helper's job and draining its pipes, the launcher
+finishes deletion only for that reported direct child, with no linked ancestors
+or descendants. The popup shows "Cleaning up..." and retains the folder reservation
+until deletion ends. Cleanup errors are shown instead of claiming success. An empty
+output container may remain and can be reused. Retries use a new or empty destination.
+
+This fallback requires the companion contained-stage helper change intended for
+muac-fix 0.2.1. Older helpers (including 0.2.0) report sibling stages; the launcher
+refuses to delete those paths. Pair the two changes when integrating. The helper
+continues to verify and prepare before promotion by same-volume directory renames.
+Wine drive-root mappings are allowed only when Wine's ntdll export is present;
+links below a drive root remain forbidden in both helper and launcher cleanup.
+Resume and repair of a partially imported folder are not claimed.
 
 Default settings: windowed, 60 FPS, free cursor, watermark off, Xbox support and background
 running enabled, OpenSpy redirection enabled. Gameplay/multiplayer certification is separate

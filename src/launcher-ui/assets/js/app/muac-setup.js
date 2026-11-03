@@ -52,6 +52,7 @@
         const line = host?.querySelector('.muac-setup-progress');
         if (!line) return;
         line.textContent = last.success ? t('setupReady') : starting ? t('setupPreparing') :
+            last.active && last.cleaning ? t('setupCleaning') :
             last.active ? `${last.message || last.phase || t('setupPreparing')}${last.percent > 0 ? ` — ${Math.floor(last.percent)}%` : ''}` : '';
     }
     async function poll() {

@@ -1,6 +1,7 @@
 #include "std_include.hpp"
 #include "setup.hpp"
 #include "setup_admission.hpp"
+#include "setup_cleanup.hpp"
 #include "settings.hpp"
 #include "game_config.hpp"
 #include "tools/tool_install.hpp"
@@ -123,6 +124,15 @@ namespace {
             }
             const auto finish = [work, output](const xml1::builder_snapshot& result) {
                 try {
+                    // builder_process invokes this only after the job is ended
+                    // and both pipe readers have joined: no helper can still write.
+                    if (result.killed && !result.staging.empty()) {
+                        phase(work, "Cleaning up...");
+                        std::error_code cleanup_error;
+                        if (!cleanup::remove_stage(output, utils::string::utf8_to_path(result.staging), cleanup_error))
+                            throw std::runtime_error("Setup stopped, but staging cleanup could not finish: " + cleanup_error.message() +
+                                ". Reported staging folder: " + result.staging);
+                    }
                     const auto ready = [&](bool was_cancelled) {
                         return admission::ready(result.exit_code, result.cancel_requested, result.killed, was_cancelled,
                             result.result, updater::folder_key(output), [](const std::string& path) {
@@ -193,6 +203,9 @@ void state(rapidjson::Document& out) {
         updater::folder_key(*install) == updater::folder_key(utils::string::utf8_to_path(current->output));
     out.AddMember("active", current->active, a); out.AddMember("success", registered, a);
     out.AddMember("cancelled", current->cancelled, a); out.AddMember("error", text(current->error), a);
+    bool cleaning = current->active && (current->cancelled || current->phase == "Cleaning up...");
+    if (current->process && current->active) cleaning = cleaning || current->process->snapshot().stage == "cleanup";
+    out.AddMember("cleaning", cleaning, a);
     out.AddMember("phase", text(current->phase), a); out.AddMember("output", text(current->output), a);
     double percent = current->total ? 100.0 * static_cast<double>(current->done) / static_cast<double>(current->total) : 0;
     if (current->process && current->active) {

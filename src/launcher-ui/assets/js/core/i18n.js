@@ -18,6 +18,7 @@
                 setupStart: 'Set up game',
                 setupExisting: 'Use a working installation',
                 setupCancel: 'Cancel setup',
+                setupCleaning: 'Cleaning up...',
                 setupCancelling: 'Cancelling…',
                 setupHide: 'Hide',
                 setupDone: 'Done',

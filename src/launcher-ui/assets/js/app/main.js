@@ -1962,6 +1962,10 @@ function stopGame(gameId) {
 
 async function showSetupFlow(gameId) {
     console.log(`Setup button clicked for ${gameId}`);
+    if (gameId === 'muac' && window.MuacSetup) {
+        await window.MuacSetup.show();
+        return;
+    }
 
     // A built game's setup is its build: the wizard, Resume build, or installing its fix.
     if (isBuiltGame(gameId) && window.Xml1Port) {

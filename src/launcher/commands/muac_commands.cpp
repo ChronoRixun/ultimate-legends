@@ -2,6 +2,7 @@
 #include "muac_commands.hpp"
 #include "cef/cef_ui.hpp"
 #include "muac/settings.hpp"
+#include "muac/setup.hpp"
 #include "display/xml2_display.hpp"
 #include "updater/folder_work.hpp"
 #include <utils/string.hpp>
@@ -30,6 +31,18 @@ namespace {
     }
 }
 void register_commands(cef::cef_ui& ui,command_context&){
+    ui.add_command("get-muac-setup",[](const rapidjson::Value&,rapidjson::Document& out){muac_setup::state(out);});
+    ui.add_command("cancel-muac-setup",[](const rapidjson::Value&,rapidjson::Document& out){muac_setup::cancel();muac_setup::state(out);});
+    ui.add_command("start-muac-setup",[](const rapidjson::Value& request,rapidjson::Document& out){
+        if(!request.IsObject() || !request.HasMember("source") || !request["source"].IsString() ||
+           !request.HasMember("output") || !request["output"].IsString()){failure(out,"Choose the disc source and output folder.");return;}
+        const std::string source(request["source"].GetString(),request["source"].GetStringLength());
+        const std::string output(request["output"].GetString(),request["output"].GetStringLength());
+        if(source.find('\0')!=std::string::npos || output.find('\0')!=std::string::npos){failure(out,"Invalid path.");return;}
+        std::string error;
+        if(!muac_setup::start(utils::string::utf8_to_path(source),utils::string::utf8_to_path(output),error)){failure(out,error);return;}
+        out.SetObject();out.AddMember("success",true,out.GetAllocator());
+    });
     ui.add_command("get-muac-settings",[](const rapidjson::Value&,rapidjson::Document& out){state(out);});
     ui.add_command("set-muac-settings",[](const rapidjson::Value& request,rapidjson::Document& out){
         if(!request.IsObject() || !request.HasMember("values") || !request["values"].IsObject()){failure(out,"Expected MUAC settings.");return;}

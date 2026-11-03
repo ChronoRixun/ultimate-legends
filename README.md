@@ -16,8 +16,18 @@ Ultimate Legends never downloads or distributes game files. Every game runs from
 | Marvel: Ultimate Alliance | `mua` | 2016 PC (Steam app 433300) | Finds your Steam install; installs the [MUA Controller Fix](https://github.com/ChronoRixun/mua-controller-fix) for native Xbox controller support, Discord Rich Presence and mods; a Discord section turns its Rich Presence on or off and chooses whether it shows the area and your hero (on by default; `mua-controller-fix.ini` next to the game), and a Mods section manages the game's `mods` folder; the page shows the installed fix's version and offers a newer release |
 | Marvel: Ultimate Alliance 2 | `mua2` | 2016 PC (Steam app 433320) | Finds your Steam install; installs the [MUA Controller Fix](https://github.com/ChronoRixun/mua-controller-fix), as for MUA |
 | X-Men Legends II: Rise of Apocalypse | `xml2` | 2005 PC | Launches your existing install; installs the [XML2 Fix](https://github.com/ChronoRixun/xml2-fix) for native Xbox controller support and online play through OpenSpy; a Display section edits the fix's window mode, resolution, frame rate limit and VSync, and a Discord section turns its Rich Presence on or off (on by default; `xml2-fix.ini` next to the game) |
-| Marvel: Ultimate Alliance (2006 PC) | `muac` | 2006 PC | Coming soon |
+| Marvel: Ultimate Alliance (2006 PC) | `muac` | 2006 PC | Imports your retail DVD ISO or extracted disc folder, prepares compatibility components, and offers window, input, cursor and OpenSpy options |
 | X-Men Legends | `xml1` | Community port ([Legends Classic](https://github.com/ChronoRixun/legends-classic)) | Builds a PC version on your PC from your own Xbox disc image or extracted XML1 install folder and your X-Men Legends II for PC install, then runs it with the XML2 Fix ([details](#x-men-legends-community-port)) |
+
+## MUA 2006 retail setup
+
+Choose **Set up**, select your own retail PC DVD ISO or extracted DVD folder, and choose a new or
+empty game folder. Setup downloads a checked `muac-setup` package from the selected Stable/Beta
+channel and the original pinned dgVoodoo archive, then imports and verifies your files locally.
+The helper includes MUA Classic Fix and source-built SafeDiscLoader2; Python and manual DLL copying
+are not required. Game.exe remains unchanged. You can hide or cancel setup; an incomplete import
+is never registered as ready. A missing setup release is reported explicitly.
+See [managed setup](docs/muac-managed-setup.md) for the companion release contract.
 
 ## X-Men Legends (community port)
 

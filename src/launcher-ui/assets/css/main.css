@@ -4807,6 +4807,8 @@ html[data-reduce-motion] .ul-online-spinner { animation: none; }
 .ul-models-mirror-input:focus { outline: none; border-color: var(--focus-border, var(--accent)); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 .component-selection-popup.xml1-setup { width: 620px; }
+.xml1-setup-fields { display: flex; flex-direction: column; gap: 10px; }
+.muac-setup-error { color: var(--danger); overflow-wrap: anywhere; }
 .xml1-setup .popup-content { display: flex; flex-direction: column; gap: 14px; }
 .xml1-setup .popup-actions { margin-top: 4px; }
 .xml1-setup .install-note { margin: 0; }

@@ -109,7 +109,7 @@ namespace xml1
                     {
                         continue;
                     }
-                    if (state == "start")
+                    if (state == "start" || (snapshot.command == "setup" && state == "running"))
                     {
                         stage.state = "running";
                         snapshot.stage = id;
@@ -490,6 +490,9 @@ namespace xml1
                 state->running = false;
                 auto& snapshot = state->snapshot;
                 snapshot.killed = killed;
+                // MUAC admission always uses the operating-system exit, never a
+                // success claim in stdout (and supports results without an exit field).
+                if (snapshot.command == "setup") snapshot.exit_code = killed ? 5 : static_cast<int>(exit_code);
                 if (snapshot.result.empty() || killed)
                 {
                     snapshot.exit_code = killed ? 5 : static_cast<int>(exit_code);

@@ -7,10 +7,12 @@ experimental setup helper. It reads the player's ISO, extracted DVD folder or
 mounted disc and reconstructs the installation from MSI/CAB metadata without
 running the original installer. It also identifies existing game folders.
 
-The retail ISO import and complete hash verification succeeded. The original
-executable remains blocked: an app-local SafeDiscShim experiment advanced past
-the initial Access Denied failure, but still requested the correct DVD despite
-finding the mounted disc. Full gameplay and save/load tests have not happened.
+The retail ISO import and complete hash verification succeeded. SafeDiscShim
+alone did not pass the disc check, but a subsequent source-built SafeDiscLoader2
+test starts the unchanged retail executable. dgVoodoo 2.87.6 with General
+FullScreenMode=false AND DirectX AppControlledScreenMode=false produces a real
+1080p window and leaves the desktop at its saved resolution. Full gameplay and
+save/load tests have not happened; runtime packaging is not implemented.
 
 ## Planned integration after runtime proof
 

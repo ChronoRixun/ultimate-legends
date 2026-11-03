@@ -20,6 +20,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -28,6 +29,9 @@ HTML_DIR = HERE / "html"
 GAMES_OUT = REPO / "src" / "launcher-ui" / "assets" / "img" / "games"
 BRAND_OUT = REPO / "src" / "launcher-ui" / "assets" / "img" / "brand"
 APP_RES = REPO / "src" / "launcher" / "resource"
+# Discord Rich Presence art for the XML2 Fix's apps (uploaded by hand in the developer portal;
+# not shipped with the launcher, so the folder is git-ignored)
+DISCORD_OUT = REPO / "discord-upload"
 
 EDGE = os.environ.get(
     "EDGE", r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
@@ -114,9 +118,6 @@ GAMES = {
         "sub": None,
         "soon": True,
         "concept": "A sun rising over the horizon, printed only in halftone - the first Legends, still coming up.",
-        # The library tile is the XML2 Fix's Discord art for the port (original art, xml2-fix
-        # docs/discord-art/xml1-large-d.svg), faded into Ink like the drawn capsules.
-        "capsule_art": "sources/xml1-large-d.png",
     },
 }
 
@@ -302,8 +303,10 @@ def motif_dawn(g, W, H, ctx):
     cx, hy, r = ctx["cx"], ctx["horizon"], ctx["r"]
     top = hy - r
 
+    floor = ctx.get("floor", 0.12)  # ink coverage at the top of the sun
+
     def field(x, y):
-        return 0.12 + 0.88 * clamp((y - top) / r) ** 1.3
+        return floor + (1 - floor) * clamp((y - top) / r) ** 1.3
 
     path = f"M{f(cx - r)},{f(hy)} A{f(r)},{f(r)} 0 0 1 {f(cx + r)},{f(hy)} Z"
     dots = halftone((cx - r, top, cx + r, hy), field, ctx["pitch"], angle=15)
@@ -312,7 +315,7 @@ def motif_dawn(g, W, H, ctx):
         dist = math.hypot(x - cx, y - hy)
         if y > hy - 2 or dist < r + ctx["pitch"]:
             return 0
-        return 0.22 * clamp(1 - (dist - r) / ctx["glow"]) ** 1.5
+        return ctx.get("sky", 0.22) * clamp(1 - (dist - r) / ctx["glow"]) ** 1.5
 
     skydots = halftone((max(0, cx - r - ctx["glow"]), 0, min(W, cx + r + ctx["glow"]), hy), sky, ctx["pitch"], angle=15)
     hx0, hx1 = ctx["hline"]
@@ -602,6 +605,146 @@ def brand_board_inner():
 
 
 # --------------------------------------------------------------------------
+# Discord Rich Presence art (the XML2 Fix's Discord applications)
+# --------------------------------------------------------------------------
+# Keys as the XML2 Fix sends them (src/discord_rules.hpp in xml2-fix): "logo" is the large image,
+# the four badges are the small image for the mode. "app-icon" and "cover" are the application's
+# icon and cover image in the developer portal. Discord crops small images (and app icons in some
+# views) to a circle, so every glyph stays inside the inscribed circle.
+DISCORD_GAMES = ["xml1"]
+DISCORD_BADGES = ["menu", "online", "cutscene", "dangerroom"]
+
+
+def discord_mark_inner(gid):
+    """1024x1024: the game's motif as a mark on Ink, bold enough to read at ~80 px."""
+    g = GAMES[gid]
+    ctx = dict(uid=f"{gid}-dmark", cx=512, horizon=668, r=318, pitch=26, glow=170,
+               hline=(96, 928), hw=30, floor=0.3, sky=0.3)
+    return svg_layer(1024, 1024, MOTIFS[g["motif"]](g, 1024, 1024, ctx))
+
+
+def discord_cover_inner(gid):
+    """1920x1080: the library-card composition - motif, print marks, slug line - in landscape."""
+    g = GAMES[gid]
+    W, H = 1920, 1080
+    ctx = dict(uid=f"{gid}-dcover", cx=960, horizon=706, r=336, pitch=16, glow=220,
+               hline=(0, W), hw=6, floor=0.18)
+    art = MOTIFS[g["motif"]](g, W, H, ctx)
+    code = (f'<div style="position: absolute; right: 78px; top: 66px; {MONO}; font-weight: 500; font-size: 20px; '
+            f'letter-spacing: 0.22em; color: {PAPER}; opacity: 0.5; line-height: 1; white-space: nowrap">'
+            f'ULTIMATE LEGENDS / {gid.upper()}</div>')
+    return svg_layer(W, H, art + print_marks(W, H, inset=30, length=26)) + code
+
+
+def discord_badge_glyph(kind):
+    """The mode badges' glyphs on the 16-unit grid (same meanings as the XML2 Fix's badges)."""
+    if kind == "menu":  # three bars
+        return "".join(f'<rect x="4.1" y="{y}" width="7.8" height="1.5"/>' for y in (4.6, 7.25, 9.9))
+    if kind == "online":  # a dot broadcasting two pairs of arcs
+        arcs = []
+        for R in (3.3, 5.5):
+            a = math.radians(42)
+            dx, dy = R * math.cos(a), R * math.sin(a)
+            arcs.append(f'<path d="M{f(8 + dx)},{f(8 - dy)} A{f(R)},{f(R)} 0 0 1 {f(8 + dx)},{f(8 + dy)}"/>')
+            arcs.append(f'<path d="M{f(8 - dx)},{f(8 + dy)} A{f(R)},{f(R)} 0 0 1 {f(8 - dx)},{f(8 - dy)}"/>')
+        return (f'<g fill="none" stroke="{INK}" stroke-width="1.4">{"".join(arcs)}</g>'
+                '<circle cx="8" cy="8" r="1.4"/>')
+    if kind == "cutscene":  # play
+        return '<polygon points="6,4.3 12.3,8 6,11.7"/>'
+    if kind == "dangerroom":  # crosshair: ring, four ticks, centre dot
+        ticks = ('<rect x="7.35" y="1.9" width="1.3" height="3.9"/><rect x="7.35" y="10.2" width="1.3" height="3.9"/>'
+                 '<rect x="1.9" y="7.35" width="3.9" height="1.3"/><rect x="10.2" y="7.35" width="3.9" height="1.3"/>')
+        return (f'<circle cx="8" cy="8" r="3.6" fill="none" stroke="{INK}" stroke-width="1.3"/>'
+                + ticks + '<circle cx="8" cy="8" r="1.1"/>')
+    raise KeyError(kind)
+
+
+def discord_badge_inner(gid, kind, size_px=1024):
+    """A full-bleed accent square (Discord rounds it) with an Ink glyph and a whisper of Ben-Day dots."""
+    acc = GAMES[gid]["accent"]
+    dots = halftone((0, 0, 16, 16), lambda x, y: 0.6 * smooth(10, 27, x + y) ** 1.2, 0.72, angle=45, rmin=0.03)
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="{size_px}" height="{size_px}" '
+            f'style="position: absolute; left: 0; top: 0; display: block">'
+            f'<rect x="0" y="0" width="16" height="16" fill="{acc}"/>'
+            f'<g fill="{INK}" opacity="0.16">{dots}</g>'
+            f'<g fill="{INK}">{discord_badge_glyph(kind)}</g></svg>')
+
+
+def discord_contact_sheet(gid, files, out):
+    """All seven files small, then at Discord's sizes: ~80 px large image with the ~24 px badge."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    def font(sz):
+        for name in ("arialbd.ttf", "arial.ttf", "DejaVuSans.ttf"):
+            try:
+                return ImageFont.truetype(name, sz)
+            except OSError:
+                pass
+        return ImageFont.load_default()
+
+    def rounded(im, radius):
+        m = Image.new("L", (im.width * 4, im.height * 4), 0)
+        ImageDraw.Draw(m).rounded_rectangle((0, 0, m.width - 1, m.height - 1), radius * 4, fill=255)
+        return m.resize(im.size, Image.Resampling.LANCZOS)
+
+    def circle(size):
+        m = Image.new("L", (size * 4, size * 4), 0)
+        ImageDraw.Draw(m).ellipse((0, 0, m.width - 1, m.height - 1), fill=255)
+        return m.resize((size, size), Image.Resampling.LANCZOS)
+
+    def presence(bg, badge, large=80, small=24, ring=3):
+        """A large image with a small badge at its bottom-right corner, as a Discord activity shows it."""
+        tile = Image.new("RGB", (large + small // 3, large + small // 3), bg)
+        big = files["logo"].resize((large, large), Image.Resampling.LANCZOS)
+        tile.paste(big, (0, 0), rounded(big, 8))
+        if badge:
+            bx = by = large - small + small // 3 - 2
+            ImageDraw.Draw(tile).ellipse((bx - ring, by - ring, bx + small + ring - 1, by + small + ring - 1), fill=bg)
+            b = files[badge].resize((small, small), Image.Resampling.LANCZOS)
+            tile.paste(b, (bx, by), circle(small))
+        return tile
+
+    keys = ["app-icon", "logo", "cover"] + DISCORD_BADGES
+    sheet = Image.new("RGB", (1660, 1270), "#1E1F22")
+    d = ImageDraw.Draw(sheet)
+    t, lab = font(22), font(15)
+    d.text((40, 26), f"Discord art / {gid.upper()} - upload set ({len(keys)} files, shown small)", font=t, fill=PAPER)
+    x = 40
+    for k in keys:
+        im = files[k]
+        th = 160
+        tw = round(im.width * th / im.height)
+        sheet.paste(im.resize((tw, th), Image.Resampling.LANCZOS), (x, 70))
+        d.text((x, 240), f"{k}.png", font=lab, fill="#B5BAC1")
+        d.text((x, 260), f"{im.width}x{im.height}", font=lab, fill="#80848E")
+        x += tw + 30
+
+    for row, (bg, name) in enumerate((("#2B2D31", "dark"), ("#FFFFFF", "light"))):
+        y0 = 310 + row * 480
+        d.rectangle((40, y0, 1620, y0 + 450), fill=bg)
+        ink = "#B5BAC1" if name == "dark" else "#4E5058"
+        d.text((60, y0 + 14), f"Discord sizes, {name} theme: large ~80 px + small ~24 px badge, app icon 80 px circle, "
+               "badges alone at 24 px; below, the first four at 3x (pixel zoom)", font=lab, fill=ink)
+        strip = Image.new("RGB", (1000, 110), bg)
+        sx = 0
+        for badge in [None] + DISCORD_BADGES:
+            p = presence(bg, badge)
+            strip.paste(p, (sx, 10))
+            sx += p.width + 18
+        icon = files["app-icon"].resize((80, 80), Image.Resampling.LANCZOS)
+        strip.paste(icon, (sx + 10, 10), circle(80))
+        sx += 120
+        for badge in DISCORD_BADGES:
+            b = files[badge].resize((24, 24), Image.Resampling.LANCZOS)
+            strip.paste(b, (sx, 38), circle(24))
+            sx += 34
+        sheet.paste(strip, (60, y0 + 44))
+        zoom = strip.crop((0, 10, 424, 98)).resize((1272, 264), Image.Resampling.NEAREST)
+        sheet.paste(zoom, (60, y0 + 166))
+    sheet.save(out, optimize=True)
+
+
+# --------------------------------------------------------------------------
 # Outputs
 # --------------------------------------------------------------------------
 
@@ -622,6 +765,12 @@ def jobs():
     out.append(("brand/app-icon-small", 512, 512, brand_svg("small", 512, pad=False), None))
     out.append(("brand/app-icon-small-480", 480, 480, brand_svg("small", 480, pad=False), None))
     out.append(("brand/brand-sheet", 1280, 720, brand_board_inner(), INK))
+    for gid in DISCORD_GAMES:
+        # "logo" is also saved as "app-icon": the application icon is the same mark
+        out.append((f"discord-{gid}/logo", 1024, 1024, discord_mark_inner(gid), INK))
+        out.append((f"discord-{gid}/cover", 1920, 1080, discord_cover_inner(gid), INK))
+        for kind in DISCORD_BADGES:
+            out.append((f"discord-{gid}/{kind}", 1024, 1024, discord_badge_inner(gid, kind), GAMES[gid]["accent"]))
     return out
 
 
@@ -645,21 +794,19 @@ def edge_shot(html, png, W, H, transparent, profile):
         args.append("--default-background-color=00000000")
     args.append(html.as_uri())
     subprocess.run(args, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
-
-
-def capsule_from_art(path):
-    """A 600x900 capsule from a square piece of original art: the art across the top, faded into
-    Ink over CAPSULE_FADE like the drawn capsules, so the library card's title and button read."""
-    from PIL import Image
-
-    art = Image.open(path).convert("RGB").resize((600, 600), Image.Resampling.LANCZOS)
-    tile = Image.new("RGB", (600, 900), INK)
-    tile.paste(art, (0, 0))
-    f0, f1 = CAPSULE_FADE
-    mask = Image.new("L", (600, 900), 0)
-    for y in range(f0, 900):
-        mask.paste(min(255, round(255 * (y - f0) / (f1 - f0))), (0, y, 600, y + 1))
-    return Image.composite(Image.new("RGB", (600, 900), INK), tile, mask)
+    # msedge.exe can return before its browser process has written the screenshot. Wait for the
+    # file and for the browser to release the profile (Chromium's "lockfile"), so renders never
+    # overlap and the next shot does not reuse a profile that is still open.
+    lock = Path(profile) / "lockfile"
+    deadline = time.monotonic() + 120
+    size = -1
+    while time.monotonic() < deadline:
+        cur = png.stat().st_size if png.exists() else -1
+        if cur > 0 and cur == size and not lock.exists():
+            return
+        size = cur
+        time.sleep(0.5)
+    raise RuntimeError(f"Edge did not finish {png.name} within 120 s")
 
 
 def render(written):
@@ -703,9 +850,7 @@ def render(written):
         d = GAMES_OUT / gid
         d.mkdir(parents=True, exist_ok=True)
         if has(f"{gid}/capsule"):
-            art = GAMES[gid].get("capsule_art")
-            capsule = capsule_from_art(HERE / art) if art else shots[f"{gid}/capsule"].convert("RGB")
-            capsule.save(d / "capsule.jpg", quality=88, optimize=True, progressive=True)
+            shots[f"{gid}/capsule"].convert("RGB").save(d / "capsule.jpg", quality=88, optimize=True, progressive=True)
         if has(f"{gid}/hero"):
             shots[f"{gid}/hero"].convert("RGB").save(d / "hero.jpg", quality=88, optimize=True, progressive=True)
         if has(f"{gid}/logo"):
@@ -724,6 +869,22 @@ def render(written):
         preview = HERE / "preview"
         preview.mkdir(exist_ok=True)
         shots["brand/brand-sheet"].convert("RGB").save(preview / "brand-sheet.jpg", quality=88)
+    for gid in DISCORD_GAMES:
+        keys = ["logo", "cover"] + DISCORD_BADGES
+        if not any(has(f"discord-{gid}/{k}") for k in keys):
+            continue
+        d = DISCORD_OUT / gid
+        d.mkdir(parents=True, exist_ok=True)
+        for k in keys:
+            if has(f"discord-{gid}/{k}"):
+                im = shots[f"discord-{gid}/{k}"].convert("RGB")
+                im.save(d / f"{k}.png", optimize=True)
+                if k == "logo":
+                    im.save(d / "app-icon.png", optimize=True)
+        names = ["app-icon"] + keys
+        if all((d / f"{k}.png").exists() for k in names):
+            files = {k: Image.open(d / f"{k}.png").convert("RGB") for k in names}
+            discord_contact_sheet(gid, files, DISCORD_OUT / f"{gid}-contact-sheet.png")
     shutil.rmtree(tmp, ignore_errors=True)
 
 
@@ -821,7 +982,7 @@ def main():
     ap.add_argument("--canvas", metavar="DIR", help="write Claude Design canvas artboards to DIR")
     ap.add_argument("--only", metavar="KIND", nargs="+",
                     help="with --render: only render jobs whose name contains one of these words "
-                         "(e.g. --only capsule, --only hero logo, --only mua2/)")
+                         "(e.g. --only capsule, --only hero logo, --only mua2/, --only discord)")
     a = ap.parse_args()
     written = write_html()
     print(f"wrote {len(written)} HTML sources to {HTML_DIR}")

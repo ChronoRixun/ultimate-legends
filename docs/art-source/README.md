@@ -32,11 +32,9 @@ Game titles appear only as plain text in Archivo.
 Coming-soon games are drawn partly "unprinted" (halftone or outline instead of solid ink).
 The launcher adds its own COMING SOON badge, so the images do not include one.
 
-One capsule is not drawn here: the `xml1` library tile is the XML2 Fix's Discord art for the
-X-Men Legends port (`sources/xml1-large-d.png`, original art from xml2-fix
-`docs/discord-art/xml1-large-d.svg`), placed across the top and faded into Ink like the others
-by `capsule_from_art()` (`capsule_art` in the `GAMES` table). Its hero, logo and icon are drawn
-here as before.
+Every capsule, including `xml1`'s, is drawn here from its motif. The X-Men Legends port shares
+one identity across the launcher and Discord: the `dawn` motif in Dawn Crimson (see
+[Discord art](#discord-art) below).
 
 ## Re-rendering
 
@@ -48,6 +46,7 @@ cd docs/art-source
 python build.py            # regenerate html/ only
 python build.py --render   # regenerate html/ and overwrite every deliverable in the repo
 python build.py --render --only capsule   # re-render just the capsules (also: hero, logo, icon, brand/, mua2/ ...)
+python build.py --render --only discord   # re-render just the Discord art (see below)
 ```
 
 `--render` screenshots each page with headless Edge at 1x (`--window-size` = the asset size,
@@ -60,7 +59,9 @@ transparent background for logos and icons), then:
   drawing of the mark; larger sizes use the refined drawing. Each frame is box-filtered down
   from a supersampled render.
 
-Set `EDGE` to point at another Chromium-based browser if Edge is installed elsewhere.
+Set `EDGE` to point at another Chromium-based browser if Edge is installed elsewhere. Renders run
+one at a time: `msedge.exe` can return before the screenshot is written, so `build.py` waits for the
+file and for Edge to release its profile before the next shot.
 
 Outputs written by `--render`:
 
@@ -70,6 +71,26 @@ src/launcher-ui/assets/img/brand/ul-mark.png
 src/launcher/resource/icon.ico
 src/launcher/resource/icon.png
 ```
+
+## Discord art
+
+`--render` (or `--only discord`) also draws the Rich Presence art for the XML2 Fix's Discord
+application for X-Men Legends, in the same sunrise motif, into the git-ignored `discord-upload/`
+folder at the repository root. It is uploaded by hand in the Discord developer portal and is not
+shipped with the launcher. The keys are the ones the XML2 Fix sends (xml2-fix
+`src/discord_rules.hpp`):
+
+| File (`discord-upload/xml1/`) | Size | What it is |
+| --- | --- | --- |
+| `app-icon.png` | 1024x1024 | Application icon: the sunrise mark on Ink (same image as `logo`) |
+| `logo.png` | 1024x1024 | Rich Presence large image: the sunrise mark on Ink |
+| `cover.png` | 1920x1080 | Application cover: the library-card composition in landscape |
+| `menu.png`, `online.png`, `cutscene.png`, `dangerroom.png` | 1024x1024 | Small-image badges for the mode: three bars, a broadcasting dot, play, a crosshair - Ink on Dawn Crimson |
+
+Discord shows the large image at about 80 px and crops the small image to a circle of about
+24 px, so the mark is drawn with coarse dots and a heavy horizon, and each badge glyph stays inside
+the inscribed circle. `discord-upload/xml1-contact-sheet.png` shows all seven small and at those
+sizes on Discord's dark and light themes. XML2's Discord art is not drawn here.
 
 ## Editing
 

@@ -41,7 +41,12 @@
         host.querySelector('#muac-source')?.addEventListener('input', event => { source = event.target.value; });
         host.querySelector('#muac-output')?.addEventListener('input', event => { output = event.target.value; });
         progress();
-        if (focus) host.querySelector(`[data-act="${focus}"]`)?.focus({ preventScroll: true });
+        const previous = focus ? host.querySelector(`[data-act="${focus}"]`) : null;
+        const cancelButton = host.querySelector('[data-act="cancel"]');
+        const next = previous && !previous.disabled ? previous :
+            (cancelButton && !cancelButton.disabled ? cancelButton : null) || host.querySelector('[data-act="done"]') ||
+            host.querySelector('[data-act="start"]') || host.querySelector('[data-act="hide"]');
+        next?.focus({ preventScroll: true });
     }
     function progress() {
         const line = host?.querySelector('.muac-setup-progress');

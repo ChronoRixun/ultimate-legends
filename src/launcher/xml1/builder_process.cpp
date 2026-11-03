@@ -1,5 +1,6 @@
 #include "std_include.hpp"
 #include "builder_process.hpp"
+#include "muac/setup_admission.hpp"
 
 #include <utils/logger.hpp>
 #include <utils/string.hpp>
@@ -492,7 +493,7 @@ namespace xml1
                 snapshot.killed = killed;
                 // MUAC admission always uses the operating-system exit, never a
                 // success claim in stdout (and supports results without an exit field).
-                if (snapshot.command == "setup") snapshot.exit_code = killed ? 5 : static_cast<int>(exit_code);
+                if (snapshot.command == "setup") snapshot.exit_code = muac_setup::admission::process_exit(exit_code, killed);
                 if (snapshot.result.empty() || killed)
                 {
                     snapshot.exit_code = killed ? 5 : static_cast<int>(exit_code);

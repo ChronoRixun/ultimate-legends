@@ -75,7 +75,10 @@ jobs:
       # (A time limit: a test that hangs - a lock taken twice, say - fails the job instead of stalling it.)
       - name: Unit tests
         timeout-minutes: 5
-        run: build/bin/x64/${{ matrix.configuration }}/ultimate-legends-tests.exe
+        run: |
+          build/bin/x64/${{ matrix.configuration }}/ultimate-legends-tests.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          build/bin/x64/${{ matrix.configuration }}/ultimate-legends-muac-tests.exe
 
       # The launcher UI's (src/tests/ui): the real scripts on a small DOM, a fake clock and a fake backend.
       - name: UI tests
@@ -83,6 +86,7 @@ jobs:
         run: |
           node --version
           node src/tests/ui/run.js
+          node tools/dev/muac_view_race_test.js
 
       - name: Upload ${{ matrix.configuration }} binary
         uses: actions/upload-artifact@v7

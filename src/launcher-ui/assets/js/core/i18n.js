@@ -1,6 +1,31 @@
 (function() {
     const translations = {
         en: {
+            muac: {
+                title: 'MUA 2006 options',
+                intro: 'Display, input and online settings for your MUA 2006 installation.',
+                setUp: 'Choose your prepared MUA 2006 game folder with Set up to enable these options.',
+                missing: 'Compatibility components are missing: {{files}}. Finish preparing the installation before playing or changing these options.',
+                custom: '{{value}} (custom)',
+                customService: 'Custom server',
+                modeBody: 'Windowed keeps normal window controls. Borderless fills the screen without changing the desktop display mode.',
+                resolutionBody: 'The game’s render resolution, shared with its video options. Borderless scales this to the desktop.',
+                frameLimit: 'Frame limit',
+                frameBody: 'An upper limit on rendering. The game may impose a lower limit.',
+                vsyncBody: 'Synchronize frames with the display to reduce tearing.',
+                backgroundBody: 'Keep the game active when you switch windows. Applies in windowed and borderless modes; the minimize button still works.',
+                controller: 'Xbox controller support',
+                controllerBody: 'Normalize one connected Xbox-compatible controller, including Bluetooth. Multiple-controller mapping is still in development.',
+                capture: 'Capture mouse',
+                captureBody: 'Off lets the pointer leave the game window. On allows the game to lock and recenter it while focused.',
+                online: 'Online service',
+                onlineBody: 'Redirect the game’s GameSpy requests to OpenSpy. Use Play Online in the game; multiplayer connectivity has not been verified here.',
+                watermark: 'Graphics watermark',
+                watermarkBody: 'Show the dgVoodoo logo for graphics troubleshooting. Normally off.',
+                closeFirst: 'Close MUA 2006 to change these settings. They apply on the next start.',
+                nextStart: 'Changes are saved automatically and apply on the next start.',
+                saving: 'Saving…'
+            },
             saveImport: {
                 "title": "Import an X-Men Legends save",
                 "intro": "Choose a local Xbox or XML1-recomp campaign. Review the heroes, levels and checkpoint before importing. Your original save stays unchanged.",

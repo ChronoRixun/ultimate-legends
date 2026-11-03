@@ -1069,6 +1069,9 @@
                         <div id="${escapeHtml(config.uiId)}-build-panel"></div>
                     </section>`
                         : ''}
+                    ${!comingSoon && window.MuacView && window.MuacView.supports(config.uiId)
+                        ? `<section class="detail-display"><h3 class="detail-display-title">${escapeHtml(t('muac.title'))}</h3>
+                        <div id="muac-options-panel"></div></section>` : ''}
                     ${!comingSoon && window.DisplayView && window.DisplayView.supports(config.uiId)
                         ? `<section class="detail-display">
                         <h3 class="detail-display-title">${escapeHtml(t('display.title'))}</h3>
@@ -1110,6 +1113,7 @@
                 .forEach(config => window.Xml1View.render(config.uiId));
         }
 
+        if (window.MuacView) window.MuacView.render();
         if (window.DisplayView) {
             GameUtils.getAllGameConfigs()
                 .filter(config => !config.comingSoon && window.DisplayView.supports(config.uiId))

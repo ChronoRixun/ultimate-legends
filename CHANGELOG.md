@@ -3,6 +3,25 @@
 The launcher's version comes from its release tag (`v0.3.2`): premake reads it with `git describe` when it
 generates the project, so a release only needs this entry and the tag.
 
+## 0.5.0-beta.5 (unreleased: a pre-release for the Beta update channel)
+
+### Added
+- **Marvel: Ultimate Alliance (2006 PC) options page.** Once the game is set up, its page offers display mode,
+  resolution, frame rate limit, VSync, Xbox controller support, mouse capture, Run in background, OpenSpy online
+  and the diagnostic graphics watermark (off). Every control works with the mouse, keyboard or a controller and
+  is drawn inside the launcher's page. Changes are written one setting at a time and keep the rest of the game's
+  configuration and comments; the launcher refuses changes while the game is running and says which
+  compatibility files are missing when the folder is not ready.
+- **Automatic MUA 2006 setup from your own disc.** Choose **Set up**, pick your retail PC DVD ISO or an
+  extracted/mounted DVD folder, and a new or empty game folder. The launcher downloads the MUA Classic Fix setup
+  package from your update channel (size and SHA-256 checked) and the original dgVoodoo2 archive from its
+  author's GitHub release (pinned SHA-256), then imports and verifies the game files on your PC without running
+  the original installer. The package includes MUA Classic Fix and a source-built SafeDiscLoader2 (by
+  nckstwrt); dgVoodoo2 is by Dege. Game.exe is not changed, and no game files are downloaded or shipped.
+  Cancelling or a failed import leaves no staging folder and registers nothing; a folder that is not empty is
+  refused. Only a completed, verified setup makes the game ready to play.
+- Needs the MUA Classic Fix setup package 0.2.0 or newer, published separately.
+
 ## 0.5.0-beta.4 (unreleased: a pre-release for the Beta update channel)
 
 ### Added

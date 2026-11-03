@@ -1,5 +1,5 @@
 // Set up X-Men Legends (community port): the wizard of BUILDER_DESIGN.md 4.3.
-//   1. Requirements: X-Men Legends II set up, the player's own Xbox disc image, a folder, free space.
+//   1. Requirements: X-Men Legends II for PC, the player's Xbox image or extracted install, a folder, free space.
 //   2. Disc check: installs the builder when needed, then runs its `info`: the disc, XML2, space,
 //      a time estimate; the build options (Advanced).
 //   3. Building: the builder's stages, progress, time left; Cancel, or Hide (it keeps going).
@@ -63,6 +63,7 @@
                     out: s.install || s.defaultOut || '',
                     movies: s.movies !== false,
                     keepCache: s.keepCache !== false,
+                    classicConversation: !!s.classicConversation,
                     linkBase: LINK_BASE_SUPPORTED && !!s.linkBase
                 };
             }
@@ -252,9 +253,11 @@
                         <div class="xml1-req-body">
                             <div class="xml1-req-title">${escapeHtml(t('xml1.reqDisc'))}</div>
                             <div class="xml1-field">
-                                <input type="text" class="xml1-input" data-field="iso" spellcheck="false" value="${escapeHtml(f.iso)}" placeholder="${escapeHtml(t('xml1.discPlaceholder'))}">
-                                <button type="button" class="secondary-action xml1-small" data-act="browse-iso">${escapeHtml(t('common.browse'))}</button>
+                                <input type="text" class="xml1-input" data-field="iso" aria-label="${escapeHtml(t('xml1.reqDisc'))}" spellcheck="false" value="${escapeHtml(f.iso)}" placeholder="${escapeHtml(t('xml1.discPlaceholder'))}">
+                                <button type="button" class="secondary-action xml1-small" data-act="browse-iso">${escapeHtml(t('xml1.chooseImage'))}</button>
+                                <button type="button" class="secondary-action xml1-small" data-act="browse-source-folder">${escapeHtml(t('xml1.chooseSourceFolder'))}</button>
                             </div>
+                            <div class="xml1-req-detail">${escapeHtml(t('xml1.sourceFolderHelp'))}</div>
                             <div class="xml1-req-detail"><a href="#" data-act="how-to-dump">${escapeHtml(t('xml1.howToDump'))}</a></div>
                         </div>
                     </div>
@@ -391,7 +394,7 @@
 
             return `
                 <div class="xml1-reqs">
-                    ${row(true, iso.known ? t('xml1.discOk') : t('xml1.discUnknown'), f.iso)}
+                    ${row(true, iso.source_kind === 'folder' ? t('xml1.folderOk', { files: iso.verified_files }) : t(iso.known ? 'xml1.discOk' : 'xml1.discUnknown'), f.iso)}
                     ${row(true, t('xml1.xml2Ok'), t('xml1.xml2Detail', { files: xml2.base_files || 0, language: xml2.language || '' }))}
                     ${row(!foreign, t('xml1.reqDestination'), outDetail)}
                     ${space ? row(spaceOk, t('xml1.spaceTitle'), spaceDetail) : ''}
@@ -400,6 +403,7 @@
                 <p class="xml1-estimate">${escapeHtml(t(estimate.first_build_s ? 'xml1.estimate' : 'xml1.estimateUnknown', { minutes, cores: estimate.cores || '?' }))}</p>
                 <details class="xml1-advanced">
                     <summary>${escapeHtml(t('xml1.advanced'))}</summary>
+                    ${this.port().status.builder?.classicConversation ? this.optionHTML('classicConversation', t('xml1.classicConversation'), t('xml1.classicConversationBody'), f.classicConversation) : ''}
                     ${this.optionHTML('movies', t('xml1.optMovies'), t('xml1.optMoviesBody'), f.movies)}
                     ${this.optionHTML('keepCache', t('xml1.optKeepCache'), t('xml1.optKeepCacheBody'), f.keepCache)}
                     ${LINK_BASE_SUPPORTED ? this.optionHTML('linkBase', t('xml1.optLinkBase'), t('xml1.optLinkBaseBody'), f.linkBase) : ''}
@@ -424,7 +428,8 @@
             const f = this.form;
             // An XML2 Fix already in the folder is updated (after any patch work under way there) before the
             // build starts: the check step says so.
-            const started = await port.startBuild({ iso: f.iso.trim(), out: f.out.trim(), movies: f.movies, keepCache: f.keepCache, linkBase: f.linkBase },
+            const started = await port.startBuild({ iso: f.iso.trim(), out: f.out.trim(), movies: f.movies, keepCache: f.keepCache, linkBase: f.linkBase,
+                classicConversation: !!port.status.builder?.classicConversation && !!f.classicConversation },
                 () => {
                     this.busy = t('xml1.updatingFix');
                     this.render();
@@ -593,6 +598,16 @@
                         this.form.iso = file;
                         this.render();
                     }
+                    this.backdrop?.querySelector('[data-act="browse-iso"]')?.focus();
+                    break;
+                }
+                case 'browse-source-folder': {
+                    const folder = await run('browse-folder');
+                    if (folder) {
+                        this.form.iso = folder;
+                        this.render();
+                    }
+                    this.backdrop?.querySelector('[data-act="browse-source-folder"]')?.focus();
                     break;
                 }
                 case 'builder-zip': {

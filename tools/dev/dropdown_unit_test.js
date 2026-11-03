@@ -451,6 +451,73 @@ test('Steam Input keyboard/gamepad echo does not double-activate the dropdown', 
     assert.equal(select.value, 'beta'); assert.equal(menu().hidden, true);
 });
 
+test('save import enhances source, campaign and slot pickers and restores visible focus after redraw', async () => {
+    await new Promise(resolve => setTimeout(resolve, 110));
+    const { host } = await fixture('<div id="xml1-save-import"></div><select id="fixture-select"><option>Fixture</option></select>');
+    const { reply } = require('../../src/tests/ui/fake_save_import_cli');
+    const calls = []; let scenario = 'recomp'; let result;
+    window.executeCommand = async (command, request) => {
+        calls.push({ command, request });
+        if (command === 'browse-folder') return 'C:\\Owned\\Recomp\\UDATA';
+        if (command === 'browse-file') return 'C:\\Owned\\disk.qcow2';
+        if (command === 'xml1-import-start') {
+            result = reply(request.mode, request, scenario).at(-1);
+            return { success: true, id: calls.length };
+        }
+        if (command === 'get-xml1-job') return { id: request.id, finished: true, active: false, exitCode: 0, result };
+        return null;
+    };
+    load('app/xml1-save-import.js'); window.Xml1SaveImport.open(); await tick();
+    const select = id => document.getElementById(`xml1-import-${id}`);
+    const trigger = id => document.getElementById(`xml1-import-${id}-button`);
+    const action = name => host.querySelector(`[data-import-act="${name}"]`);
+    assert.equal(document.activeElement, trigger('source-type'));
+    assert.equal(select('source-type').tabIndex, -1);
+    trigger('source-type').click(); key(trigger('source-type'), 'End'); key(trigger('source-type'), 'Enter'); await tick();
+    assert.equal(select('source-type').value, 'recomp');
+    assert.equal(document.activeElement, trigger('source-type'), 'redraw restored the visible trigger');
+    action('source').click(); await tick(); action('target').click(); await tick();
+    assert.equal(trigger('slot').getAttribute('role'), 'combobox');
+    await new Promise(resolve => setTimeout(resolve, 110));
+    trigger('slot').focus(); trigger('slot').click(); key(trigger('slot'), 'ArrowDown'); key(trigger('slot'), 'Enter'); await tick();
+    assert.equal(select('slot').value, '0');
+    assert.equal(document.activeElement, trigger('slot'));
+    assert.equal(action('preview').disabled, false);
+    scenario = 'hdd-multiple';
+    select('source-type').value = 'hdd'; select('source-type').dispatchEvent(new Event('change')); await tick();
+    action('source').click(); await tick();
+    assert.equal(trigger('campaign').getAttribute('role'), 'combobox');
+    await new Promise(resolve => setTimeout(resolve, 110));
+    trigger('campaign').focus(); trigger('campaign').click(); key(trigger('campaign'), 'End'); key(trigger('campaign'), 'Enter'); await tick();
+    assert.equal(select('campaign').value, '1');
+    assert.equal(calls.filter(call => call.command === 'xml1-import-start').at(-1).request.campaign, 'E:/UDATA/4156001e/Campaign B');
+    assert.equal(document.activeElement.id, 'xml1-import-campaign-button');
+    const unrelated = document.createElement('button'); host.append(unrelated); unrelated.focus();
+    window.Xml1SaveImport.mount(); assert.equal(document.activeElement, unrelated);
+});
+
+test('recomp folder campaign selection keeps focus reachable when reinspection removes its picker', async () => {
+    const { host } = await fixture('<div id="xml1-save-import"></div><select id="fixture-select"><option>Fixture</option></select>');
+    const { reply } = require('../../src/tests/ui/fake_save_import_cli'); let result;
+    window.executeCommand = async (command, request) => {
+        if (command === 'browse-folder') return 'C:\\Owned\\Recomp\\UDATA';
+        if (command === 'xml1-import-start') { result = reply(request.mode, request, 'recomp-multiple').at(-1); return { success: true, id: 1 }; }
+        if (command === 'get-xml1-job') return { id: 1, finished: true, active: false, exitCode: 0, result };
+        return null;
+    };
+    load('app/xml1-save-import.js'); window.Xml1SaveImport.open();
+    const type = document.getElementById('xml1-import-source-type');
+    type.value = 'recomp'; type.dispatchEvent(new Event('change'));
+    host.querySelector('[data-import-act="source"]').click(); await tick();
+    document.getElementById('xml1-import-campaign-button').focus();
+    const campaign = document.getElementById('xml1-import-campaign');
+    campaign.value = '1'; campaign.dispatchEvent(new Event('change')); await tick();
+    assert.equal(document.getElementById('xml1-import-campaign-button'), null);
+    assert.equal(host.querySelector('[data-import-act="preview"]').disabled, true);
+    assert.equal(document.activeElement.dataset.importAct, 'target');
+    assert.equal(document.activeElement.isConnected, true);
+});
+
 module.exports = cases.map(({ name, run }) => ({ name, async run() {
     try { await run(); }
     finally { window.LauncherDropdowns.close(); retainedMenu = menu(); }

@@ -68,7 +68,7 @@ from launcher_cdp import Launcher, wait_for
 HERE = pathlib.Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 XML1_PROPS = ["install", "is-installed", "iso", "movies", "keep-cache", "link-base", "cache", "builder-version",
-              "builder-content", "builder-manifest", "builder-exe", "patch-manifest"]
+              "builder-content", "builder-manifest", "builder-exe", "patch-manifest", "patch-release", "classic-conversation"]
 # The launcher data root whose tools/xml1-builder this suite empties: a PORTABLE throwaway launcher sets
 # XML1_CDP_DATA_ROOT to its own data folder, so a developer's real Debug builder cache is never deleted.
 DEBUG_TOOLS = (pathlib.Path(os.environ["XML1_CDP_DATA_ROOT"]) if os.environ.get("XML1_CDP_DATA_ROOT")
@@ -200,6 +200,8 @@ def fix_keys():
 
 def publish_fix(www, version):
     """The stand-in XML2 Fix release: `version`, knowing the keys the fake's builds write (no W_XML2FIX_OLD)."""
+    (www / "fix-release.json").write_text(json.dumps({"tag_name": "v" + version,
+        "assets": [{"name": "ultimate-legends.json"}]}))
     folder = www / "fix"
     folder.mkdir(exist_ok=True)
     dll = folder / "dinput.dll"
@@ -336,6 +338,9 @@ def main():
         publish_fix(www, "1.2.0")
         test.prop("builder-manifest", f"{base}/missing/xml1-builder.json")
         test.prop("patch-manifest", f"{base}/fix/ultimate-legends.json")
+        # Distinct URL per run: no real GitHub answer or earlier in-memory status can leak
+        # into the fixture, even with Sandbox networking enabled. Saved/restored above/below.
+        test.prop("patch-release", f"{base}/fix-release.json")
         test.prop("cache", str(cache))
         if real:
             test.prop("builder-exe", str(DEV_BUILDER))

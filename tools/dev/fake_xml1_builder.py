@@ -7,6 +7,7 @@ pipeline.
     python fake_xml1_builder.py info    [--iso PATH] [--xml2 DIR] [--out DIR] [--cache DIR]
     python fake_xml1_builder.py build   [--iso PATH] --xml2 DIR --out DIR [--movies | --no-movies] [--cache DIR]
                                         [--keep-cache | --drop-cache] [--link-base] [--jobs N] [--no-ini]
+                                        [--classic-conversation off|xml1]
                                         [--allow-unknown-exe]
     python fake_xml1_builder.py verify  --out DIR [--iso PATH] [--xml2 DIR] [--deep]
     python fake_xml1_builder.py clean   [--out DIR] [--mods] [--cache DIR] [--dry-run]
@@ -1672,6 +1673,8 @@ def parse(argv):
     parser.add_argument("--keep-cache", action="store_true")
     parser.add_argument("--drop-cache", action="store_true")
     parser.add_argument("--link-base", action="store_true")
+    # Future-version fake releases exercise launcher CLI forwarding, not conversation artwork.
+    parser.add_argument("--classic-conversation", choices=("off", "xml1"), default="off")
     parser.add_argument("--jobs", type=int)
     parser.add_argument("--no-ini", action="store_true")
     parser.add_argument("--allow-unknown-exe", action="store_true")

@@ -19,7 +19,7 @@ function open({ channel = 'stable', install = 'O:/Games/Legends', failed = false
         backend: { handle(command, data) {
             calls.push([command, data]);
             switch (command) {
-                case 'get-version': return { version: '0.5.0-beta.3' };
+                case 'get-version': return { version: '0.5.0-beta.4' };
                 case 'get-update-channel': return { channel: selected, checking: false, items: [], repos: [] };
                 case 'set-update-channel': selected = data.channel; return { channel: selected, checking: false, items: [], repos: [] };
                 case 'xml1-builder-check': {
@@ -178,6 +178,8 @@ test('channel refresh: an open setup wizard replaces the Stable installed answer
     assert.equal(field.value, 'O:/Discs/player-typing.iso');
     const text = p.document.querySelector('.xml1-setup').textContent;
     assert.match(text, /0\.6\.0-beta\.1/);
+    assert.match(text, /will be installed when you build/);
+    assert.doesNotMatch(text, /is being installed/);
     assert.match(p.document.querySelector('#xml1-build-panel').textContent, /0\.6\.0-beta\.1/);
     p.document.querySelector('.xml1-setup [data-act="builder-zip"]').click();
     await p.clock.advance(0);

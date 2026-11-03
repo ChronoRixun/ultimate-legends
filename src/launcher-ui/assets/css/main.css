@@ -4754,6 +4754,7 @@ html[data-reduce-motion] .ul-online-spinner { animation: none; }
 .ul-models-mode-body { font-size: 12.5px; line-height: 1.5; color: #d9dbe4; }
 .ul-models-note { margin: 0; font-size: 12px; line-height: 1.5; }
 .ul-models-note.is-muted { color: var(--text-muted); }
+.ul-models-live-state { font-size: 12px; line-height: 1.5; color: var(--text-muted); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .ul-models-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; background: var(--surface-lo); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
 .ul-models-table th { text-align: left; padding: 8px 12px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border); }
 .ul-models-table td { padding: 6px 12px; vertical-align: middle; border-bottom: 1px solid var(--border); }
@@ -5034,3 +5035,12 @@ html[data-reduce-motion] .ul-online-spinner { animation: none; }
 
 /* One line per repository the update channel could not check (update-channel.js note()). */
 .update-channel-note { white-space: pre-line; }
+
+/* Save import shares the build page's rows, notices and secondary actions. */
+.xml1-import { margin-top: 18px; }
+.xml1-import label { display: block; margin: 10px 0; }
+.xml1-import select { display: block; width: 100%; margin-top: 6px; }
+.xml1-import p, .xml1-import li, .xml1-import-path { overflow-wrap: anywhere; }
+.xml1-import-heroes { width: 100%; border-collapse: collapse; }
+.xml1-import-heroes th, .xml1-import-heroes td { text-align: left; padding: 4px 8px; }
+.xml1-import-history, .xml1-import-preview { margin-top: 14px; }

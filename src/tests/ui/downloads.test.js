@@ -159,6 +159,34 @@ test('downloads: Apply is one entry - downloading a skin, converting hero N of M
     assert.match(p.text(p.document.querySelector('#xml1-models-panel .ul-models-outcome')), /2 heroes have their new models; 1 kept the original/);
 });
 
+test('downloads: incremental install has its own title, live refinement state and shared Cancel', async () => {
+    const installed = [{ folder: 'community-beast', group: 'Models-Community', mode: 'community', enabled: true, listed: true,
+        characters: [{ hero: 'beast', tier: 'community', source: 'Classic' }] }];
+    const p = await open({ installed });
+    p.backend.chunk = 1;
+    p.backend.hold = true;
+    p.backend.buildScript = () => ({ lines: [
+        ev('plan', { mode: 'community', rows: planRows('community', {}, {}) }),
+        ev('progress', { done: 0, total: 1 }),
+        ev('stage', { stage: 'convert', hero: 'wolverine', tier: 'mua2', source: '0301' }),
+        ev('engine', { engine: 'mua2', script: 'refine_bind.py' }),
+        ev('progress', { hero: 'wolverine', tier: 'mua2', stage: 'refine_bind', call: 10, done: 10, total: 150, max_calls: 150, elapsed: 78, loss: 70 }),
+        ev('result', { characters: {} })
+    ], exit: 0 });
+    p.act('update').click();
+    await p.clock.until(() => /call 10 of 150/.test(p.text(p.dl('.download-progress-message'))), 5000, 'refinement in Downloads');
+    assert.deepEqual(p.backend.commands('build')[0].heroes, ['wolverine']);
+    assert.match(p.text(p.dl('.download-row-title')), /Install the new options/);
+    assert.match(p.text(p.dl('.download-progress-message')), /Wolverine.*MUA2.*Refining the model.*78 s elapsed/);
+    assert.match(p.text(p.dl('.download-progress-stats')), /0 of 1 heroes/);
+    assert.equal(p.dls('.download-row.tracked').length, 1);
+    p.window.showMessageBox = async () => 1;
+    p.dl('.download-row-cancel').click();
+    await p.settle();
+    assert.deepEqual(p.backend.installed, installed);
+    assert.equal(p.dl('.downloads-recent .download-row.finished').dataset.outcome, 'cancelled');
+});
+
 test("downloads: Cancel on the entry asks like the page, then the run is cancelled and Recent says so", async () => {
     const p = await open();
     p.backend.buildScript = steppedBuild;

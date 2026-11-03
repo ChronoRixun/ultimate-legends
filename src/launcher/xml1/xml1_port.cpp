@@ -1,6 +1,9 @@
 #include "std_include.hpp"
 #include "xml1_port.hpp"
 #include "build_requirements.hpp"
+#include "build_appearance.hpp"
+#include "build_recovery.hpp"
+#include "source_path.hpp"
 
 #include "display/xml2_display.hpp"
 #include "game_config.hpp"
@@ -653,6 +656,59 @@ namespace xml1_port
         return run_locked("info", std::move(args), {}, error, false);
     }
 
+    std::optional<int> start_save_import(const save_import_args::request& request, failure& error)
+    {
+        const auto out = output_folder();
+        if (!out || !is_playable(*out))
+        {
+            error = {"L_NOT_SET_UP", "Build X-Men Legends before importing a save."};
+            return std::nullopt;
+        }
+        std::string reason;
+        const auto args = save_import_args::build(request, *out, reason);
+        if (!args)
+        {
+            error = {"L_USAGE", reason};
+            return std::nullopt;
+        }
+        if ((request.mode == "apply" || request.mode == "undo") && !save_import_args::player_install_enabled)
+        {
+            error = {"E_XML1_UNVALIDATED", "Player installation and undo await real-save, native-loader and game save-lock acceptance."};
+            return std::nullopt;
+        }
+        if (utils::nt::is_any_image_running({*out / L"XMen2.exe"}, 0))
+        {
+            error = {"L_GAME_RUNNING", "Close X-Men Legends before importing a save."};
+            return std::nullopt;
+        }
+        std::lock_guard lock(mutex_);
+        if (work_active_locked())
+        {
+            error = {"L_BUILD_RUNNING", "Wait for the current build or save operation to finish."};
+            return std::nullopt;
+        }
+        auto hold = updater::reserve(*out, updater::folder_use::builder);
+        auto saves = request.save_dir.empty() ? nullptr : updater::reserve(request.save_dir, updater::folder_use::builder);
+        if (!hold || (!request.save_dir.empty() && !saves))
+        {
+            error = {"E_XML1_BUSY", "The game or save folder is in use. Wait for it to finish."};
+            return std::nullopt;
+        }
+        return run_locked("import-xml1-save", *args, [saves = std::move(saves)](const xml1::builder_snapshot&) mutable
+        {
+            saves.reset();
+        }, error, true, std::move(hold));
+    }
+
+    bool cancel_save_import(const int id)
+    {
+        std::lock_guard lock(mutex_);
+        const auto found = jobs_.find(id);
+        if (found == jobs_.end() || found->second->snapshot().command != "import-xml1-save" || !found->second->active()) return false;
+        found->second->cancel();
+        return true;
+    }
+
     std::optional<int> start_verify(failure& error)
     {
         const auto out = output_folder();
@@ -666,7 +722,7 @@ namespace xml1_port
         {
             args.insert(args.end(), {L"--xml2", xml2->wstring()});
         }
-        if (const auto iso = iso_path(); iso && utils::io::file_exists(*iso))
+        if (const auto iso = iso_path(); iso && xml1::source_path_exists(*iso))
         {
             args.insert(args.end(), {L"--iso", iso->wstring()});
         }
@@ -721,6 +777,12 @@ namespace xml1_port
                 : "Check or update Legends Classic for the selected update channel before building. " + check_.error};
             return std::nullopt;
         }
+        const auto appearance_supported = xml1::supports_classic_conversation(builder->version);
+        if (options.classic_conversation && !appearance_supported)
+        {
+            error = {"L_BUILDER_FEATURE", "Update Legends Classic to 0.6.0-beta.2 or newer before choosing the Classic conversation box."};
+            return std::nullopt;
+        }
         // A fresh build must not fall back to Stable's fix when Beta could not be resolved.
         // Debug-only local manifests use their configured stand-in, as before.
         const auto game = config();
@@ -758,6 +820,10 @@ namespace xml1_port
         }
 
         // Remember the choices now, so a cancelled or failed build can be resumed.
+        const auto previous_folder = game.get_install_path();
+        const auto ready_stamp = game.is_installed() && previous_folder &&
+            updater::folder_key(*previous_folder) == updater::folder_key(options.out)
+            ? xml1::completed_build_stamp(options.out) : std::nullopt;
         game.set_install_path(options.out);
         game.set_installed(false);
         if (!options.iso.empty())
@@ -767,6 +833,7 @@ namespace xml1_port
         game.set(property_keys::BUILD_MOVIES, options.movies ? "true" : "false");
         game.set(property_keys::BUILD_KEEP_CACHE, options.keep_cache ? "true" : "false");
         game.set(property_keys::BUILD_LINK_BASE, options.link_base ? "true" : "false");
+        if (appearance_supported) game.set(property_keys::BUILD_CLASSIC_CONVERSATION, options.classic_conversation ? "true" : "false");
 
         std::vector<std::wstring> args;
         if (!options.iso.empty())
@@ -780,11 +847,23 @@ namespace xml1_port
             args.emplace_back(L"--link-base");
         }
 
+        const auto appearance_args = xml1::conversation_arguments(builder->version, options.classic_conversation);
+        args.insert(args.end(), appearance_args.begin(), appearance_args.end());
         const auto out = options.out;
-        return run_locked("build", std::move(args), [out](const xml1::builder_snapshot& snapshot)
+        const auto restore_ready = [out, ready_stamp]
+        {
+            const auto game = config();
+            const auto current = game.get_install_path();
+            if (current && updater::folder_key(*current) == updater::folder_key(out) &&
+                xml1::unchanged_completed_build(out, ready_stamp) &&
+                xml1::build_fix_ready(stamp_requires_xml2fix(out), patch_channel::installed_version(game, out)))
+                game.set_installed(true);
+        };
+        const auto started = run_locked("build", std::move(args), [out, restore_ready](const xml1::builder_snapshot& snapshot)
         {
             if (snapshot.exit_code != 0)
             {
+                restore_ready();
                 return;
             }
             write_display_defaults(out);
@@ -801,6 +880,8 @@ namespace xml1_port
                 }
             }
         }, error, true, std::move(hold));
+        if (!started) restore_ready();
+        return started;
     }
 
     std::optional<int> start_clean(const bool mods, const bool cache, failure& error)
@@ -1231,10 +1312,11 @@ namespace xml1_port
         out.AddMember("launcherOnly", facts.launcher_only, allocator);
         out.AddMember("isInstalled", game.is_installed(), allocator);
         out.AddMember("iso", make_string(path_text(iso), allocator), allocator);
-        out.AddMember("isoExists", iso && utils::io::file_exists(*iso), allocator);
+        out.AddMember("isoExists", iso && xml1::source_path_exists(*iso), allocator);
         out.AddMember("movies", flag(game, property_keys::BUILD_MOVIES, true), allocator);
         out.AddMember("keepCache", flag(game, property_keys::BUILD_KEEP_CACHE, true), allocator);
         out.AddMember("linkBase", flag(game, property_keys::BUILD_LINK_BASE, false), allocator);
+        out.AddMember("classicConversation", flag(game, property_keys::BUILD_CLASSIC_CONVERSATION, false), allocator);
         out.AddMember("cache", make_string(utils::string::path_to_utf8(cache_folder()), allocator), allocator);
         // The build cache still holds the disc of the build in the folder: a rebuild, a repair or a
         // resume works without the disc image (the builder reads the disc from the cache).
@@ -1335,6 +1417,7 @@ namespace xml1_port
             builder.AddMember("installed", found.has_value(), allocator);
             builder.AddMember("version", make_string(found ? found->version : std::string{}, allocator), allocator);
             builder.AddMember("dev", found && found->dev, allocator);
+            builder.AddMember("classicConversation", found && xml1::supports_classic_conversation(found->version), allocator);
             builder.AddMember("contentVersion", builder_content, allocator);
             builder.AddMember("prerelease", found && !found->dev && release_channel::is_prerelease(found->version), allocator);
             builder.AddMember("channel", rapidjson::StringRef(release_channel::channel_name(release_source::current_channel())), allocator);

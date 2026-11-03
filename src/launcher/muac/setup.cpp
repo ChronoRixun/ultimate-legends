@@ -1,5 +1,6 @@
 #include "std_include.hpp"
 #include "setup.hpp"
+#include "setup_admission.hpp"
 #include "settings.hpp"
 #include "game_config.hpp"
 #include "tools/tool_install.hpp"
@@ -108,6 +109,7 @@ namespace {
                 const auto partial = cache / (hash + ".partial");
                 std::string actual;
                 const auto failure = tool_install::download_file(url, partial, size, progress, stop, actual);
+                if (failure == "cancelled") require_running(work);
                 if (!failure.empty()) throw std::runtime_error(failure);
                 if (actual != hash) throw std::runtime_error("The graphics download failed SHA-256 verification.");
                 std::error_code ec; std::filesystem::remove(archive, ec);
@@ -121,13 +123,13 @@ namespace {
             }
             const auto finish = [work, output](const xml1::builder_snapshot& result) {
                 try {
-                    rapidjson::Document data; data.Parse(result.result.data(), result.result.size());
-                    const bool ok = result.exit_code == 0 && !result.cancel_requested && !result.killed && !cancelled(work) &&
-                        !data.HasParseError() && data.IsObject() && data.HasMember("ok") && data["ok"].IsBool() && data["ok"].GetBool() &&
-                        data.HasMember("prepared") && data["prepared"].IsBool() && data["prepared"].GetBool() &&
-                        data.HasMember("files_complete") && data["files_complete"].IsBool() && data["files_complete"].GetBool() &&
-                        data.HasMember("install") && data["install"].IsString() &&
-                        updater::folder_key(utils::string::utf8_to_path(data["install"].GetString())) == updater::folder_key(output);
+                    const auto ready = [&](bool was_cancelled) {
+                        return admission::ready(result.exit_code, result.cancel_requested, result.killed, was_cancelled,
+                            result.result, updater::folder_key(output), [](const std::string& path) {
+                                return updater::folder_key(utils::string::utf8_to_path(path));
+                            });
+                    };
+                    const bool ok = ready(cancelled(work));
                     if (!ok) {
                         fail(work, cancelled(work) ? "Setup cancelled. No installation was registered." :
                             result.errors.empty() ? "Setup did not complete. Check the source and choose a new empty output folder to retry." : result.errors.back().msg);
@@ -138,7 +140,7 @@ namespace {
                     const auto game = game_config::get_game_config("muac");
                     if (!game) throw std::runtime_error("MUA 2006 configuration is unavailable.");
                     std::lock_guard lock(work->mutex);
-                    if (work->cancelled) {
+                    if (!ready(work->cancelled)) {
                         work->error = "Setup cancelled after file preparation. The completed folder was kept, but not registered.";
                         work->active = false; work->hold.reset(); return;
                     }

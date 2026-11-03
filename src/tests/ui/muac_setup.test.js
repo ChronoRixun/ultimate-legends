@@ -2,7 +2,7 @@
 const assert = require('node:assert/strict');
 const { page, test, settle } = require('./harness');
 
-async function setup() {
+async function setup(acceptStart = false) {
     const calls = [];
     let state = { active: false, success: false };
     const p = page({ scripts: ['core/utils.js', 'core/i18n.js', 'core/focus-nav.js', 'app/muac-setup.js'],
@@ -11,7 +11,10 @@ async function setup() {
             if (command === 'get-muac-setup') return { ...state };
             if (command === 'browse-folder') return 'C:\\Fixture\\Disc';
             if (command === 'browse-file') return 'C:\\Fixture\\Disc.iso';
-            if (command === 'start-muac-setup') return { success: false, error: 'Choose a new or empty output folder.' };
+            if (command === 'start-muac-setup') {
+                if (acceptStart) { state = { active: true, success: false }; return { success: true }; }
+                return { success: false, error: 'Choose a new or empty output folder.' };
+            }
             if (command === 'cancel-muac-setup') { state = { active: true, cancelled: true }; return state; }
             return null;
         } } });
@@ -55,4 +58,20 @@ test('MUAC setup: keyboard and pad can activate the folder picker', async () => 
         p.control('folder').focus(); p.window.FocusNav.press('Enter', source); await settle();
         assert.equal(p.document.querySelector('#muac-source').value, 'C:\\Fixture\\Disc');
     }
+});
+
+test('MUAC setup: Start and completion keep focus on a live control', async () => {
+    const p = await setup(true); await p.click('iso'); await p.click('output');
+    p.control('start').focus(); await p.click('start');
+    assert.equal(p.document.activeElement, p.control('cancel'));
+    p.setState({ active: false, success: true });
+    await p.clock.advance(800); await settle();
+    assert.equal(p.document.activeElement, p.control('done'));
+});
+
+test('MUAC setup: cancelling moves focus off the disabled cancel button', async () => {
+    const p = await setup(true); await p.click('iso'); await p.click('output'); await p.click('start');
+    p.control('cancel').focus(); await p.click('cancel');
+    assert.ok(p.control('cancel').disabled);
+    assert.equal(p.document.activeElement, p.control('hide'));
 });

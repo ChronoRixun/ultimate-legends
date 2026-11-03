@@ -20,7 +20,8 @@ An exclusive folder reservation covers downloading, import and final registratio
 runs in the existing job-object runner, including cancellation and kill-on-launcher-exit.
 Readiness requires the actual process exit to be zero, a matching complete/prepared result,
 and native installation/runtime checks. Errors and cancellation leave the previous selected
-installation unchanged. Interrupted staging folders remain available for diagnosis; retries
+installation unchanged. The companion helper cleans its own managed staging on handled
+failure/cancellation; a forced kill can still leave diagnostic staging. Retries
 use a new or empty destination. Resume and repair of a partially imported folder are not claimed.
 
 Default settings: windowed, 60 FPS, free cursor, watermark off, Xbox support and background

@@ -104,6 +104,14 @@ namespace xml1
             {
                 const auto id = member_string(event, "id");
                 const auto state = member_string(event, "state");
+                if (snapshot.command == "setup") {
+                    if (snapshot.staging.empty() && event.HasMember("staging") && event["staging"].IsString())
+                        snapshot.staging.assign(event["staging"].GetString(), event["staging"].GetStringLength());
+                    if (id == "cleanup" && state == "running") {
+                        snapshot.stage = id;
+                        snapshot.message = "Cleaning up...";
+                    }
+                }
                 for (auto& stage : snapshot.stages)
                 {
                     if (stage.id != id)

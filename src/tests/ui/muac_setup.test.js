@@ -75,3 +75,16 @@ test('MUAC setup: cancelling moves focus off the disabled cancel button', async 
     assert.ok(p.control('cancel').disabled);
     assert.equal(p.document.activeElement, p.control('hide'));
 });
+
+test('MUAC setup: cleanup overrides stale copy progress until the job ends', async () => {
+    const p = await setup(true); await p.click('iso'); await p.click('output'); await p.click('start');
+    p.setState({ active: true, cancelled: true, cleaning: true, message: 'Copying', percent: 35 });
+    await p.clock.advance(800); await settle();
+    assert.equal(p.document.querySelector('.muac-setup-progress').textContent, 'Cleaning up...');
+    assert.ok(p.control('cancel').disabled);
+    assert.equal(p.control('start'), null);
+    p.setState({ active: false, cancelled: true, error: 'Setup cancelled.' });
+    await p.clock.advance(800); await settle();
+    assert.ok(p.control('start'));
+    assert.equal(p.control('done'), null);
+});

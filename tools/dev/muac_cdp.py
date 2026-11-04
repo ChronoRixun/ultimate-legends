@@ -86,7 +86,8 @@ def main():
             check(put({'Mode': 'windowed', 'ControllerSupport': True, 'FrameLimit': 60})['success'], 'returns to windowed defaults')
             launcher.evaluate("document.querySelector('.game-item[data-game=\"muac\"]').click(); true")
             launcher.evaluate('MuacView.reload()')
-            check(launcher.evaluate("document.querySelectorAll('#muac-options-panel select').length") == 9, 'all nine controls are rendered')
+            check(wait_for(lambda: launcher.evaluate("document.querySelectorAll('#muac-options-panel select').length") == 9, 10),
+                  'all nine controls are rendered')
             launcher.evaluate("(()=>{const s=document.querySelector('#muac-Watermark');s.value='1';s.dispatchEvent(new Event('change',{bubbles:true}));return true;})()")
             check(wait_for(lambda: get()['values']['Watermark'] == '1', 10), 'UI change reaches the native backend')
             # An ordinary test process at the registered Game.exe path exercises the live guard.
@@ -99,7 +100,7 @@ def main():
             process.terminate(); process.wait(timeout=10); process = None
             check(wait_for(lambda: not get()['running'], 10), 'detects exit')
             launcher.evaluate('MuacView.reload()')
-            check(launcher.evaluate("Array.from(document.querySelectorAll('#muac-options-panel select')).every(s=>!s.disabled)"),
+            check(wait_for(lambda: launcher.evaluate("document.querySelectorAll('#muac-options-panel select').length === 9 && Array.from(document.querySelectorAll('#muac-options-panel select')).every(s=>!s.disabled)"), 10),
                   'options become editable after exit')
     finally:
         if process is not None: process.terminate(); process.wait(timeout=10)

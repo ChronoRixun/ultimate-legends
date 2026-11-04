@@ -244,8 +244,8 @@ namespace patch_status
         const auto resource = installed_version(folder / "dinput8.dll");
         if (!resource) return resource;
         try {
-            const auto json = muac::runtime::read_file(folder / "_muac/runtime.json", 128 * 1024);
-            const auto hash = utils::cryptography::sha256::compute(muac::runtime::read_file(folder / "dinput8.dll"), true);
+            const auto json = muac::runtime::read_status_file(folder / "_muac/runtime.json", 128 * 1024);
+            const auto hash = utils::cryptography::sha256::compute(muac::runtime::read_status_file(folder / "dinput8.dll", 64 * 1024 * 1024), true);
             if (const auto version = muac::runtime::record_version(json, hash)) return version;
         } catch (const std::exception&) { /* Older/manual installs use the DLL resource. */ }
         return resource;

@@ -3,6 +3,7 @@
 #include "muac/runtime_update.hpp"
 #include "muac/setup_cleanup.hpp"
 #include "updater/release_channel.hpp"
+#include <cstdlib>
 #include <fstream>
 #include <iomanip>
 #include <map>
@@ -236,3 +237,22 @@ TEST(muac_update_accepts_upper_case_production_digests_and_records_lower_case) {
     CHECK(runtime::record_version(record, hash(f.payload.at("dinput8.dll"))) == "0.2.1");
     CHECK(get(f.game / "D3D9.dll") == f.graphics);
 }
+
+#ifdef _WIN32
+// A ready install reached through a junction (a moved library folder; Wine shows Linux mounts the
+// same way) is never "interrupted": status reads work through the link, only Update refuses it.
+TEST(muac_linked_install_is_not_pending_and_update_refuses_the_link) {
+    fixture f;
+    const auto link = f.root / "linked";
+    const auto command = "cmd /c mklink /J \"" + link.string() + "\" \"" + f.game.string() + "\" >nul 2>nul";
+    if (std::system(command.c_str()) != 0 || !std::filesystem::exists(link / "Game.exe")) return;  // no junctions here
+    CHECK(!runtime::recovery_pending(link));
+    CHECK(runtime::record_version(runtime::read_status_file(link / "_muac/runtime.json")) == "0.2.0");
+    const auto before = f.snapshot();
+    CHECK(refuses([&] { runtime::update(link, f.bundle, f.package(), f.graphics, hash); }));
+    CHECK(f.snapshot() == before);
+    put(f.game / ".muac-stage-update-fixture/journal.json", R"({"state":"committing","files":[]})");
+    CHECK(runtime::recovery_pending(link));
+    std::error_code ignored; std::filesystem::remove(link, ignored);
+}
+#endif

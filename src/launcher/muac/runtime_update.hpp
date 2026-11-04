@@ -24,6 +24,8 @@ namespace muac::runtime {
     bool newer_compatible(const std::string& installed, const std::string& latest,
                           const std::string& minimum, const std::string& launcher);
     std::string read_file(const std::filesystem::path& path, std::uint64_t maximum = 128 * 1024 * 1024);
+    // For read-only status checks (version record, recovery state): no link guard, size-capped.
+    std::string read_status_file(const std::filesystem::path& path, std::uint64_t maximum = 128 * 1024 * 1024);
     // No links, junctions, alternate streams or lexical traversal in any ancestor.
     void guard(const std::filesystem::path& path);
     using hash_function = std::function<std::string(const std::string&)>;

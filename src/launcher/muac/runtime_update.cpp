@@ -214,13 +214,19 @@ void guard(const std::filesystem::path& path) {
         const auto parent = part.parent_path(); if (parent == part) break; part = parent;
     }
 }
-std::string read_file(const std::filesystem::path& path, std::uint64_t maximum) {
-    guard(path);
-    require(std::filesystem::is_regular_file(path) && std::filesystem::file_size(path) <= maximum, "Missing or oversized runtime file.");
+std::string read_status_file(const std::filesystem::path& path, std::uint64_t maximum) {
+    std::error_code ec;
+    const bool regular = std::filesystem::is_regular_file(path, ec) && !ec;
+    const auto bytes = regular ? std::filesystem::file_size(path, ec) : 0;
+    require(regular && !ec && bytes <= maximum, "Missing or oversized runtime file.");
     std::ifstream input(path, std::ios::binary);
-    std::string out(static_cast<std::size_t>(std::filesystem::file_size(path)), '\0');
+    std::string out(static_cast<std::size_t>(bytes), '\0');
     require(static_cast<bool>(input.read(out.data(), static_cast<std::streamsize>(out.size()))), "Could not read runtime file.");
     return out;
+}
+std::string read_file(const std::filesystem::path& path, std::uint64_t maximum) {
+    guard(path);
+    return read_status_file(path, maximum);
 }
 package parse_package(const std::string& json, const std::string& expected_version) {
     const auto data = document(json); package out;
@@ -270,17 +276,23 @@ bool newer_compatible(const std::string& installed, const std::string& latest, c
         (installed.empty() || release_channel::compare(latest, installed) > 0);
 }
 bool recovery_pending(const std::filesystem::path& game) {
-    try {
-        guard(game);
-        std::error_code ec;
-        if (!std::filesystem::exists(game, ec) && !ec) return false;
-        for (const auto& entry : std::filesystem::directory_iterator(game)) {
-            if (!entry.path().filename().native().starts_with(std::filesystem::path(".muac-stage-update-").native())) continue;
-            const auto file = entry.path() / "journal.json";
-            if (std::filesystem::exists(file) && text(document(read_file(file, 128 * 1024)), "state") != "committed") return true;
-        }
-        return false;
-    } catch (const std::exception&) { return true; }
+    // Read-only, so no link guard: a ready install reached through a junction or symlink (a moved
+    // library folder, Wine's mount points) is not "interrupted". Only an actual update stage counts;
+    // update() and recover() still refuse linked folders before writing.
+    std::error_code ec;
+    if (!std::filesystem::is_directory(game, ec) || ec) return false;
+    std::filesystem::directory_iterator entry(game, ec);
+    if (ec) return false;
+    for (const std::filesystem::directory_iterator end; entry != end; entry.increment(ec)) {
+        if (ec) return false;
+        if (!entry->path().filename().native().starts_with(std::filesystem::path(".muac-stage-update-").native())) continue;
+        const auto file = entry->path() / "journal.json";
+        if (!std::filesystem::exists(file, ec)) continue;
+        try {
+            if (text(document(read_status_file(file, 128 * 1024)), "state") != "committed") return true;
+        } catch (const std::exception&) { return true; }
+    }
+    return false;
 }
 void recover(const std::filesystem::path& game) {
     guard(game);

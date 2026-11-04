@@ -5046,3 +5046,40 @@ html[data-reduce-motion] .ul-online-spinner { animation: none; }
 .xml1-import-heroes { width: 100%; border-collapse: collapse; }
 .xml1-import-heroes th, .xml1-import-heroes td { text-align: left; padding: 4px 8px; }
 .xml1-import-history, .xml1-import-preview { margin-top: 14px; }
+
+/* The preview uses the same centered cover crop as library cards and game banners. */
+.artwork-preview {
+    display: block;
+    object-fit: cover;
+    object-position: center;
+    margin: 12px auto;
+    max-width: 100%;
+    border-radius: 8px;
+}
+.artwork-preview-capsule { width: 200px; height: 300px; }
+.artwork-preview-hero { width: 560px; height: 180px; }
+
+/* Reordering uses native drag thresholds; bright insertion bars mark the drop side. */
+.library-card[draggable="true"], .game-item[draggable="true"] { position: relative; }
+.is-order-dragging { opacity: 0.55; }
+.library-card.order-drop-before::before, .library-card.order-drop-after::before,
+.game-item.order-drop-before::before, .game-item.order-drop-after::before {
+    content: '';
+    position: absolute;
+    z-index: 20;
+    pointer-events: none;
+    background: var(--accent, #ffb04f);
+    box-shadow: 0 0 8px var(--accent, #ffb04f);
+}
+.library-card.order-drop-before::before { top: 0; bottom: 0; left: 0; width: 5px; }
+.library-card.order-drop-after::before { top: 0; bottom: 0; right: 0; width: 5px; }
+.game-item.order-drop-before::before { top: 0; left: 0; right: 0; height: 4px; }
+.game-item.order-drop-after::before { bottom: 0; left: 0; right: 0; height: 4px; }
+.game-order-status {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}

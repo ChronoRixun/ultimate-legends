@@ -292,8 +292,15 @@ namespace patch_status
 
         // A patch file without a version resource isn't one the launcher can date: it is replaced
         // at the next launch anyway, so any release counts as newer.
+        const auto folder = config.game_key == "muac" ? config.get_install_path() : std::nullopt;
+        const bool migration = folder && muac::runtime::needs_wine_migration(*folder);
+        if (config.game_key == "muac" && muac::platform::is_wine() && !latest.empty() && release_channel::compare(latest, "0.2.2") < 0) {
+            latest.clear();
+            error = "MUA 2006 on Proton needs MUA Classic Fix 0.2.2 or newer on your selected update channel.";
+        }
         const auto update_available = installed && !latest.empty() &&
-                                      (installed->empty() || tool_install::compare_versions(latest, *installed) > 0);
+            (config.game_key == "muac" ? muac::runtime::newer_compatible(*installed, latest, "", "", migration) :
+             (installed->empty() || tool_install::compare_versions(latest, *installed) > 0));
 
         out.SetObject();
         out.AddMember("installed", installed ? make_string(*installed, allocator) : rapidjson::Value(rapidjson::kNullType), allocator);
@@ -301,6 +308,7 @@ namespace patch_status
         out.AddMember("page", make_string(page, allocator), allocator);
         out.AddMember("checking", checking, allocator);
         out.AddMember("updateAvailable", update_available, allocator);
+        out.AddMember("wineMigration", migration && installed && *installed == latest, allocator);
         // The update channel: "beta" only for a patch that follows it; a pre-release in the folder
         // (the page's Beta badge); on Stable, a beta newer than the latest release (it stays until
         // the player switches back, Settings > Update channel); the channel's last release found when

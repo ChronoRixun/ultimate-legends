@@ -94,7 +94,7 @@ namespace {
     }
 }
 
-values read(const std::filesystem::path& folder) {
+values read(const std::filesystem::path& folder, bool wine) {
     const auto graphics=folder/L"dgVoodoo.conf", input=folder/L"muac-fix.ini";
     const bool full=flag(key_value(graphics,L"General","FullScreenMode","true"),true) ||
                     flag(key_value(graphics,L"DirectX","AppControlledScreenMode","true"),true);
@@ -109,7 +109,7 @@ values read(const std::filesystem::path& folder) {
         {"ControllerSupport",flag(key_value(input,L"Input","ControllerSupport","1"),true)?"1":"0"},
         {"RunInBackground",flag(key_value(input,L"Display","RunInBackground","1"),true)?"1":"0"},
         {"CaptureMouse",(flag(key_value(input,L"Input","CaptureMouse","0"),false) ||
-                          flag(key_value(graphics,L"General","CaptureMouse","true"),true))?"1":"0"},
+                          (!wine && flag(key_value(graphics,L"General","CaptureMouse","true"),true)))?"1":"0"},
         {"OnlineService",ipv4(server)?"custom":domain=="off"?"off":domain=="openspy.net"?"openspy":"custom"}};
 }
 
@@ -129,18 +129,21 @@ std::optional<std::string> normalise(const std::string& key, const std::string& 
     return std::nullopt;
 }
 
-std::vector<std::string> missing_runtime(const std::filesystem::path& folder) {
+std::vector<std::string> missing_runtime(const std::filesystem::path& folder, bool wine) {
     std::vector<std::string> missing;
     if(runtime::recovery_pending(folder)) missing.push_back(runtime::pending_message);
     if(!is_muac_fix(folder/L"dinput8.dll")) missing.push_back("MUA Classic Fix 0.1.1 or newer (dinput8.dll)");
     for(const auto* file : {"version.dll","D3D9.dll","dgVoodoo.conf"})
-        if(!utils::io::file_exists(folder/file)) missing.emplace_back(file);
+        if(!(wine && std::string_view(file)=="D3D9.dll") && !utils::io::file_exists(folder/file)) missing.emplace_back(file);
     return missing;
 }
 
-bool write(const std::filesystem::path& folder, const values& requested, std::string& error) {
+bool write(const std::filesystem::path& folder, const values& requested, std::string& error, bool wine) {
     values changes;
     for(const auto& [key,value] : requested) {
+        if(wine && (key=="Mode" || key=="Resolution" || key=="FrameLimit" || key=="VSync" || key=="Watermark")) {
+            error="Your Steam Deck / Proton handles display mode."; return false;
+        }
         const auto checked=normalise(key,value);
         if(!checked) {error="Invalid MUAC setting: "+key;return false;}
         changes.emplace(key,*checked);
@@ -149,6 +152,7 @@ bool write(const std::filesystem::path& folder, const values& requested, std::st
     struct backup {std::filesystem::path path;bool exists;std::string data;};
     std::vector<backup> backups;
     for(const auto* file : {L"dgVoodoo.conf",L"muac-fix.ini"}) {
+        if(wine && std::wstring_view(file)==L"dgVoodoo.conf") continue;
         backup original{folder/file,false,{}};
         const auto attributes=GetFileAttributesW(original.path.c_str());
         if(attributes!=INVALID_FILE_ATTRIBUTES && (attributes&FILE_ATTRIBUTE_REPARSE_POINT)) {error="Linked settings files cannot be edited.";return false;}
@@ -175,7 +179,7 @@ bool write(const std::filesystem::path& folder, const values& requested, std::st
         else if(key=="RunInBackground") put(input,L"Display",{{key,value}});
         else if(key=="CaptureMouse") {
             put(input,L"Input",{{key,value}});
-            put(graphics,L"General",{{"CaptureMouse",value=="1"?"true":"false"}});
+            if(!wine) put(graphics,L"General",{{"CaptureMouse",value=="1"?"true":"false"}});
         } else if(key=="OnlineService") {
             put(input,L"Online",{{"Domain",value=="openspy"?"openspy.net":"off"},{"Server",std::nullopt}});
         }

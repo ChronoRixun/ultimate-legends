@@ -4,6 +4,20 @@
 #include <fstream>
 #include <algorithm>
 #include <chrono>
+#include <rapidjson/document.h>
+
+TEST(muac_cleanup_shared_wine_mount_point_cases) {
+    std::ifstream input("src/tests/wine-mount-points.json");
+    const std::string bytes{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+    rapidjson::Document cases; cases.Parse(bytes.c_str());
+    CHECK(!cases.HasParseError() && cases.IsArray());
+    for (const auto& item : cases.GetArray()) {
+        CHECK(muac_setup::cleanup::allowed_wine_reparse(item["wine"].GetBool(), false,
+            item["directory"].GetBool(), item["tag"].GetUint(), !item["redirects"].GetBool()) == item["allowed"].GetBool());
+    }
+    CHECK(muac_setup::cleanup::allowed_wine_reparse(true, true, true, 0, false));
+    CHECK(!muac_setup::cleanup::allowed_wine_reparse(false, true, true, 0, false));
+}
 
 namespace {
     constexpr auto complete = R"({"ok":true,"exit":0,"prepared":true,"files_complete":true,"install":"fixture"})";

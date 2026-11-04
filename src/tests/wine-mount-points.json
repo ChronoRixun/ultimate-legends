@@ -1,0 +1,8 @@
+[
+  {"name":"Wine self mount", "wine":true, "directory":true, "tag":2684354563, "redirects":false, "allowed":true},
+  {"name":"native self mount", "wine":false, "directory":true, "tag":2684354563, "redirects":false, "allowed":false},
+  {"name":"Wine junction", "wine":true, "directory":true, "tag":2684354563, "redirects":true, "allowed":false},
+  {"name":"Wine symlink tag", "wine":true, "directory":true, "tag":2684354572, "redirects":false, "allowed":false},
+  {"name":"Wine file mount tag", "wine":true, "directory":false, "tag":2684354563, "redirects":false, "allowed":false},
+  {"name":"Wine unknown tag", "wine":true, "directory":true, "tag":0, "redirects":false, "allowed":false}
+]

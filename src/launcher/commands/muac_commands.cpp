@@ -16,6 +16,9 @@ namespace {
         out.SetObject();auto& a=out.GetAllocator();const auto config=game_config::get_game_config("muac");
         const auto folder=config?config->get_install_path():std::nullopt;
         const bool installed=folder && game_config::validate_game_path("muac",*folder);
+        const bool wine=muac::platform::is_wine();
+        out.AddMember("wine",wine,a);
+        out.AddMember("dgvoodooPresent",installed && muac::runtime::needs_wine_migration(*folder,wine),a);
         out.AddMember("installed",installed,a);out.AddMember("running",installed && game_config::is_game_process_running("muac"),a);
         out.AddMember("recoveryPending", installed && muac::runtime::recovery_pending(*folder), a);
         rapidjson::Value missing(rapidjson::kArrayType), values(rapidjson::kObjectType);

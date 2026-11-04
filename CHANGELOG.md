@@ -3,6 +3,36 @@
 The launcher's version comes from its release tag (`v0.3.2`): premake reads it with `git describe` when it
 generates the project, so a release only needs this entry and the tag.
 
+## 0.5.0-beta.8 (draft; release identity pending)
+
+### Fixed
+- Runtime update payloads, merged settings, runtime records and journals are written through flushed
+  same-directory temporary files and atomic replacement. A separate immutable recovery plan lets Update
+  roll back from backups even if its journal is missing or unreadable. A legacy empty initial journal is
+  discarded only after checking that staged files and backups show publication has not started; recovery
+  decisions are logged. Ambiguous legacy damage keeps staging and backups for manual recovery.
+- MUA credits explain that Wine uses DXVK/Proton. Run in background has Proton-specific help, and a
+  same-version migration says "Update (removes D3D9.dll for Proton)" instead of advertising a newer version.
+- `dgVoodoo.conf` remains on Wine: MUA Classic Fix reads it to enable its window-focus policy.
+
+## Unreleased (Proton MUA 2006; release identity pending)
+
+### Added
+- MUA 2006 setup and Update recognize Wine through `ntdll!wine_get_version`, accept Wine drive roots and
+  self-resolving Linux mount-point tags, and continue refusing redirected junctions/symlinks inside the tree.
+- On Wine, the platform supplies D3D9. Setup and Update skip dgVoodoo; missing D3D9.dll is allowed. Update
+  stages and retains a hash-named backup of an inherited D3D9.dll, records its removal, and removes the live DLL
+  with the existing rollback/recovery transaction. Game files, saves and custom settings are preserved.
+- The MUA 2006 options page explains a Windows-made D3D9.dll and offers Update. Migration can reapply a
+  compatible 0.2.2 runtime at the same version, without downgrading newer installations.
+- Wine hides dgVoodoo display options and explains that Steam Deck / Proton handles display mode. Controller,
+  background, mouse and online options remain editable; unsupported graphics writes are refused by the backend.
+
+### Companion and validation
+- Requires muac-fix 0.2.2 for initial Wine setup. Its package requires launcher 0.5.0-beta.8 or newer (final
+  0.5.0 qualifies); the coordinator assigns the launcher release identity. Native Windows keeps dgVoodoo.
+- Full ISO setup, menu startup and Windows-to-Proton migration still need live validation on an ext4 path.
+
 ## 0.5.0-beta.7 (unreleased: a pre-release for the Beta update channel; the last beta before 0.5.0)
 
 ### Added

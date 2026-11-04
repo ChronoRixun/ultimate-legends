@@ -12,6 +12,15 @@
 
 namespace muac::runtime {
 namespace {
+    void require(bool ok, const std::string& message);
+    void validate_path(const std::filesystem::path& path) {
+        require(path.is_absolute() && path != path.root_path() && path.native().find(std::filesystem::path::value_type{}) == std::filesystem::path::string_type::npos,
+                "Choose a full, safe game folder path.");
+        for (const auto& part : path) {
+            const auto& name = part.native();
+            require(part != "." && part != ".." && (part == path.root_name() || name.find(static_cast<std::filesystem::path::value_type>(':')) == std::filesystem::path::string_type::npos), "Unsafe runtime path.");
+        }
+    }
     constexpr std::uint64_t file_limit = 128 * 1024 * 1024;
     const std::set<std::string> required = {"dinput8.dll", "version.dll", "version.json", "muac-fix.ini", "dgVoodoo.conf"};
     const std::set<std::string> optional = {"_muac/THIRD_PARTY.txt", "_muac/licenses/SafeDiscLoader2.txt",
@@ -201,13 +210,37 @@ namespace {
     }
 }
 
+std::filesystem::path resolve_game_folder(const std::filesystem::path& path) {
+    validate_path(path);
+#ifdef _WIN32
+    // Follow the selected folder (and its ancestors) once. All subsequent transaction
+    // paths, including recovery/staging/backups, are derived from this final directory.
+    const auto handle = CreateFileW(path.c_str(), FILE_READ_ATTRIBUTES,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    require(handle != INVALID_HANDLE_VALUE, "Could not open the MUA 2006 game folder.");
+    std::wstring final;
+    try {
+        const auto length = GetFinalPathNameByHandleW(handle, nullptr, 0, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+        require(length != 0, "Could not resolve the MUA 2006 game folder.");
+        final.resize(length);
+        const auto written = GetFinalPathNameByHandleW(handle, final.data(), length, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+        require(written != 0 && written < length, "Could not resolve the MUA 2006 game folder.");
+        final.resize(written);
+    } catch (...) { CloseHandle(handle); throw; }
+    CloseHandle(handle);
+    if (final.starts_with(L"\\\\?\\UNC\\")) final = L"\\\\" + final.substr(8);
+    else if (final.starts_with(L"\\\\?\\")) final.erase(0, 4);
+    const std::filesystem::path resolved(final);
+#else
+    const auto resolved = std::filesystem::canonical(path);
+#endif
+    guard(resolved);
+    require(std::filesystem::is_directory(resolved), "Choose the MUA 2006 game folder.");
+    return resolved;
+}
 void guard(const std::filesystem::path& path) {
-    require(path.is_absolute() && path != path.root_path() && path.native().find(std::filesystem::path::value_type{}) == std::filesystem::path::string_type::npos,
-            "Choose a full, safe game folder path.");
-    for (const auto& part : path) {
-        const auto& name = part.native();
-        require(part != "." && part != ".." && (part == path.root_name() || name.find(static_cast<std::filesystem::path::value_type>(':')) == std::filesystem::path::string_type::npos), "Unsafe runtime path.");
-    }
+    validate_path(path);
     std::error_code ec;
     for (auto part = path; !part.empty();) {
         require(!muac_setup::cleanup::linked(part, ec) && !ec, "Runtime updates refuse symbolic links and junctions.");
@@ -278,7 +311,7 @@ bool newer_compatible(const std::string& installed, const std::string& latest, c
 bool recovery_pending(const std::filesystem::path& game) {
     // Read-only, so no link guard: a ready install reached through a junction or symlink (a moved
     // library folder, Wine's mount points) is not "interrupted". Only an actual update stage counts;
-    // update() and recover() still refuse linked folders before writing.
+    // Update resolves the selected folder before guarded recovery and writes.
     std::error_code ec;
     if (!std::filesystem::is_directory(game, ec) || ec) return false;
     std::filesystem::directory_iterator entry(game, ec);
@@ -386,7 +419,14 @@ void update(const std::filesystem::path& game, const std::filesystem::path& bund
         std::filesystem::rename(stage / "journal.next", stage / "journal.json");
 #endif
     } catch (const std::exception& error) {
-        const std::string reason = error.what();
+        const auto* filesystem_error = dynamic_cast<const std::filesystem::filesystem_error*>(&error);
+        const auto code = filesystem_error ? filesystem_error->code().value() : 0;
+#ifdef _WIN32
+        const bool locked = filesystem_error && (code == ERROR_SHARING_VIOLATION || code == ERROR_LOCK_VIOLATION || code == ERROR_ACCESS_DENIED);
+#else
+        const bool locked = code == static_cast<int>(std::errc::permission_denied) || code == static_cast<int>(std::errc::device_or_resource_busy);
+#endif
+        const std::string reason = locked ? file_in_use_message : error.what();
         try { if (committing) restore(game, stage, journal); remove_stage(game, stage); }
         catch (const std::exception& rollback) { throw std::runtime_error(reason + " Recovery is pending; retry Update before playing. " + rollback.what()); }
         throw std::runtime_error(reason);

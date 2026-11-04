@@ -2,6 +2,7 @@
 #include "test.hpp"
 #include "muac/runtime_update.hpp"
 #include "muac/setup_cleanup.hpp"
+#include <utils/cryptography.hpp>
 #include "updater/release_channel.hpp"
 #include <cstdlib>
 #include <fstream>
@@ -45,14 +46,14 @@ namespace {
             put(game / "mods/keep", "synthetic mod"); put(game / "_muac/setup.json", "synthetic import record");
         }
         ~fixture() { std::error_code ignored; std::filesystem::remove_all(root, ignored); }
-        std::string json() const {
+        std::string json(const runtime::hash_function& digest = hash) const {
             std::string out = R"({"schema":1,"version":"0.2.1","files":[)"; bool comma = false;
             for (const auto& [target, bytes] : payload) {
                 if (comma) out += ','; comma = true;
-                out += "{\"source\":\"" + target + "\",\"target\":\"" + target + "\",\"size\":" + std::to_string(bytes.size()) + ",\"sha256\":\"" + hash(bytes) + "\"}";
+                out += "{\"source\":\"" + target + "\",\"target\":\"" + target + "\",\"size\":" + std::to_string(bytes.size()) + ",\"sha256\":\"" + digest(bytes) + "\"}";
             }
-            return out + R"(],"dgvoodoo":{"url":"https://github.com/dege-diosg/dgVoodoo2/releases/download/v-test/graphics.zip","member":"MS/x86/D3D9.dll","size":1,"sha256":")" + hash("archive") +
-                "\",\"dll_size\":" + std::to_string(graphics.size()) + ",\"dll_sha256\":\"" + hash(graphics) + "\"}}";
+            return out + R"(],"dgvoodoo":{"url":"https://github.com/dege-diosg/dgVoodoo2/releases/download/v-test/graphics.zip","member":"MS/x86/D3D9.dll","size":1,"sha256":")" + digest("archive") +
+                "\",\"dll_size\":" + std::to_string(graphics.size()) + ",\"dll_sha256\":\"" + digest(graphics) + "\"}}";
         }
         runtime::package package() const { return runtime::parse_package(json(), "0.2.1"); }
         void update(const runtime::controls& control = {}) { runtime::update(game, bundle, package(), graphics, hash, control); }
@@ -162,6 +163,9 @@ TEST(muac_runtime_refuses_unsafe_recovery_journal_and_paths) {
     put(f.game / ".muac-stage-update-fixture/journal.json", R"({"state":"committing","files":[{"target":"Game.exe","existed":false}]})");
     CHECK(refuses([&] { runtime::recover(f.game); })); CHECK(get(f.game / "Game.exe") == before);
     CHECK(refuses([&] { runtime::guard(f.game / ".." / "game"); }));
+    CHECK(refuses([&] { runtime::resolve_game_folder(f.game / ".." / "game"); }));
+    CHECK(refuses([&] { runtime::resolve_game_folder(f.game / "file:stream"); }));
+    CHECK(refuses([&] { runtime::resolve_game_folder("relative"); }));
     CHECK(refuses([&] { runtime::guard(f.game / "file:stream"); })); CHECK(refuses([&] { runtime::guard("relative"); }));
 }
 TEST(muac_runtime_preserves_utf16_ini_settings_and_adds_new_keys) {
@@ -196,8 +200,11 @@ TEST(muac_runtime_locked_destination_rolls_back_real_rename_failure) {
     fixture f; const auto before = f.snapshot();
     const auto lock = CreateFileW((f.game / "version.dll").c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
     CHECK(lock != INVALID_HANDLE_VALUE);
-    CHECK(refuses([&] { f.update(); }));
+    std::string error;
+    try { f.update(); } catch (const std::exception& e) { error = e.what(); }
     CloseHandle(lock);
+    CHECK(error == runtime::file_in_use_message);
+    CHECK(!runtime::recovery_pending(f.game));
     CHECK(f.snapshot() == before);
 }
 TEST(muac_runtime_failed_rollback_is_recoverable_after_lock_is_released) {
@@ -239,20 +246,70 @@ TEST(muac_update_accepts_upper_case_production_digests_and_records_lower_case) {
 }
 
 #ifdef _WIN32
-// A ready install reached through a junction (a moved library folder; Wine shows Linux mounts the
-// same way) is never "interrupted": status reads work through the link, only Update refuses it.
-TEST(muac_linked_install_is_not_pending_and_update_refuses_the_link) {
+// Exercise the exact resolve-once boundary used by start_update, with an NTFS junction.
+TEST(muac_linked_install_updates_the_resolved_tree_and_recovers_through_the_link) {
     fixture f;
     const auto link = f.root / "linked";
     const auto command = "cmd /c mklink /J \"" + link.string() + "\" \"" + f.game.string() + "\" >nul 2>nul";
-    if (std::system(command.c_str()) != 0 || !std::filesystem::exists(link / "Game.exe")) return;  // no junctions here
+    CHECK(std::system(command.c_str()) == 0);
+    CHECK(std::filesystem::exists(link / "Game.exe"));
+    if (!std::filesystem::exists(link / "Game.exe")) return;
     CHECK(!runtime::recovery_pending(link));
     CHECK(runtime::record_version(runtime::read_status_file(link / "_muac/runtime.json")) == "0.2.0");
+    const auto real = runtime::resolve_game_folder(link);
+    CHECK(real == runtime::resolve_game_folder(f.game));
     const auto before = f.snapshot();
-    CHECK(refuses([&] { runtime::update(link, f.bundle, f.package(), f.graphics, hash); }));
-    CHECK(f.snapshot() == before);
-    put(f.game / ".muac-stage-update-fixture/journal.json", R"({"state":"committing","files":[]})");
+    put(real / ".muac-stage-update-fixture/journal.json", R"({"state":"committing","files":[]})");
     CHECK(runtime::recovery_pending(link));
-    std::error_code ignored; std::filesystem::remove(link, ignored);
+    bool stage_on_real_path = false;
+    runtime::controls control;
+    control.before_replace = [&](const std::string&) {
+        for (const auto& entry : std::filesystem::directory_iterator(real))
+            if (entry.path().filename().wstring().starts_with(L".muac-stage-update-")) stage_on_real_path = true;
+        // Remove the selected alias mid-transaction: every write must keep using real.
+        if (std::filesystem::exists(link)) CHECK(std::filesystem::remove(link));
+    };
+    runtime::update(real, f.bundle, f.package(), f.graphics, hash, control);
+    CHECK(stage_on_real_path);
+    CHECK(!runtime::recovery_pending(real));
+    CHECK(get(real / "dinput8.dll") == f.payload.at("dinput8.dll"));
+    for (const auto* file : {"Game.exe", "saves/keep", "mods/keep", "_muac/setup.json"}) CHECK(get(real / file) == before.at(file));
+    // Ancestor junctions are accepted by the same boundary.
+    const auto parent_link = f.root / "parent-link";
+    const auto parent_command = "cmd /c mklink /J \"" + parent_link.string() + "\" \"" + f.root.string() + "\" >nul 2>nul";
+    CHECK(std::system(parent_command.c_str()) == 0);
+    CHECK(runtime::resolve_game_folder(parent_link / "game") == real);
+    CHECK(std::filesystem::remove(parent_link));
+}
+TEST(muac_resolved_update_still_refuses_internal_junctions) {
+    fixture f; const auto before = f.snapshot();
+    const auto metadata = f.root / "metadata";
+    std::filesystem::rename(f.game / "_muac", metadata);
+    const auto link = f.game / "_muac";
+    const auto command = "cmd /c mklink /J \"" + link.string() + "\" \"" + metadata.string() + "\" >nul 2>nul";
+    CHECK(std::system(command.c_str()) == 0);
+    CHECK(std::filesystem::exists(link / "setup.json"));
+    const auto real = runtime::resolve_game_folder(f.game);
+    CHECK(refuses([&] { runtime::update(real, f.bundle, f.package(), f.graphics, hash); }));
+    CHECK(runtime::read_status_file(metadata / "setup.json") == "synthetic import record");
+    CHECK(std::filesystem::remove(link));
+    std::filesystem::rename(metadata, f.game / "_muac");
+    CHECK(f.snapshot() == before);
+    CHECK(!runtime::recovery_pending(real));
 }
 #endif
+
+TEST(muac_update_uses_production_sha256_with_lowercase_manifest) {
+    const auto production = [](const std::string& bytes) { return utils::cryptography::sha256::compute(bytes, true); };
+    const auto lower_sha256 = [&](const std::string& bytes) {
+        auto out = production(bytes);
+        std::transform(out.begin(), out.end(), out.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        return out;
+    };
+    CHECK(lower_sha256("abc") == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    fixture f;
+    const auto manifest = runtime::parse_package(f.json(lower_sha256), "0.2.1");
+    CHECK(!refuses([&] { runtime::update(f.game, f.bundle, manifest, f.graphics, production); }));
+    CHECK(runtime::record_version(get(f.game / "_muac/runtime.json"), production(f.payload.at("dinput8.dll"))) == "0.2.1");
+    CHECK(get(f.game / "D3D9.dll") == f.graphics);
+}

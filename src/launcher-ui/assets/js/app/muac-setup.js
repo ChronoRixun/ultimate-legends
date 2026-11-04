@@ -2,6 +2,15 @@
 (function () {
     'use strict';
     const t = key => window.LauncherI18n.t(`muac.${key}`);
+    // MUAC strings use the shared English fallback for languages awaiting translation.
+    function errorText(value) {
+        const message = String(value || '');
+        if (message.startsWith('A MUA Classic Fix file is in use.')) {
+            return t('fileInUse') + (message.includes('Recovery is pending;') ? ' ' + t('updateRecoveryPending') : '');
+        }
+        if (message === "The last MUA Classic Fix update didn't finish. Choose Update to finish it.") return t('updatePending');
+        return message;
+    }
     const esc = value => GameUtils.escapeHtml(String(value || ''));
     const run = (command, payload = {}) => window.executeCommand(command, payload);
     let host, timer, last = {}, source = '', output = '', starting = false, notified = false;
@@ -33,7 +42,7 @@
                     <div class="setup-actions"><button class="btn-cancel" type="button" data-act="output">${esc(t('setupBrowse'))}</button></div>
                 </div>` : ''}
                 <p class="muac-setup-progress" role="status" aria-live="polite"></p>
-                <p class="muac-setup-error" role="alert">${esc(formError || last.error)}</p>
+                <p class="muac-setup-error" role="alert">${esc(errorText(formError || last.error))}</p>
                 <div class="setup-actions">
                     ${busy ? `<button class="btn-cancel" type="button" data-act="cancel" ${last.cancelled ? 'disabled' : ''}>${esc(t(last.cancelled ? 'setupCancelling' : updating ? 'updateCancel' : 'setupCancel'))}</button>` :
                         last.success ? `<button class="btn-primary" type="button" data-act="done">${esc(t('setupDone'))}</button>` :

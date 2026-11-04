@@ -294,7 +294,7 @@ end
 
 dependencies.imports()
 
--- Unit tests of the launcher's parts that need no Windows, CEF or network (src/tests). The build
+-- Unit tests of the launcher's non-UI parts (synthetic fixtures; no CEF or network). The build
 -- workflow runs them after the build; locally: build\bin\x64\<config>\ultimate-legends-tests.exe.
 -- The UI's own tests (src/tests/ui) run with Node: node src/tests/ui/run.js.
 project "ultimate-legends-tests"
@@ -316,6 +316,11 @@ removefiles {"./src/tests/windows/**"}
 -- (header-only) for updater/release_channel.cpp, which reads GitHub's release JSON.
 includedirs {"./src/tests", "./src/launcher", path.join(dependencies.basePath, "rapidjson/include")}
 defines {"RAPIDJSON_HAS_STDSTRING"}
+-- The runtime-update regression exercises the same SHA-256 implementation as production.
+includedirs {"./src/common"}
+libtomcrypt.includes()
+libtommath.includes()
+links {"common", "libtomcrypt", "libtommath"}
 
 -- Real Win32 profile/registry I/O against synthetic files and a test-only registry namespace.
 project "ultimate-legends-muac-tests"

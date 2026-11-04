@@ -7,6 +7,10 @@
 #include <vector>
 
 namespace muac::runtime {
+    inline constexpr auto pending_message = "The last MUA Classic Fix update didn't finish. Choose Update to finish it.";
+    inline constexpr auto file_in_use_message = "A MUA Classic Fix file is in use. Close the game or any program using it and try Update again.";
+    // Resolve only the selected directory; guard() still rejects links within the tree.
+    std::filesystem::path resolve_game_folder(const std::filesystem::path& path);
     struct file {
         std::string source, target;
         std::uint64_t size{};

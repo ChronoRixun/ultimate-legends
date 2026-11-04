@@ -26,6 +26,7 @@
 #include "fix/online_settings.hpp"
 #include "fix/online_status.hpp"
 #include "muac/settings.hpp"
+#include "muac/runtime_update.hpp"
 
 #include <map>
 
@@ -674,6 +675,12 @@ namespace commands::game_commands
             if (config->game_key == "muac")
             {
                 const auto folder = config->get_install_path();
+                if (folder && muac::runtime::recovery_pending(*folder))
+                {
+                    // The frontend localizes this refusal; no duplicate native message box.
+                    answer(response, refusal("muac_update_pending", muac::runtime::pending_message));
+                    return;
+                }
                 if (!folder || !game_config::validate_game_path("muac", *folder) || !muac::missing_runtime(*folder).empty())
                 {
                     const std::string message = "MUA 2006 needs its prepared game folder and compatibility components. Check the MUAC options page.";

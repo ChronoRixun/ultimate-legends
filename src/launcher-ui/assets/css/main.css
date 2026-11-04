@@ -5089,7 +5089,7 @@ html[data-reduce-motion] .ul-online-spinner { animation: none; }
 .client-card.has-custom-art::after,
 .game-page.has-custom-banner .hero-section::after,
 .hub-hero.has-custom-banner::before {
-    background: linear-gradient(to top, rgba(10, 12, 10, 0.9) 0%, rgba(10, 12, 10, 0) 55%);
+    background: linear-gradient(to top, rgba(10, 12, 10, 0.96) 0%, rgba(10, 12, 10, 0.78) 25%, rgba(10, 12, 10, 0) 72%);
     pointer-events: none;
 }
 

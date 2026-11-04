@@ -689,6 +689,10 @@ class GameUtils {
         });
 
         if (!answer || answer.accepted !== true) {
+            if (answer?.reason === 'muac_update_pending' && typeof window.showMessageBox === 'function') {
+                const t = key => window.LauncherI18n.t(key);
+                await window.showMessageBox(t('errors.cannotLaunchTitle'), t('muac.updatePending'), [t('common.ok')]);
+            }
             return answer && typeof answer === 'object' ? answer : { accepted: false, reason: 'cancelled' };
         }
         if (window.GameStateManager && typeof window.GameStateManager.markGameLaunched === 'function') {

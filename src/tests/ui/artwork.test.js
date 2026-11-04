@@ -266,3 +266,41 @@ test('artwork: keyboard and pad reach the menu, preview, and Escape cancellation
     assert.equal(p.calls.find(c => c.command === 'confirm-artwork').data.cancel, true);
     assert.equal(p.document.activeElement, card);
 });
+
+test('artwork: higher contrast band covers bright uninstalled custom cards only', async () => {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const css = fs.readFileSync(path.join(__dirname, '../../launcher-ui/assets/css/main.css'), 'utf8');
+    const rule = css.replace(/\/\*[\s\S]*?\*\//g, '').match(/([^{}]*\.library-card\.has-custom-art::after[^{}]*)\{([^{}]+)\}/);
+    assert.ok(rule, 'custom art needs a title contrast band');
+    assert.ok(rule[1].trim().split(',').every(selector => /has-custom-art|has-custom-banner/.test(selector)), 'default-art selectors must never receive this fade');
+    assert.match(rule[2], /pointer-events: none/);
+    const stops = Array.from(rule[2].matchAll(/rgba\(([\d.]+),\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)\)\s*([\d.]+)%/g), match => match.slice(1).map(Number));
+    assert.ok(stops.length >= 2);
+    assert.ok(stops.at(-1)[4] >= 70, 'the fade must reach above the bottom title band');
+    // Contrast of white title text over near-white art, including its uninstalled dimming.
+    // Test the resulting contrast instead of requiring one exact set of gradient stops.
+    for (const picture of [255, 255 * 0.9]) for (const height of [15, 30]) {
+        const next = stops.findIndex(stop => stop[4] >= height);
+        assert.ok(next > 0, 'the gradient must cover both title lines');
+        const from = stops[next - 1], to = stops[next];
+        const mix = (height - from[4]) / (to[4] - from[4]);
+        const color = from.slice(0, 4).map((value, i) => value + (to[i] - value) * mix);
+        const linear = color.slice(0, 3).map(value => {
+            const srgb = (value * color[3] + picture * (1 - color[3])) / 255;
+            return srgb <= 0.04045 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
+        });
+        const luminance = linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722;
+        assert.ok(1.05 / (luminance + 0.05) >= 7, `title contrast too low at ${height}% on artwork ${picture}`);
+    }
+    const p = setup({ game: 'muac', record: { capsule: '/custom-art/muac/capsule/12.png' } });
+    await p.art.loadAll();
+    const surface = await renderArtworkSurfaces(p);
+    assert.equal(surface.library.classList.contains('is-installed'), false, 'exercise the dimmed library card');
+    assert.ok(surface.library.classList.contains('has-custom-art'));
+    const home = surface.home;
+    assert.ok(home.classList.contains('has-custom-art'));
+    await p.art.reset('muac');
+    assert.equal(surface.library.classList.contains('has-custom-art'), false);
+    assert.equal(home.classList.contains('has-custom-art'), false);
+});

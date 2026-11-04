@@ -223,9 +223,9 @@ bool start_update(std::string& error) {
     std::lock_guard lock(jobs_mutex);
     if (current) { std::lock_guard job_lock(current->mutex); if (current->active) { error = "MUA 2006 setup or update is already running."; return false; } }
     const auto game = game_config::get_game_config("muac");
-    const auto folder = game ? game->get_install_path() : std::nullopt;
+    auto folder = game ? game->get_install_path() : std::nullopt;
     if (!folder || !game_config::validate_game_path("muac", *folder)) { error = "Choose your installed MUA 2006 folder first."; return false; }
-    try { muac::runtime::guard(*folder); } catch (const std::exception& e) { error = e.what(); return false; }
+    try { folder = muac::runtime::resolve_game_folder(*folder); } catch (const std::exception& e) { error = e.what(); return false; }
     auto hold = updater::reserve(*folder, updater::folder_use::builder);
     if (!hold) { error = "The game folder is busy. Wait for the current operation to finish."; return false; }
     if (utils::nt::is_any_image_running({*folder / L"Game.exe"})) { error = "Close MUA 2006 before updating MUA Classic Fix."; return false; }

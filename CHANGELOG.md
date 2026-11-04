@@ -17,17 +17,20 @@ generates the project, so a release only needs this entry and the tag.
 
 ### Fixed
 - **Text stays readable over custom artwork.** Player-chosen cards have a bottom Ink fade behind their
-  titles, year tags and actions, plus a subtle title shadow. Custom banners receive the same protection
-  under the game-page and Home text. Built-in artwork keeps its existing appearance.
+  titles, year tags and actions, plus a subtle title shadow. The fade starts higher and stays darker
+  behind the title on bright pictures, including dimmed uninstalled cards. Custom banners receive the same
+  protection under the game-page and Home text. Built-in artwork keeps its existing appearance.
 - **Custom artwork works under Proton / Steam Deck.** A chosen picture was dropped at the next start
   when the launcher folder sits below a linked folder (under Proton every Linux folder such as
   `/home` is one). Links inside the launcher's own artwork folder are still refused.
+- **MUA Classic Fix Update works through a junction or symbolic link to the game folder.** The launcher
+  resolves the real folder once before updating; links inside the runtime tree are still refused.
+- **Update errors explain how to continue.** A locked runtime file asks you to close the game or the
+  program using it and try Update again. Play and options tell you to choose Update after an interrupted
+  update.
 
 ### Known issues
-- **Update refuses a MUA 2006 folder reached through a junction or symbolic link** ("Runtime updates
-  refuse symbolic links and junctions."). The game, its version and its options work there; to update,
-  register the folder by its real path.
-- MUA 2006 under Proton / Steam Deck is still not supported: setup and Update refuse Linux folders and
+- MUA 2006 under Proton / Steam Deck is still not supported: automatic setup refuses Linux folders and
   the game does not start under Proton yet. The launcher's MUA 2006 page shows its version there.
 
 ## 0.5.0-beta.6 (unreleased: a pre-release for the Beta update channel)

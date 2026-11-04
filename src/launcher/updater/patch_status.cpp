@@ -4,8 +4,11 @@
 #include "patch_channel.hpp"
 #include "release_source.hpp"
 #include "tools/tool_install.hpp"
+#include "launcher_update.hpp"
+#include "muac/runtime_update.hpp"
 
 #include <utils/flags.hpp>
+#include <utils/cryptography.hpp>
 #include <utils/http.hpp>
 #include <utils/logger.hpp>
 #include <utils/string.hpp>
@@ -155,15 +158,27 @@ namespace patch_status
                 }
                 else
                 {
-                    const auto outcome = release_source::resolve(repo, channel, {patch_manifest_name});
+                    const bool classic = repo == "ChronoRixun/muac-fix";
+                    const auto outcome = release_source::resolve(repo, channel, {classic ? "muac-setup.json" : patch_manifest_name});
                     ok = outcome.chosen.has_value();
                     if (ok)
                     {
                         version = outcome.chosen->version;
                         page = outcome.chosen->page;
+                        if (classic) {
+                            tool_install::tool tool{"muac-setup", "muac-setup.exe", release_source::file_url(repo, *outcome.chosen, "muac-setup.json")};
+                            std::string failure;
+                            const auto manifest = tool_install::fetch_manifest(tool, failure);
+                            if (!manifest || manifest->api != 1 || manifest->version != version) {
+                                ok = false; error = failure.empty() ? "The MUA Classic Fix package does not match the selected release." : failure;
+                            } else if (!muac::runtime::newer_compatible("", version, manifest->min_launcher, launcher_update::running_version())) {
+                                ok = false; error = "This MUA Classic Fix release needs Ultimate Legends " + manifest->min_launcher + " or newer.";
+                            }
+                            if (!ok) { version.clear(); page.clear(); }
+                        }
                     }
                     from_cache = outcome.from_cache;
-                    error = outcome.error;
+                    if (error.empty()) error = outcome.error;
                 }
 
                 std::lock_guard lock(mutex_);
@@ -179,6 +194,7 @@ namespace patch_status
                     done.version = version;
                     done.page = page;
                 }
+                else if (repo == "ChronoRixun/muac-fix") { done.version.clear(); done.page.clear(); }
             }).detach();
         }
     }
@@ -220,6 +236,21 @@ namespace patch_status
         return build ? std::format("{}.{}.{}.{}", major, minor, patch, build) : std::format("{}.{}.{}", major, minor, patch);
     }
 
+    std::optional<std::string> muac_installed_version(const std::filesystem::path& folder)
+    {
+        // Setup has recorded the whole release (including a prerelease suffix)
+        // since 0.2.0. A manually prepared installation may have only VERSIONINFO.
+        if (muac::runtime::recovery_pending(folder)) return std::string{};
+        const auto resource = installed_version(folder / "dinput8.dll");
+        if (!resource) return resource;
+        try {
+            const auto json = muac::runtime::read_file(folder / "_muac/runtime.json", 128 * 1024);
+            const auto hash = utils::cryptography::sha256::compute(muac::runtime::read_file(folder / "dinput8.dll"), true);
+            if (const auto version = muac::runtime::record_version(json, hash)) return version;
+        } catch (const std::exception&) { /* Older/manual installs use the DLL resource. */ }
+        return resource;
+    }
+
     void write_status(const game_config::game_config_t& config, rapidjson::Value& out, rapidjson::Document::AllocatorType& allocator)
     {
         out.SetNull();
@@ -232,7 +263,7 @@ namespace patch_status
         std::optional<std::string> installed;
         if (const auto folder = config.get_install_path(); folder && !folder->empty())
         {
-            installed = patch_channel::installed_version(config, *folder);
+            installed = config.game_key == "muac" ? muac_installed_version(*folder) : patch_channel::installed_version(config, *folder);
         }
 
         // Only a patch with a repository follows the update channel (the XML2 Fix); a Debug build's stand-in

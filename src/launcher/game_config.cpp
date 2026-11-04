@@ -138,6 +138,8 @@ namespace game_config
                 .id = "muac",
                 .exe_name = "Game.exe",
                 .patch_file = "dinput8.dll",
+                .patch_release_url = "https://api.github.com/repos/ChronoRixun/muac-fix/releases/latest",
+                .patch_repo = "ChronoRixun/muac-fix",
                 .valid_game_files = {"Game.exe", "libIGCore.dll", "libIGGfx.dll", "data/herostat.engb", "build.ini"},
                 .check_running_exes = {"Game.exe"},
                 .required_redists = {"dx_jun2010"}

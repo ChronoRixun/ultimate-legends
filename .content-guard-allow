@@ -13,6 +13,7 @@ MEDIA  src/launcher-ui/assets/img/brand/ul-mark.png        # the Ultimate Legend
 MEDIA  src/launcher/resource/icon.ico                      # the app icon, rendered by docs/art-source/build.py
 MEDIA  src/launcher/resource/icon.png                      # the app icon at 256x256, rendered by docs/art-source/build.py
 MEDIA  docs/art-source/preview/brand-sheet.jpg             # brand overview rendered by docs/art-source/build.py
+MEDIA  docs/art-source/sources/xml1-large-d.png            # removed in 0.5.0-beta.6; kept for history scans: original art from xml2-fix docs/discord-art
 
 # --- fonts: IBM Plex Mono and Rajdhani under the SIL Open Font License (src/launcher-ui/assets/fonts/OFL.txt)
 BINARY  src/launcher-ui/assets/fonts/*.woff2               # OFL web fonts used by the launcher UI

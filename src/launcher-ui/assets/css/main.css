@@ -5083,3 +5083,24 @@ html[data-reduce-motion] .ul-online-spinner { animation: none; }
     clip-path: inset(50%);
     white-space: nowrap;
 }
+
+/* Player artwork needs its own Ink fade underneath titles, chips and actions. */
+.library-card.has-custom-art::after,
+.client-card.has-custom-art::after,
+.game-page.has-custom-banner .hero-section::after,
+.hub-hero.has-custom-banner::before {
+    background: linear-gradient(to top, rgba(10, 12, 10, 0.9) 0%, rgba(10, 12, 10, 0) 55%);
+    pointer-events: none;
+}
+
+/* The banner image is at layer 1; its text and actions stay above this scrim. */
+.game-page.has-custom-banner .hero-section::after {
+    z-index: 1;
+}
+
+.library-card.has-custom-art .library-card-title,
+.client-card.has-custom-art .client-card-label span,
+.game-page.has-custom-banner .hero-bottom-content,
+.hub-hero.has-custom-banner .hub-hero-info {
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.65);
+}

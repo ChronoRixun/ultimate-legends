@@ -32,10 +32,16 @@
         document.querySelectorAll('img').forEach(img => {
             if (img.getAttribute('src') === previous.capsulePath) img.setAttribute('src', config.capsulePath);
         });
+        document.querySelectorAll(`.library-card[data-game="${game}"], .client-card[data-game="${game}"]`)
+            .forEach(card => card.classList.toggle('has-custom-art', !!records[game]?.capsule));
+        document.getElementById(`${game}-page`)?.classList.toggle('has-custom-banner', !!records[game]?.hero);
         const heroes = [document.querySelector(`#${game}-page .hero-section`)];
         const home = document.getElementById('hub-hero');
         if (home && home.dataset.game === game) heroes.push(home);
-        heroes.filter(Boolean).forEach(hero => hero.style.setProperty('--hero-image', `url("${config.heroImagePath}")`));
+        heroes.filter(Boolean).forEach(hero => {
+            hero.style.setProperty('--hero-image', `url("${config.heroImagePath}")`);
+            if (hero === home) hero.classList.toggle('has-custom-banner', !!records[game]?.hero);
+        });
     }
     async function broken(game, kind, url) {
         if (!records[game] || records[game][kind] !== url) return;

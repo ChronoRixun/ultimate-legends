@@ -15,6 +15,11 @@ generates the project, so a release only needs this entry and the tag.
   Files are staged first, failed replacements roll back, and an interrupted transaction is recovered when
   Update is retried. No companion helper update is required.
 
+### Fixed
+- **Text stays readable over custom artwork.** Player-chosen cards have a bottom Ink fade behind their
+  titles, year tags and actions, plus a subtle title shadow. Custom banners receive the same protection
+  under the game-page and Home text. Built-in artwork keeps its existing appearance.
+
 ## 0.5.0-beta.6 (unreleased: a pre-release for the Beta update channel)
 
 ### Added

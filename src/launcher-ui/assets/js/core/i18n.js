@@ -1,6 +1,22 @@
 (function() {
     const translations = {
         en: {
+            gameOrder: {
+                earlier: 'Move earlier',
+                later: 'Move later',
+                reset: 'Reset game order',
+                saved: 'Game order saved.',
+                failed: 'Game order could not be saved.'
+            },
+            artwork: {
+                change: 'Change artwork...',
+                changeBanner: 'Change banner...',
+                reset: 'Reset artwork',
+                preview: 'Preview artwork',
+                previewBody: 'The image is cropped to fill this area. Only a copy is saved locally; nothing is uploaded.',
+                use: 'Use artwork',
+                failed: 'Choose a valid PNG, JPEG or WebP image up to 20 MB and 16 million pixels. The artwork could not be saved.'
+            },
             muac: {
                 title: 'MUA 2006 options',
                 intro: 'Display, input and online settings for your MUA 2006 installation.',
@@ -18,6 +34,7 @@
                 setupStart: 'Set up game',
                 setupExisting: 'Use a working installation',
                 setupCancel: 'Cancel setup',
+                setupCleaning: 'Cleaning up...',
                 setupCancelling: 'Cancelling…',
                 setupHide: 'Hide',
                 setupDone: 'Done',
@@ -1332,6 +1349,22 @@
             }
         },
         fr: {
+            gameOrder: {
+                earlier: 'Move earlier',
+                later: 'Move later',
+                reset: 'Reset game order',
+                saved: 'Game order saved.',
+                failed: 'Game order could not be saved.'
+            },
+            artwork: {
+                change: 'Change artwork...',
+                changeBanner: 'Change banner...',
+                reset: 'Reset artwork',
+                preview: 'Preview artwork',
+                previewBody: 'The image is cropped to fill this area. Only a copy is saved locally; nothing is uploaded.',
+                use: 'Use artwork',
+                failed: 'Choose a valid PNG, JPEG or WebP image up to 20 MB and 16 million pixels. The artwork could not be saved.'
+            },
             saveImport: {
                 "title": "Importer une sauvegarde de X-Men Legends",
                 "intro": "Choisissez une campagne locale Xbox ou XML1-recomp. Vérifiez les héros, les niveaux et le point de reprise avant de lancer l’importation. Votre sauvegarde originale reste intacte.",
@@ -1993,6 +2026,22 @@
             }
         },
         es: {
+            gameOrder: {
+                earlier: 'Move earlier',
+                later: 'Move later',
+                reset: 'Reset game order',
+                saved: 'Game order saved.',
+                failed: 'Game order could not be saved.'
+            },
+            artwork: {
+                change: 'Change artwork...',
+                changeBanner: 'Change banner...',
+                reset: 'Reset artwork',
+                preview: 'Preview artwork',
+                previewBody: 'The image is cropped to fill this area. Only a copy is saved locally; nothing is uploaded.',
+                use: 'Use artwork',
+                failed: 'Choose a valid PNG, JPEG or WebP image up to 20 MB and 16 million pixels. The artwork could not be saved.'
+            },
             saveImport: {
                 "title": "Importar una partida de X-Men Legends",
                 "intro": "Elige una campaña local de Xbox o XML1-recomp. Revisa los héroes, los niveles y el punto de control antes de importarla. Tu partida original se conserva intacta.",
@@ -2654,6 +2703,22 @@
             }
         },
         ru: {
+            gameOrder: {
+                earlier: 'Move earlier',
+                later: 'Move later',
+                reset: 'Reset game order',
+                saved: 'Game order saved.',
+                failed: 'Game order could not be saved.'
+            },
+            artwork: {
+                change: 'Change artwork...',
+                changeBanner: 'Change banner...',
+                reset: 'Reset artwork',
+                preview: 'Preview artwork',
+                previewBody: 'The image is cropped to fill this area. Only a copy is saved locally; nothing is uploaded.',
+                use: 'Use artwork',
+                failed: 'Choose a valid PNG, JPEG or WebP image up to 20 MB and 16 million pixels. The artwork could not be saved.'
+            },
             app: {
                 title: 'Ultimate Legends'
             },

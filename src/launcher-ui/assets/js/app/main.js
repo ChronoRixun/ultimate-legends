@@ -331,6 +331,8 @@ async function initialize() {
     }
 
     await initializeLanguage();
+    if (window.GameOrder) await window.GameOrder.load();
+    if (window.Artwork) await window.Artwork.loadAll();
 
     if (window.LauncherI18n) {
         window.LauncherI18n.applyStaticTranslations();
@@ -2321,6 +2323,7 @@ async function handleResetAllSettings() {
                 });
 
                 // Reset all game settings using reset-game-settings command
+                if (window.GameOrder && !await window.GameOrder.reset()) throw new Error('Game order could not be reset');
                 await executeCommand('reset-game-settings', { game: 'all' });
 
                 // Clear recent games sidebar / hero rotation

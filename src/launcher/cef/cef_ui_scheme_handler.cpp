@@ -4,6 +4,7 @@
 
 #include <utils/io.hpp>
 #include <utils/string.hpp>
+#include "commands/artwork_commands.hpp"
 
 #define CEF_COMMAND "command"
 #define CEF_DATA "data"
@@ -408,6 +409,15 @@ namespace cef
         CefParseURL(request->GetURL(), url_parts);
 
         auto path = CefString(&url_parts.path).ToString();
+        if (path.starts_with("/custom-art/"))
+        {
+            const auto art = commands::artwork_commands::resource(path);
+            if (art) return new CefStreamResourceHandler(art->second,
+                CefStreamReader::CreateForData(const_cast<char*>(art->first.data()), art->first.size()));
+            static char missing[] = "Not Found";
+            return new CefStreamResourceHandler(404, "Not Found", "text/plain", CefResponse::HeaderMap{},
+                CefStreamReader::CreateForData(missing, sizeof(missing) - 1));
+        }
         auto* const result = this->handle_command(request, path);
         if (result)
         {

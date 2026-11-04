@@ -19,6 +19,25 @@ Ultimate Legends never downloads or distributes game files. Every game runs from
 | Marvel: Ultimate Alliance (2006 PC) | `muac` | 2006 PC | Imports your retail DVD ISO or extracted disc folder, prepares compatibility components, and offers window, input, cursor and OpenSpy options |
 | X-Men Legends | `xml1` | Community port ([Legends Classic](https://github.com/ChronoRixun/legends-classic)) | Builds a PC version on your PC from your own Xbox disc image or extracted XML1 install folder and your X-Men Legends II for PC install, then runs it with the XML2 Fix ([details](#x-men-legends-community-port)) |
 
+## Custom artwork
+
+Right-click a game in the Library or on Home and choose **Change artwork...** for its card or
+**Change banner...** for its game-page background. The keyboard menu key (or Shift+F10) and the
+controller's context-menu action open the same menu. Pick your own local PNG, JPEG or WebP, review
+the centered crop, then choose **Use artwork**. **Reset artwork** restores both defaults.
+
+Images must be at most 20 MiB and 16 million pixels. The launcher keeps its own copy in its user-data
+folder, including in portable mode; the source stays unchanged. WebP is saved as PNG. Artwork is
+never searched for, downloaded or uploaded. A missing or damaged custom copy falls back to the default.
+
+## Game order
+
+Drag a Library card or a sidebar game icon to another position; a bright bar marks the drop side.
+For keyboard or controller use, open the card menu and choose **Move earlier** or **Move later**.
+The Library and installed-game sidebar share this saved order, including when the Library is filtered.
+Settings > Maintenance > **Reset game order** restores the defaults. New games are inserted at their
+default position while keeping your existing games in their chosen relative order.
+
 ## MUA 2006 retail setup
 
 Choose **Set up**, select your own retail PC DVD ISO or extracted DVD folder, and choose a new or

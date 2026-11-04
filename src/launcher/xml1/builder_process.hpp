@@ -72,6 +72,7 @@ namespace xml1
         int warnings{};
         std::vector<builder_notice> notices; // the warning events, in order (at most max_notices)
         std::vector<builder_error> errors;
+        std::string staging; // First setup stage event, untrusted until cleanup guard validates it.
         std::string result; // the result event (JSON text), empty until it arrives
         std::deque<std::string> log_tail; // the last lines of stderr and of log/warning/error events
 

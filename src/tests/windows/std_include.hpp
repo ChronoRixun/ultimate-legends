@@ -13,3 +13,6 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <utils/rapidjson_config.hpp>
+#include <rapidjson/document.h>
+#include <rapidjson/stringbuffer.h>

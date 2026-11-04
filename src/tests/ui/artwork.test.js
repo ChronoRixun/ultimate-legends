@@ -2,14 +2,14 @@
 const assert = require('node:assert/strict');
 const { page, test, settle, MouseEvent } = require('./harness');
 
-function setup({ record = {}, picked, choice = 0, imageFails = false, convert = false, focus = false } = {}) {
+function setup({ record = {}, picked, choice = 0, imageFails = false, convert = false, focus = false, game = 'mua' } = {}) {
     const calls = [];
     const backend = { handle(command, data) {
         calls.push({ command, data });
-        if (command === 'get-artwork') return data.game === 'mua' ? { ...record } : {};
-        if (command === 'pick-artwork') return picked || { record: 'abc.png', preview: `/custom-art/mua/${data.kind}/abc.png`, convert };
+        if (command === 'get-artwork') return data.game === game ? { ...record } : {};
+        if (command === 'pick-artwork') return picked || { record: 'abc.png', preview: `/custom-art/${game}/${data.kind}/abc.png`, convert };
         if (command === 'confirm-artwork') {
-            if (!data.cancel) record[data.kind] = `/custom-art/mua/${data.kind}/abc.png`;
+            if (!data.cancel) record[data.kind] = `/custom-art/${game}/${data.kind}/abc.png`;
             return true;
         }
         if (command === 'reset-artwork') {
@@ -42,7 +42,7 @@ function setup({ record = {}, picked, choice = 0, imageFails = false, convert = 
     p.document.querySelectorAll = selector => selector === '#library-grid .library-card:not(.library-card-empty)'
         ? query('#library-grid .library-card').filter(card => !card.classList.contains('library-card-empty'))
         : query(selector);
-    return { ...p, calls, record, images, art: p.window.Artwork, utils: p.window.GameUtils };
+    return { ...p, calls, record, images, game, art: p.window.Artwork, utils: p.window.GameUtils };
 }
 
 test('artwork: defaults, managed overrides, and reset cover both card and banner', async () => {
@@ -57,6 +57,77 @@ test('artwork: defaults, managed overrides, and reset cover both card and banner
     assert.equal(p.utils.getGameConfig('mua').capsulePath, defaults.capsulePath);
     assert.equal(p.utils.getHeroImagePath('mua'), defaults.heroImagePath);
     assert.equal(p.art.menuItems('mua').length, 2);
+});
+
+async function renderArtworkSurfaces(p) {
+    p.window.AppViews.renderLibrary();
+    p.window.AppViews.renderGamePages();
+    await p.window.AppViews.refreshHomeInstalledClients(async game => ({ status: game === p.game ? 'installed' : 'not-setup' }));
+    await settle();
+    return {
+        library: p.document.querySelector(`.library-card[data-game="${p.game}"]`),
+        home: p.document.querySelector(`.client-card[data-game="${p.game}"]`),
+        banner: p.document.getElementById(`${p.game}-page`),
+        hub: p.document.getElementById('hub-hero')
+    };
+}
+
+test('artwork: custom capsules enable card scrims without changing default cards or banners', async () => {
+    const p = setup({ record: { capsule: '/custom-art/mua/capsule/12.png' } });
+    await p.art.loadAll();
+    const surface = await renderArtworkSurfaces(p);
+    assert.ok(surface.library.classList.contains('has-custom-art'), 'library custom capsule needs its contrast scrim');
+    assert.ok(surface.home.classList.contains('has-custom-art'), 'home custom capsule needs its contrast scrim');
+    assert.equal(surface.banner.classList.contains('has-custom-banner'), false);
+    assert.equal(surface.hub.classList.contains('has-custom-banner'), false);
+    assert.equal(p.document.querySelector('.library-card[data-game="muac"]').classList.contains('has-custom-art'), false);
+    await p.art.reset('mua');
+    assert.equal(surface.library.classList.contains('has-custom-art'), false);
+    assert.equal(surface.home.classList.contains('has-custom-art'), false);
+});
+
+test('artwork: custom banners protect game-page and home text independently of capsule choice', async () => {
+    const p = setup({ record: { hero: '/custom-art/mua/hero/34.jpg' } });
+    await p.art.loadAll();
+    const surface = await renderArtworkSurfaces(p);
+    assert.ok(surface.banner.classList.contains('has-custom-banner'), 'game-page custom banner needs its contrast scrim');
+    assert.ok(surface.hub.classList.contains('has-custom-banner'), 'home custom banner needs its contrast scrim');
+    assert.equal(surface.library.classList.contains('has-custom-art'), false);
+    assert.equal(surface.home.classList.contains('has-custom-art'), false);
+    assert.equal(p.document.getElementById('muac-page').classList.contains('has-custom-banner'), false);
+    p.document.getElementById('hub-hero-next').click();
+    assert.equal(surface.hub.classList.contains('has-custom-banner'), false, 'the next game uses its default banner');
+    p.document.getElementById('hub-hero-prev').click();
+    assert.ok(surface.hub.classList.contains('has-custom-banner'));
+    await p.art.reset('mua');
+    assert.equal(surface.banner.classList.contains('has-custom-banner'), false);
+    assert.equal(surface.hub.classList.contains('has-custom-banner'), false);
+});
+
+test('artwork: live changes add contrast and broken custom copies restore exact default markup', async () => {
+    const p = setup({ game: 'muac' });
+    const surface = await renderArtworkSurfaces(p);
+    // Select MUA 2006 in Home's carousel as well as its library/game page.
+    for (let step = 0; step < 5 && surface.hub.dataset.game !== 'muac'; step++) p.document.getElementById('hub-hero-next').click();
+    assert.equal(surface.hub.dataset.game, 'muac');
+    assert.equal(surface.library.querySelector('.library-card-title').textContent, 'Marvel: Ultimate Alliance (2006 PC)');
+    const libraryClass = surface.library.className, bannerClass = surface.banner.className;
+    const defaultCard = surface.library.innerHTML;
+    await p.art.change('muac', 'capsule');
+    assert.ok(surface.library.classList.contains('has-custom-art'));
+    assert.ok(surface.home.classList.contains('has-custom-art'));
+    assert.equal(surface.banner.className, bannerClass);
+    await p.art.change('muac', 'hero');
+    assert.ok(surface.banner.classList.contains('has-custom-banner'));
+    assert.ok(surface.hub.classList.contains('has-custom-banner'));
+    surface.library.querySelector('img').dispatchEvent(new p.window.Event('error'));
+    await settle();
+    assert.equal(surface.library.className, libraryClass);
+    assert.equal(surface.library.innerHTML, defaultCard);
+    assert.ok(surface.banner.classList.contains('has-custom-banner'), 'broken capsule must not clear banner contrast');
+    await p.art.reset('muac');
+    assert.equal(surface.banner.className, bannerClass);
+    assert.equal(surface.hub.classList.contains('has-custom-banner'), false);
 });
 
 test('artwork: invalid remote and traversal resources never override defaults', async () => {

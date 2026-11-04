@@ -31,6 +31,11 @@ namespace {
     }
 }
 void register_commands(cef::cef_ui& ui,command_context&){
+    ui.add_command("start-muac-update",[](const rapidjson::Value&,rapidjson::Document& out){
+        std::string error;
+        if(!muac_setup::start_update(error)){failure(out,error);return;}
+        out.SetObject();out.AddMember("success",true,out.GetAllocator());
+    });
     ui.add_command("get-muac-setup",[](const rapidjson::Value&,rapidjson::Document& out){muac_setup::state(out);});
     ui.add_command("cancel-muac-setup",[](const rapidjson::Value&,rapidjson::Document& out){muac_setup::cancel();muac_setup::state(out);});
     ui.add_command("start-muac-setup",[](const rapidjson::Value& request,rapidjson::Document& out){

@@ -4,12 +4,13 @@
 
 #include <rapidjson/document.h>
 
-// What a game's page shows about its patch (the MUA Controller Fix, the XML2 Fix): the release
+// What a game's page shows about its patch: the release
 // installed in the game folder, read from the version resource of the patch's DLL, and the
 // patch's latest release on GitHub. The latest release is checked in the background, at most once
 // an hour per patch (MUA and MUA2 share one; never with -offline), so a page asks again while the
 // check is running. Nothing is installed here: client_updater installs a newer release when the
-// game is launched from the launcher or verified.
+// game is launched from the launcher or verified. MUA Classic Fix instead reads the
+// setup runtime record (DLL resource fallback) and updates explicitly through muac_setup.
 namespace patch_status
 {
     void channel_changed(); // invalidate release-status checks, including in-flight results
@@ -22,6 +23,9 @@ namespace patch_status
     // isn't 0); "" when the file has no version resource that can be read; nullopt when it isn't there. The
     // X-Men Legends port's Online section checks the XML2 Fix with it (fix/online_launch.hpp).
     std::optional<std::string> installed_version(const std::filesystem::path& file);
+    // A matching runtime record keeps a prerelease's whole version; stale records
+    // fall back to VERSIONINFO. A pending transaction offers recovery as unknown.
+    std::optional<std::string> muac_installed_version(const std::filesystem::path& folder);
 
     void write_status(const game_config::game_config_t& config, rapidjson::Value& out, rapidjson::Document::AllocatorType& allocator);
 }

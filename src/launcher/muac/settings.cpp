@@ -1,5 +1,6 @@
 #include "std_include.hpp"
 #include "settings.hpp"
+#include "runtime_update.hpp"
 #include "fix/fix_ini.hpp"
 #include <utils/io.hpp>
 #include <utils/string.hpp>
@@ -130,6 +131,7 @@ std::optional<std::string> normalise(const std::string& key, const std::string& 
 
 std::vector<std::string> missing_runtime(const std::filesystem::path& folder) {
     std::vector<std::string> missing;
+    if(runtime::recovery_pending(folder)) missing.push_back("Interrupted MUA Classic Fix update (retry Update)");
     if(!is_muac_fix(folder/L"dinput8.dll")) missing.push_back("MUA Classic Fix 0.1.1 or newer (dinput8.dll)");
     for(const auto* file : {"version.dll","D3D9.dll","dgVoodoo.conf"})
         if(!utils::io::file_exists(folder/file)) missing.emplace_back(file);

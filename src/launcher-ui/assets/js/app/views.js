@@ -112,7 +112,7 @@
         const small = smallText == null ? config.client : smallText;
         const busyKind = busyKindFor(config.uiId);
         const running = !busyKind && isGameRunning(config.uiId);
-        const stateCls = `${busyKind ? ' is-installing' : ''}${running ? ' is-running' : ''}`;
+        const stateCls = `${busyKind ? ' is-installing' : ''}${running ? ' is-running' : ''}${window.Artwork?.records[config.uiId]?.capsule ? ' has-custom-art' : ''}`;
         const cls = status
             ? `client-card has-overlay status-${escapeHtml(status)}${stateCls}`
             : `client-card${stateCls}`;
@@ -223,6 +223,7 @@
             hero.style.setProperty('--hero-image', cssUrl(config.heroImagePath));
             hero.style.backgroundImage = '';
             hero.dataset.game = config.uiId;
+            hero.classList.toggle('has-custom-banner', !!window.Artwork?.records[config.uiId]?.hero);
             hero.onclick = () => navigateTo(config.uiId);
         }
         if (logo) {
@@ -794,7 +795,7 @@
 
         grid.innerHTML = GameUtils.getAllGameConfigs().map(config => {
             const comingSoon = !!config.comingSoon;
-            const cardCls = `library-card${comingSoon ? ' is-coming-soon' : ''}`;
+            const cardCls = `library-card${comingSoon ? ' is-coming-soon' : ''}${window.Artwork?.records[config.uiId]?.capsule ? ' has-custom-art' : ''}`;
             const buttonHtml = comingSoon
                 ? `<button class="library-install-btn is-coming-soon" disabled title="${escapeHtml(t('library.comingSoonHint'))}">
                        <span data-action-label>${escapeHtml(t('common.comingSoon'))}</span>
@@ -988,7 +989,7 @@
 
         host.innerHTML = GameUtils.getAllGameConfigs().map(config => {
             const comingSoon = !!config.comingSoon;
-            const pageCls = `page-section game-page${comingSoon ? ' is-coming-soon' : ''}`;
+            const pageCls = `page-section game-page${comingSoon ? ' is-coming-soon' : ''}${window.Artwork?.records[config.uiId]?.hero ? ' has-custom-banner' : ''}`;
             const credits = gameCredits(config);
             const hasCredits = credits && String(credits).trim().length > 0;
             const descriptionSection = `

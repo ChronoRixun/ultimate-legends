@@ -50,3 +50,30 @@ Debug integration: `muac-dev-setup-manifest` permits a local manifest; Release i
 `tools/dev/muac_setup_cdp.py` drives the real backend through an isolated Debug launcher and
 restores its game properties. Its explicit source/output arguments opt into importing local
 files; it never launches a game. The independent source helper tests generate synthetic data.
+
+## In-place runtime updates
+
+The MUA 2006 patch line reads `_muac/runtime.json` (`schema: 1`, `prepared: true`, `version`), already written
+by setup packages 0.2.0 and 0.2.1, when its recorded DLL hash still matches. Without a valid record it reads `dinput8.dll` VERSIONINFO; a DLL without
+a readable version is shown as version unknown. Stable resolves `ChronoRixun/muac-fix` releases/latest;
+Beta resolves the highest release including prereleases. Both require `muac-setup.json`, a matching
+manifest version, API 1 and a satisfied `min_launcher` before offering Update.
+
+`start-muac-update` uses the configured installation, the same setup-package download/size/SHA-256 checks,
+and the pinned dgVoodoo archive. It never runs the importer or setup helper. The native transaction
+validates `runtime/package.json` and each file's size/hash, then stages only `dinput8.dll`, `version.dll`,
+`D3D9.dll`, the three configuration files and the manifest's allowlisted `_muac` notices/licenses.
+Existing INI/CONF keys are preserved case-insensitively; missing keys are added. `version.json` merges
+missing object members recursively. Unchanged settings are not replaced, preserving custom keys and
+comments. A malformed configuration refuses the update rather than replacing player settings.
+
+The exclusive folder hold prevents launcher operations from overlapping. Running-game checks happen
+before preparation and throughout replacement. Same-volume renames retain original files under a guarded
+`.muac-stage-update-*` folder until commit. Errors and cancellation restore the originals; a persistent
+journal allows the next Update to recover after interruption. Play and option writes refuse a pending
+transaction. The new runtime record is promoted last and records the hashes of the actual merged configs.
+Updates never downgrade a newer installed release just because the channel was switched to Stable.
+
+This works with the existing 0.2.0/0.2.1 package contract. The companion helper is unchanged; no 0.2.2
+release is needed for this feature. GUI, external-process running checks and live package validation must
+also be exercised by the release coordinator; native and UI tests use synthetic data.

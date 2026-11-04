@@ -3,7 +3,7 @@
 The launcher's version comes from its release tag (`v0.3.2`): premake reads it with `git describe` when it
 generates the project, so a release only needs this entry and the tag.
 
-## 0.5.0-beta.7 (draft: final beta before 0.5.0)
+## 0.5.0-beta.7 (unreleased: a pre-release for the Beta update channel; the last beta before 0.5.0)
 
 ### Added
 - **MUA 2006 shows its MUA Classic Fix version and offers Update.** The version comes from setup's runtime

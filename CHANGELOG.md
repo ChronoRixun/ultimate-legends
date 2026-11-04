@@ -3,6 +3,29 @@
 The launcher's version comes from its release tag (`v0.3.2`): premake reads it with `git describe` when it
 generates the project, so a release only needs this entry and the tag.
 
+## 0.5.0-beta.6 (unreleased: a pre-release for the Beta update channel)
+
+### Added
+- **Choose your own game artwork.** Right-click a game's card (or open its menu with the keyboard or a
+  controller) and pick **Change artwork...** for the library card or **Change banner...** for the page banner.
+  Pick a PNG, JPG or WebP picture of up to 20 MB from your PC, check the centred preview, and keep it with
+  **Use artwork**. The launcher keeps its own copy in its user folder, so moving or deleting the original does
+  not matter; **Reset artwork** brings the default pictures back. Pictures are never fetched online; files that
+  are too large or are not real pictures are refused and the current art stays.
+- **Rearrange your games.** Drag cards in the Library or icons in the sidebar to put the games in your order,
+  or use **Move earlier** / **Move later** from a card's menu with the keyboard or a controller. The order is
+  kept across restarts and used by the Library filters and the sidebar. **Settings > Maintenance > Reset game
+  order** puts the default order back and keeps your artwork.
+- **New X-Men Legends card art** drawn from the same sunrise motif as the other games.
+
+### Fixed
+- **Cancelling MUA 2006 setup cleans up after itself.** The popup shows **Cleaning up...** while the copied files
+  are removed. If the setup helper's own cleanup takes longer than the cancel grace (slow USB or network
+  drives), the launcher removes the helper's staging folder inside your chosen game folder itself, so no
+  `.muac-stage-*` folder is left behind. Nothing is registered.
+- Needs the MUA Classic Fix setup package 0.2.1 or newer, which keeps its staging folder inside the chosen game
+  folder.
+
 ## 0.5.0-beta.5 (unreleased: a pre-release for the Beta update channel)
 
 ### Added

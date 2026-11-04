@@ -294,7 +294,7 @@ end
 
 dependencies.imports()
 
--- Unit tests of the launcher's parts that need no Windows, CEF or network (src/tests). The build
+-- Unit tests of the launcher's non-UI parts (synthetic fixtures; no CEF or network). The build
 -- workflow runs them after the build; locally: build\bin\x64\<config>\ultimate-legends-tests.exe.
 -- The UI's own tests (src/tests/ui) run with Node: node src/tests/ui/run.js.
 project "ultimate-legends-tests"
@@ -308,21 +308,28 @@ files {"./src/tests/**.hpp", "./src/tests/**.cpp", "./src/launcher/tools/tool_ch
        "./src/launcher/fix/online_launch.cpp", "./src/launcher/fix/online_status.cpp", "./src/launcher/updater/progress_tracker.cpp",
        "./src/launcher/updater/update_cancelled.cpp", "./src/launcher/updater/release_channel.cpp",
        "./src/launcher/updater/release_resolver.cpp", "./src/launcher/updater/patch_policy.cpp",
-       "./src/launcher/updater/file_hash_cache.cpp", "./src/launcher/models/models_args.cpp", "./src/launcher/xml1/save_import_args.cpp"}
+       "./src/launcher/updater/file_hash_cache.cpp", "./src/launcher/models/models_args.cpp", "./src/launcher/xml1/save_import_args.cpp",
+       "./src/launcher/muac/runtime_update.cpp"}
 removefiles {"./src/tests/windows/**"}
 
 -- src/tests first: its std_include.hpp stands in for the launcher's precompiled header. rapidjson
 -- (header-only) for updater/release_channel.cpp, which reads GitHub's release JSON.
 includedirs {"./src/tests", "./src/launcher", path.join(dependencies.basePath, "rapidjson/include")}
 defines {"RAPIDJSON_HAS_STDSTRING"}
+-- The runtime-update regression exercises the same SHA-256 implementation as production.
+includedirs {"./src/common"}
+libtomcrypt.includes()
+libtommath.includes()
+links {"common", "libtomcrypt", "libtommath"}
 
 -- Real Win32 profile/registry I/O against synthetic files and a test-only registry namespace.
 project "ultimate-legends-muac-tests"
 kind "ConsoleApp"
 language "C++"
 files {"./src/tests/windows/**.hpp", "./src/tests/windows/**.cpp",
-       "./src/launcher/muac/settings.cpp", "./src/launcher/fix/fix_ini.cpp"}
-includedirs {"./src/tests/windows", "./src/launcher", "./src/common"}
+       "./src/launcher/muac/settings.cpp", "./src/launcher/fix/fix_ini.cpp",
+       "./src/launcher/muac/runtime_update.cpp", "./src/launcher/updater/release_channel.cpp"}
+includedirs {"./src/tests/windows", "./src/launcher", "./src/common", path.join(dependencies.basePath, "rapidjson/include")}
 defines {"MUAC_SETTINGS_TEST", "NOMINMAX", "WIN32_LEAN_AND_MEAN"}
 links {"common", "Version", "Advapi32", "Shell32", "User32", "Ole32"}
 

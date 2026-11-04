@@ -3,6 +3,36 @@
 The launcher's version comes from its release tag (`v0.3.2`): premake reads it with `git describe` when it
 generates the project, so a release only needs this entry and the tag.
 
+## 0.5.0-beta.7 (unreleased: a pre-release for the Beta update channel; the last beta before 0.5.0)
+
+### Added
+- **MUA 2006 shows its MUA Classic Fix version and offers Update.** The version comes from setup's runtime
+  record, with the DLL version as a fallback for manually prepared installations. Prereleases have a Beta
+  badge; the latest compatible setup package follows Settings > Update channel.
+- **Update compatibility components in place.** Update downloads and verifies the same package as setup,
+  then replaces only its runtime DLLs and notices. Existing configuration values are kept; missing keys are
+  added. No disc is needed, Game.exe and saves stay untouched, and a running game refuses the update.
+  Files are staged first, failed replacements roll back, and an interrupted transaction is recovered when
+  Update is retried. No companion helper update is required.
+
+### Fixed
+- **Text stays readable over custom artwork.** Player-chosen cards have a bottom Ink fade behind their
+  titles, year tags and actions, plus a subtle title shadow. The fade starts higher and stays darker
+  behind the title on bright pictures, including dimmed uninstalled cards. Custom banners receive the same
+  protection under the game-page and Home text. Built-in artwork keeps its existing appearance.
+- **Custom artwork works under Proton / Steam Deck.** A chosen picture was dropped at the next start
+  when the launcher folder sits below a linked folder (under Proton every Linux folder such as
+  `/home` is one). Links inside the launcher's own artwork folder are still refused.
+- **MUA Classic Fix Update works through a junction or symbolic link to the game folder** on Windows. The
+  launcher resolves the real folder once before updating; links inside the runtime tree are still refused.
+- **Update errors explain how to continue.** A locked runtime file asks you to close the game or the
+  program using it and try Update again. Play and options tell you to choose Update after an interrupted
+  update.
+
+### Known issues
+- MUA 2006 under Proton / Steam Deck is still not supported: automatic setup and Update refuse Linux
+  folders and the game does not start under Proton yet. The launcher's MUA 2006 page shows its version there.
+
 ## 0.5.0-beta.6 (unreleased: a pre-release for the Beta update channel)
 
 ### Added

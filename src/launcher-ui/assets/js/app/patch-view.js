@@ -1,14 +1,11 @@
-// The patch line in a game page's side panel: which release of the game's patch (the MUA Controller
-// Fix, the XML2 Fix) is in its folder, and, when GitHub has a newer one, an "Update available" line
-// whose button runs the same Verify that installs it (launching the game from the launcher installs
-// it too). The backend (updater/patch_status.cpp) reads the installed DLL's version (for the XML2
-// Fix, the release the launcher installed: a beta's whole version, with a Beta badge) and checks the
-// update channel's release in the background, so the page asks again while that check is running.
+// Shared installed-version and update line. Most patches update through Verify;
+// MUA Classic Fix uses its own runtime-only update job. The backend preserves full
+// prerelease versions and checks the selected channel in the background.
 (function () {
     'use strict';
 
     // Games with a patch release (game_config.cpp's patch_file / patch_release_url).
-    const SUPPORTED = new Set(['mua', 'mua2', 'xml2', 'xml1']);
+    const SUPPORTED = new Set(['mua', 'mua2', 'xml2', 'xml1', 'muac']);
     const RECHECK_MS = 1500;
     const MAX_RECHECKS = 20;
 
@@ -32,9 +29,9 @@
         return (config && config.patchName) || t('popup.manageInstall.patchDefault');
     }
 
-    function installedText(status) {
+    function installedText(status, gameId) {
         if (status.installed === null || status.installed === undefined) return t('detail.patchNotInstalled');
-        return status.installed || t('detail.patchUnknownVersion');
+        return status.installed || t(backendId(gameId) === 'muac' ? 'muac.versionUnknown' : 'detail.patchUnknownVersion');
     }
 
     function html(gameId, status) {
@@ -43,17 +40,19 @@
         const stat = `
             <div class="detail-stat detail-patch-stat">
                 <span>${escapeHtml(patchName(gameId))}</span>
-                <strong class="detail-patch-installed">${escapeHtml(installedText(status))}${badge}</strong>
+                <strong class="detail-patch-installed">${escapeHtml(installedText(status, gameId))}${badge}</strong>
             </div>`;
-        if (!status.updateAvailable) return stat;
+        const error = backendId(gameId) === 'muac' && status.error
+            ? `<p class="detail-patch-check-error" role="status">${escapeHtml(status.error)}</p>` : '';
+        if (!status.updateAvailable) return stat + error;
 
         const label = escapeHtml(t('detail.patchUpdateAvailable', { version: status.latest }));
         const notice = status.page ? `<a href="${escapeHtml(status.page)}" target="_blank">${label}</a>` : label;
-        return `${stat}
+        return `${stat}${error}
             <div class="detail-patch-update">
                 <span class="detail-patch-update-label">${notice}</span>
                 <button type="button" class="secondary-action detail-patch-update-action" data-game="${escapeHtml(gameId)}"
-                        title="${escapeHtml(t('detail.patchUpdateHint', { version: status.latest }))}">
+                        title="${escapeHtml(t(backendId(gameId) === 'muac' ? 'muac.updateBody' : 'detail.patchUpdateHint', { version: status.latest }))}">
                     <span class="secondary-action-icon verify-icon"></span>
                     ${escapeHtml(t('detail.patchUpdate'))}
                 </button>
@@ -81,7 +80,8 @@
         const button = target.querySelector('.detail-patch-update-action');
         if (button) {
             button.addEventListener('click', () => {
-                if (typeof verifyGame === 'function') verifyGame(gameId);
+                if (backendId(gameId) === 'muac') window.MuacSetup?.showUpdate();
+                else if (typeof verifyGame === 'function') verifyGame(gameId);
             });
         }
 

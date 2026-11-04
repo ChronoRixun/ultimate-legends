@@ -3,6 +3,8 @@
 (function () {
     'use strict';
     const t = (key, vars) => window.LauncherI18n.t(key, vars);
+    const errorText = error => error === "The last MUA Classic Fix update didn't finish. Choose Update to finish it."
+        ? t('muac.updatePending') : error;
     const esc = value => GameUtils.escapeHtml(String(value));
     const run = (name, payload) => window.executeCommand(name, payload || {});
     let data = null, busy = false, refreshing = false;
@@ -35,6 +37,10 @@
             body.innerHTML = `<div class="ul-display-empty">${esc(t('muac.setUp'))}</div>`;
             return;
         }
+        if (data.recoveryPending) {
+            body.innerHTML = `<div class="ul-display-empty">${esc(t('muac.updatePending'))}</div>`;
+            return;
+        }
         if (!data.runtimeReady) {
             body.innerHTML = `<div class="ul-display-empty">${esc(t('muac.missing', { files: (data.missing || []).join(', ') }))}</div>`;
             return;
@@ -57,7 +63,7 @@
         if (busy || refreshing || !panel()) return;
         refreshing = true;
         try { data = await run('get-muac-settings'); renderBody(); }
-        catch (error) { status(error.message || String(error), true); }
+        catch (error) { status(errorText(error.message || String(error)), true); }
         finally { refreshing = false; }
     }
     async function save(event) {
@@ -79,7 +85,7 @@
             busy = false;
             renderBody(); // Always release controls, even if a refresh is pending or fails.
             await load();
-            status(error.message || String(error), true);
+            status(errorText(error.message || String(error)), true);
             setTimeout(() => panel()?.querySelector(`[data-muac-setting="${key}"]`)?.focus({ preventScroll: true }), 0);
         }
     }
@@ -100,7 +106,7 @@
         refreshing = true;
         try {
             const latest = await run('get-muac-settings');
-            if (latest.running !== data.running || latest.runtimeReady !== data.runtimeReady) { data = latest; renderBody(); }
+            if (latest.running !== data.running || latest.runtimeReady !== data.runtimeReady || latest.recoveryPending !== data.recoveryPending) { data = latest; renderBody(); }
         } catch (_) { /* Keep the current controls when a background refresh fails. */ }
         finally { refreshing = false; }
     }, 3000);

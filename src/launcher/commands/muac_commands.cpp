@@ -2,6 +2,7 @@
 #include "muac_commands.hpp"
 #include "cef/cef_ui.hpp"
 #include "muac/settings.hpp"
+#include "muac/runtime_update.hpp"
 #include "muac/setup.hpp"
 #include "display/xml2_display.hpp"
 #include "updater/folder_work.hpp"
@@ -16,6 +17,7 @@ namespace {
         const auto folder=config?config->get_install_path():std::nullopt;
         const bool installed=folder && game_config::validate_game_path("muac",*folder);
         out.AddMember("installed",installed,a);out.AddMember("running",installed && game_config::is_game_process_running("muac"),a);
+        out.AddMember("recoveryPending", installed && muac::runtime::recovery_pending(*folder), a);
         rapidjson::Value missing(rapidjson::kArrayType), values(rapidjson::kObjectType);
         if(installed){
             for(const auto& name:muac::missing_runtime(*folder)) missing.PushBack(text(name,a),a);
@@ -31,6 +33,11 @@ namespace {
     }
 }
 void register_commands(cef::cef_ui& ui,command_context&){
+    ui.add_command("start-muac-update",[](const rapidjson::Value&,rapidjson::Document& out){
+        std::string error;
+        if(!muac_setup::start_update(error)){failure(out,error);return;}
+        out.SetObject();out.AddMember("success",true,out.GetAllocator());
+    });
     ui.add_command("get-muac-setup",[](const rapidjson::Value&,rapidjson::Document& out){muac_setup::state(out);});
     ui.add_command("cancel-muac-setup",[](const rapidjson::Value&,rapidjson::Document& out){muac_setup::cancel();muac_setup::state(out);});
     ui.add_command("start-muac-setup",[](const rapidjson::Value& request,rapidjson::Document& out){
@@ -60,6 +67,7 @@ void register_commands(cef::cef_ui& ui,command_context&){
         const auto config=game_config::get_game_config("muac");
         const auto folder=config?config->get_install_path():std::nullopt;
         if(!folder || !game_config::validate_game_path("muac",*folder)){failure(out,"Set up MUA 2006 first.");return;}
+        if(muac::runtime::recovery_pending(*folder)){failure(out,muac::runtime::pending_message);return;}
         if(!muac::missing_runtime(*folder).empty()){failure(out,"Install the MUA 2006 runtime components first.");return;}
         // An exclusive folder hold prevents a simultaneous launch, patch or builder operation.
         const auto hold=updater::reserve(*folder,updater::folder_use::builder);

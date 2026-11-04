@@ -27,7 +27,9 @@ namespace artwork {
         return ext == "png" || ext == "jpg" || ext == "webp";
     }
     // Construct paths only from fixed IDs and opaque records, never from a saved absolute path.
-    // Refuse junctions/symlinks on the file and every ancestor, as setup cleanup does.
+    // Refuse junctions/symlinks on the file, inside the art tree and at the launcher root itself.
+    // Folders ABOVE the launcher root may be linked: under Proton every Z:\ Linux mount (Z:\home)
+    // reads as one, which made artwork impossible there; on Windows a linked parent folder.
     inline std::optional<std::filesystem::path> managed_path(const std::filesystem::path& root,
         std::string_view game, std::string_view kind, std::string_view record) {
         if (!root.is_absolute() || root == root.root_path() || !game_id(game) || !kind_id(kind) || !record_id(record)) return {};
@@ -36,6 +38,7 @@ namespace artwork {
         std::error_code ec;
         for (auto part = path; !part.empty();) {
             if (muac_setup::cleanup::linked(part, ec) || ec) return {};
+            if (part == root) break;
             const auto parent = part.parent_path();
             if (parent == part) break;
             part = parent;

@@ -50,6 +50,18 @@ function libtommath.project()
 			"-IGNORE:4221"
 		}
 
+        -- MP_HAS uses dead-code elimination for platform selection. /Od leaves
+        -- references to unavailable RNG providers (see s_mp_rand_platform.c).
+        filter "configurations:Debug"
+            optimize "On"
+            runtime "Debug"
+        filter "configurations:Release"
+            -- /GL defers elimination until link, when the unavailable provider
+            -- symbols have already become unresolved references.
+            removebuildoptions {"/GL"}
+            removelinkoptions {"/LTCG"}
+        filter {}
+
 		warnings "Off"
 		kind "StaticLib"
 end

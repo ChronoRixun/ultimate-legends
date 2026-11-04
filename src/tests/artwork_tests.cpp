@@ -147,3 +147,20 @@ TEST(artwork_refuses_junctions_at_the_game_folder_and_root) {
     CHECK(RemoveDirectoryW(alias.c_str()) != FALSE);
 }
 #endif
+
+#ifdef _WIN32
+// A launcher folder BELOW a linked folder (under Proton every Z:\ Linux mount such as Z:\home reads
+// as a junction) keeps its artwork; a junction at the root or inside the art tree is still refused
+// (artwork_refuses_junctions_at_the_game_folder_and_root).
+TEST(artwork_paths_accept_a_launcher_folder_below_a_linked_parent) {
+    scratch work;
+    const auto real = work.root / "real", parent = work.root / "parent";
+    std::filesystem::create_directories(real / "launcher" / "user" / "art");
+    if (!artwork_junction(parent, real)) return;  // no junctions here
+    CHECK(artwork::managed_path(parent / "launcher", "xml1", "capsule", "ab.png"));
+    CHECK(artwork::write_image(parent / "launcher", "xml1", "capsule", "ab.png", png()));
+    CHECK(artwork::read_image(real / "launcher" / "user" / "art" / "xml1" / "capsule-ab.png") == png());
+    CHECK(artwork::remove_image(parent / "launcher", "xml1", "capsule", "ab.png"));
+    CHECK(RemoveDirectoryW(parent.c_str()) != FALSE);
+}
+#endif

@@ -19,7 +19,7 @@ function open({ channel = 'stable', install = 'O:/Games/Legends', failed = false
         backend: { handle(command, data) {
             calls.push([command, data]);
             switch (command) {
-                case 'get-version': return { version: '0.5.0-beta.6' };
+                case 'get-version': return { version: '0.5.0-beta.7' };
                 case 'get-update-channel': return { channel: selected, checking: false, items: [], repos: [] };
                 case 'set-update-channel': selected = data.channel; return { channel: selected, checking: false, items: [], repos: [] };
                 case 'xml1-builder-check': {

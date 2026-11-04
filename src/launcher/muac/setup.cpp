@@ -2,19 +2,23 @@
 #include "setup.hpp"
 #include "setup_admission.hpp"
 #include "setup_cleanup.hpp"
+#include "runtime_update.hpp"
 #include "settings.hpp"
 #include "game_config.hpp"
 #include "tools/tool_install.hpp"
 #include "updater/folder_work.hpp"
 #include "updater/release_source.hpp"
 #include "updater/launcher_update.hpp"
+#include "updater/patch_status.hpp"
 #include "xml1/builder_process.hpp"
 #include <utils/cryptography.hpp>
 #include <utils/flags.hpp>
 #include <utils/io.hpp>
+#include <utils/nt.hpp>
 #include <utils/properties.hpp>
 #include <utils/string.hpp>
 #include <thread>
+#include <miniz.h>
 
 namespace muac_setup {
 namespace {
@@ -22,6 +26,7 @@ namespace {
     struct job {
         std::mutex mutex;
         bool active = true, cancelled = false, success = false;
+        bool updating = false;
         std::string phase = "Preparing setup", error, output;
         std::uint64_t done{}, total{};
         std::shared_ptr<xml1::builder_process> process;
@@ -37,13 +42,36 @@ namespace {
         std::lock_guard lock(work->mutex); work->error = error; work->active = false; work->hold.reset();
     }
     void require_running(const std::shared_ptr<job>& work) {
-        if (cancelled(work)) throw std::runtime_error("Setup cancelled. No installation was registered.");
+        if (cancelled(work)) throw std::runtime_error(work->updating ? "MUA Classic Fix update cancelled. Existing files were kept." : "Setup cancelled. No installation was registered.");
     }
     bool valid_archive(const std::filesystem::path& file, std::uint64_t size, const std::string& hash) {
         std::error_code ec;
         if (std::filesystem::file_size(file, ec) != size || ec) return false;
         std::string bytes;
-        return utils::io::read_file(file, &bytes) && utils::cryptography::sha256::compute(bytes, true) == hash;
+        return utils::io::read_file(file, &bytes) && utils::string::to_lower(utils::cryptography::sha256::compute(bytes, true)) == utils::string::to_lower(hash);
+    }
+    std::string graphics_dll(const std::filesystem::path& archive, std::uint64_t expected_size) {
+        FILE* input{};
+        if (_wfopen_s(&input, archive.c_str(), L"rb") || !input) throw std::runtime_error("Could not open graphics archive.");
+        mz_zip_archive zip{};
+        if (!mz_zip_reader_init_cfile(&zip, input, std::filesystem::file_size(archive), 0)) {
+            fclose(input); throw std::runtime_error("Invalid graphics archive.");
+        }
+        std::string bytes;
+        try {
+            int matches = 0;
+            for (mz_uint index = 0; index < mz_zip_reader_get_num_files(&zip); ++index) {
+                mz_zip_archive_file_stat stat{};
+                if (!mz_zip_reader_file_stat(&zip, index, &stat)) throw std::runtime_error("Invalid graphics archive member.");
+                if (std::string_view(stat.m_filename) != "MS/x86/D3D9.dll") continue;
+                if (++matches != 1 || stat.m_is_directory || stat.m_uncomp_size != expected_size || expected_size >= 32 * 1024 * 1024)
+                    throw std::runtime_error("Invalid or duplicate graphics DLL.");
+                bytes.resize(static_cast<std::size_t>(expected_size));
+                if (!mz_zip_reader_extract_to_mem(&zip, index, bytes.data(), bytes.size(), 0)) throw std::runtime_error("Could not extract graphics DLL.");
+            }
+            if (matches != 1) throw std::runtime_error("Graphics DLL is missing from its archive.");
+        } catch (...) { mz_zip_reader_end(&zip); fclose(input); throw; }
+        mz_zip_reader_end(&zip); fclose(input); return bytes;
     }
     void run(const std::shared_ptr<job>& work, const std::filesystem::path& source, const std::filesystem::path& output,
              release_channel::channel channel) {
@@ -69,13 +97,18 @@ namespace {
             if (!manifest) throw std::runtime_error(error.empty() ? "Connect to the internet to download MUA 2006 setup." : error);
             if (manifest->api != 1 || (!expected.empty() && manifest->version != expected))
                 throw std::runtime_error("The setup package does not match the selected release or supported protocol.");
-            if (!manifest->min_launcher.empty() && tool_install::compare_versions(launcher_update::running_version(), manifest->min_launcher) < 0)
+            if (!muac::runtime::newer_compatible("", manifest->version, manifest->min_launcher, launcher_update::running_version()))
                 throw std::runtime_error("This setup needs Ultimate Legends " + manifest->min_launcher + " or newer.");
+            if (work->updating) {
+                const auto version = patch_status::muac_installed_version(output);
+                if (version && !muac::runtime::newer_compatible(*version, manifest->version, manifest->min_launcher, launcher_update::running_version()))
+                    throw std::runtime_error("MUA Classic Fix is already up to date on this channel. A newer installed release was kept.");
+            }
             const auto progress = [work](std::uint64_t done, std::uint64_t total) {
                 std::lock_guard lock(work->mutex); work->done = done; work->total = total;
             };
             const auto stop = [work] { return cancelled(work); };
-            phase(work, "Downloading MUA 2006 setup");
+            phase(work, work->updating ? "Downloading MUA Classic Fix" : "Downloading MUA 2006 setup");
             auto installed = tool_install::find(tool, manifest->version);
             if (installed && installed->version != manifest->version) installed.reset();
             if (!installed) {
@@ -87,20 +120,11 @@ namespace {
             require_running(work);
             if (!installed) throw std::runtime_error(error.empty() ? "The setup package is not cached. Connect to the internet and try again." : error);
             const auto bundle = installed->folder / "runtime";
-            std::string json;
-            if (!utils::io::read_file(bundle / "package.json", &json) || json.size() > 128 * 1024)
-                throw std::runtime_error("The installed setup package is incomplete.");
-            rapidjson::Document data; data.Parse(json.data(), json.size());
-            if (data.HasParseError() || !data.IsObject() || !data.HasMember("dgvoodoo") || !data["dgvoodoo"].IsObject())
-                throw std::runtime_error("Invalid graphics dependency metadata.");
-            const auto& graphics = data["dgvoodoo"];
-            if (!graphics.HasMember("url") || !graphics["url"].IsString() || !graphics.HasMember("sha256") || !graphics["sha256"].IsString() ||
-                !graphics.HasMember("size") || !graphics["size"].IsUint64()) throw std::runtime_error("Incomplete graphics dependency metadata.");
-            const std::string url = graphics["url"].GetString(), hash = graphics["sha256"].GetString();
-            const auto size = graphics["size"].GetUint64();
-            if (!url.starts_with("https://github.com/dege-diosg/dgVoodoo2/releases/download/") ||
-                hash.size() != 64 || hash.find_first_not_of("0123456789abcdef") != std::string::npos || !size || size > 128 * 1024 * 1024)
-                throw std::runtime_error("The graphics dependency is not a supported upstream archive.");
+            const auto json = muac::runtime::read_file(bundle / "package.json", 128 * 1024);
+            const auto runtime = muac::runtime::parse_package(json, manifest->version);
+            const auto& url = runtime.graphics_url;
+            const auto& hash = runtime.graphics_sha256;
+            const auto size = runtime.graphics_size;
             const auto cache = tool_install::root(tool) / "downloads";
             std::filesystem::create_directories(cache);
             const auto archive = cache / (hash + ".zip");
@@ -117,6 +141,17 @@ namespace {
                 std::filesystem::rename(partial, archive);
             }
             require_running(work);
+            if (work->updating) {
+                phase(work, "Updating MUA Classic Fix");
+                muac::runtime::controls controls;
+                controls.running = [output] { return utils::nt::is_any_image_running({output / L"Game.exe"}); };
+                controls.cancelled = stop;
+                muac::runtime::update(output, bundle, runtime, graphics_dll(archive, runtime.dll_size),
+                    [](const std::string& bytes) { return utils::cryptography::sha256::compute(bytes, true); }, controls);
+                std::lock_guard lock(work->mutex);
+                work->success = true; work->active = false; work->phase = "MUA Classic Fix updated"; work->hold.reset();
+                return;
+            }
             phase(work, "Importing your disc");
             auto process = std::make_shared<xml1::builder_process>(1, "setup");
             {
@@ -184,6 +219,22 @@ bool start(const std::filesystem::path& source, const std::filesystem::path& out
     std::thread([work, source, output, channel = release_source::current_channel()] { run(work, source, output, channel); }).detach();
     return true;
 }
+bool start_update(std::string& error) {
+    std::lock_guard lock(jobs_mutex);
+    if (current) { std::lock_guard job_lock(current->mutex); if (current->active) { error = "MUA 2006 setup or update is already running."; return false; } }
+    const auto game = game_config::get_game_config("muac");
+    auto folder = game ? game->get_install_path() : std::nullopt;
+    if (!folder || !game_config::validate_game_path("muac", *folder)) { error = "Choose your installed MUA 2006 folder first."; return false; }
+    try { folder = muac::runtime::resolve_game_folder(*folder); } catch (const std::exception& e) { error = e.what(); return false; }
+    auto hold = updater::reserve(*folder, updater::folder_use::builder);
+    if (!hold) { error = "The game folder is busy. Wait for the current operation to finish."; return false; }
+    if (utils::nt::is_any_image_running({*folder / L"Game.exe"})) { error = "Close MUA 2006 before updating MUA Classic Fix."; return false; }
+    try { muac::runtime::recover(*folder); } catch (const std::exception& e) { error = e.what(); return false; }
+    auto work = std::make_shared<job>(); work->updating = true; work->hold = std::move(hold);
+    work->output = utils::string::path_to_utf8(*folder); current = work;
+    std::thread([work, output = *folder, channel = release_source::current_channel()] { run(work, {}, output, channel); }).detach();
+    return true;
+}
 void cancel() {
     std::lock_guard lock(jobs_mutex);
     if (!current) return;
@@ -202,6 +253,7 @@ void state(rapidjson::Document& out) {
     const bool registered = current->success && game && game->is_installed() && install &&
         updater::folder_key(*install) == updater::folder_key(utils::string::utf8_to_path(current->output));
     out.AddMember("active", current->active, a); out.AddMember("success", registered, a);
+    out.AddMember("updating", current->updating, a);
     out.AddMember("cancelled", current->cancelled, a); out.AddMember("error", text(current->error), a);
     bool cleaning = current->active && (current->cancelled || current->phase == "Cleaning up...");
     if (current->process && current->active) cleaning = cleaning || current->process->snapshot().stage == "cleanup";

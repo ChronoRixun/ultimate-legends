@@ -26,6 +26,12 @@ generates the project, so a release only needs this entry and the tag.
 - Needs the MUA Classic Fix setup package 0.2.1 or newer, which keeps its staging folder inside the chosen game
   folder.
 
+### Known issues
+- MUA 2006 under Proton / Steam Deck is not supported yet: setup still stops with "Linked folders are not supported
+  for setup." (Wine shows Linux mount points such as `/home` as linked folders), and the game does not start under
+  Proton (SafeDiscLoader2 fails there). X-Men Legends and the 2016 games are not affected.
+- Choosing a picture for artwork under Proton opens Wine's own file dialog; it has been checked on Windows only.
+
 ## 0.5.0-beta.5 (unreleased: a pre-release for the Beta update channel)
 
 ### Added

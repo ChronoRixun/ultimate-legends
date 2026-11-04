@@ -219,3 +219,20 @@ TEST(muac_runtime_unicode_installation_and_unrelated_names_are_supported) {
     CHECK(get(f.game / L"\u2603-owner.txt") == "owner data"); CHECK(get(f.game / "dinput8.dll") == f.payload.at("dinput8.dll"));
 }
 #endif
+
+// Production passes utils::cryptography::sha256::compute(bytes, true), which is upper-case hex,
+// while packages and runtime records carry lower-case SHA-256 (checksum() accepts only those).
+TEST(muac_update_accepts_upper_case_production_digests_and_records_lower_case) {
+    const auto upper = [](const std::string& bytes) {
+        auto out = hash(bytes);
+        for (auto& c : out) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+        return out;
+    };
+    fixture f;
+    CHECK(!refuses([&] { runtime::update(f.game, f.bundle, f.package(), f.graphics, upper); }));
+    const auto record = get(f.game / "_muac/runtime.json");
+    CHECK(runtime::record_version(record) == "0.2.1");
+    CHECK(runtime::record_version(record, upper(f.payload.at("dinput8.dll"))) == "0.2.1");
+    CHECK(runtime::record_version(record, hash(f.payload.at("dinput8.dll"))) == "0.2.1");
+    CHECK(get(f.game / "D3D9.dll") == f.graphics);
+}

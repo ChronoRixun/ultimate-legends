@@ -253,11 +253,12 @@ std::optional<std::string> record_version(const std::string& json, const std::st
             !data.HasMember("prepared") || !data["prepared"].IsBool() || !data["prepared"].GetBool()) return std::nullopt;
         auto version = text(data, "version");
         if (!dll_sha256.empty()) {
+            const auto installed = lower(dll_sha256);
             if (!data.HasMember("files") || !data["files"].IsArray()) return std::nullopt;
             int matches = 0;
             for (const auto& item : data["files"].GetArray()) {
                 if (text(item, "target") != "dinput8.dll") continue;
-                if (++matches != 1 || checksum(item, "sha256") != dll_sha256) return std::nullopt;
+                if (++matches != 1 || checksum(item, "sha256") != installed) return std::nullopt;
             }
             if (matches != 1) return std::nullopt;
         }
@@ -298,7 +299,9 @@ void recover(const std::filesystem::path& game) {
     }
 }
 void update(const std::filesystem::path& game, const std::filesystem::path& bundle, const package& manifest,
-            const std::string& graphics_dll, const hash_function& hash, const controls& control) {
+            const std::string& graphics_dll, const hash_function& raw_hash, const controls& control) {
+    // Production SHA-256 is upper-case hex; package and runtime records are lower-case.
+    const auto hash = [&raw_hash](const std::string& bytes) { return lower(raw_hash(bytes)); };
     check(control); guard(game); guard(bundle); recover(game);
     require(graphics_dll.size() == manifest.dll_size && hash(graphics_dll) == manifest.dll_sha256, "Graphics DLL failed SHA-256 verification.");
     static std::atomic_uint counter{};

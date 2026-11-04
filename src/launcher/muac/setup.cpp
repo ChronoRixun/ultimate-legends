@@ -48,7 +48,7 @@ namespace {
         std::error_code ec;
         if (std::filesystem::file_size(file, ec) != size || ec) return false;
         std::string bytes;
-        return utils::io::read_file(file, &bytes) && utils::cryptography::sha256::compute(bytes, true) == hash;
+        return utils::io::read_file(file, &bytes) && utils::string::to_lower(utils::cryptography::sha256::compute(bytes, true)) == utils::string::to_lower(hash);
     }
     std::string graphics_dll(const std::filesystem::path& archive, std::uint64_t expected_size) {
         FILE* input{};

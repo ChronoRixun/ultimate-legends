@@ -23,6 +23,12 @@
         </div>`;
     };
     const flags = () => [['0', t('display.off')], ['1', t('display.on')]];
+    function protonAdvice() {
+        if (!data.wine) return '';
+        return `<p class="ul-display-empty">${esc(t('muac.protonDisplay'))}</p>` + (data.dgvoodooPresent
+            ? `<div class="ul-display-empty" role="status"><p>${esc(t('muac.protonD3d9'))}</p>
+                <button type="button" class="secondary-action" data-muac-proton-update="true" ${data.running || busy ? 'disabled' : ''}>${esc(t('muac.updateStart'))}</button></div>` : '');
+    }
     function status(text, failed = false) {
         const element = panel()?.querySelector('.ul-display-status');
         if (!element) return;
@@ -42,20 +48,22 @@
             return;
         }
         if (!data.runtimeReady) {
-            body.innerHTML = `<div class="ul-display-empty">${esc(t('muac.missing', { files: (data.missing || []).join(', ') }))}</div>`;
+            body.innerHTML = protonAdvice() + `<div class="ul-display-empty">${esc(t('muac.missing', { files: (data.missing || []).join(', ') }))}</div>`;
             return;
         }
-        body.innerHTML = [
+        const graphics = [
             row('Mode', 'display.mode', 'muac.modeBody', [
                 ['windowed', t('display.modeWindowed')], ['borderless', t('display.modeBorderless')], ['fullscreen', t('display.modeFullscreen')]]),
             row('Resolution', 'display.resolution', 'muac.resolutionBody', (data.modes || []).map(value => [value, value.replace('x', ' × ')])),
             row('FrameLimit', 'muac.frameLimit', 'muac.frameBody', [30, 60, 120, 144, 165, 240].map(fps => [String(fps), `${fps} FPS`]).concat([['0', t('display.frameRateUnlimited')]])),
             row('VSync', 'display.vsync', 'muac.vsyncBody', flags()),
-            row('RunInBackground', 'display.runInBackground', 'muac.backgroundBody', flags()),
+            row('Watermark', 'muac.watermark', 'muac.watermarkBody', flags())
+        ];
+        body.innerHTML = protonAdvice() + (data.wine ? '' : graphics.join('')) + [
+            row('RunInBackground', 'display.runInBackground', data.wine ? 'muac.backgroundWineBody' : 'muac.backgroundBody', flags()),
             row('ControllerSupport', 'muac.controller', 'muac.controllerBody', flags()),
             row('CaptureMouse', 'muac.capture', 'muac.captureBody', flags()),
-            row('OnlineService', 'muac.online', 'muac.onlineBody', [['openspy', 'OpenSpy'], ['off', t('display.off')]]),
-            row('Watermark', 'muac.watermark', 'muac.watermarkBody', flags())
+            row('OnlineService', 'muac.online', 'muac.onlineBody', [['openspy', 'OpenSpy'], ['off', t('display.off')]])
         ].join('');
         status(data.running ? t('muac.closeFirst') : t('muac.nextStart'));
     }
@@ -94,6 +102,10 @@
         host.innerHTML = `<div class="ul-display"><p class="ul-display-intro">${esc(t('muac.intro'))}</p>
             <div class="ul-display-status" hidden></div><div class="ul-display-body">${esc(t('display.loading'))}</div></div>`;
         host.addEventListener('change', save);
+        host.addEventListener('click', event => {
+            const action = event.target.closest('[data-muac-proton-update]');
+            if (action && !action.disabled && !busy) window.MuacSetup?.showUpdate();
+        });
         load();
     }
     document.addEventListener('click', event => {
@@ -106,7 +118,8 @@
         refreshing = true;
         try {
             const latest = await run('get-muac-settings');
-            if (latest.running !== data.running || latest.runtimeReady !== data.runtimeReady || latest.recoveryPending !== data.recoveryPending) { data = latest; renderBody(); }
+            if (latest.running !== data.running || latest.runtimeReady !== data.runtimeReady || latest.recoveryPending !== data.recoveryPending ||
+                latest.wine !== data.wine || latest.dgvoodooPresent !== data.dgvoodooPresent) { data = latest; renderBody(); }
         } catch (_) { /* Keep the current controls when a background refresh fails. */ }
         finally { refreshing = false; }
     }, 3000);

@@ -20,6 +20,8 @@
             muac: {
                 title: 'MUA 2006 options',
                 intro: 'Display, input and online settings for your MUA 2006 installation.',
+                protonDisplay: 'Your Steam Deck / Proton handles display mode.',
+                protonD3d9: 'D3D9.dll from a Windows installation can crash under Proton. Choose Update to use MUA Classic Fix 0.2.2 or newer; it backs up and removes this DLL. A compatible release and launcher are required on your selected update channel.',
                 setUp: 'Choose your prepared MUA 2006 game folder with Set up to enable these options.',
                 missing: 'Compatibility components are missing: {{files}}. Finish preparing the installation before playing or changing these options.',
                 custom: '{{value}} (custom)',
@@ -56,6 +58,8 @@
                 frameLimit: 'Frame limit',
                 frameBody: 'An upper limit on rendering. The game may impose a lower limit.',
                 vsyncBody: 'Synchronize frames with the display to reduce tearing.',
+                protonMigrationUpdate: 'Update (removes D3D9.dll for Proton)',
+                backgroundWineBody: 'Keep the game active when you switch windows. Proton handles display mode.',
                 backgroundBody: 'Keep the game active when you switch windows. Applies in windowed and borderless modes; the minimize button still works.',
                 controller: 'Xbox controller support',
                 controllerBody: 'Normalize one connected Xbox-compatible controller, including Bluetooth. Multiple-controller mapping is still in development.',

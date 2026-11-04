@@ -46,7 +46,7 @@
             ? `<p class="detail-patch-check-error" role="status">${escapeHtml(status.error)}</p>` : '';
         if (!status.updateAvailable) return stat + error;
 
-        const label = escapeHtml(t('detail.patchUpdateAvailable', { version: status.latest }));
+        const label = escapeHtml(t(backendId(gameId) === 'muac' && status.wineMigration ? 'muac.protonMigrationUpdate' : 'detail.patchUpdateAvailable', { version: status.latest }));
         const notice = status.page ? `<a href="${escapeHtml(status.page)}" target="_blank">${label}</a>` : label;
         return `${stat}${error}
             <div class="detail-patch-update">

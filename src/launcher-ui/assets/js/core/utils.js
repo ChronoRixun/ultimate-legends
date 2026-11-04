@@ -103,7 +103,7 @@ class GameUtils {
             version: '2006 PC',
             description: 'The original 2006 PC release. Use a prepared installation with MUA Classic Fix to manage display settings, Xbox controllers, mouse capture and the OpenSpy redirect.',
             patchName: 'MUA Classic Fix',
-            credits: 'Input and settings by <a href="https://github.com/ChronoRixun/muac-fix" target="_blank">MUA Classic Fix</a>. Retail compatibility uses SafeDiscLoader2; graphics options use dgVoodoo2.',
+            credits: 'Input and settings by <a href="https://github.com/ChronoRixun/muac-fix" target="_blank">MUA Classic Fix</a>. Retail compatibility uses SafeDiscLoader2; graphics use dgVoodoo2 on Windows and DXVK/Proton under Wine.',
             accent: '#2FD4AE',
             assetBase: './assets/img/games/muac',
             iconPath: './assets/img/games/muac/icon.ico',

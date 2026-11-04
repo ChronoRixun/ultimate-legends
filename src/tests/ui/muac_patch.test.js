@@ -116,3 +116,11 @@ test('MUAC patch: rapid double activation opens one popup and starts one job', a
     assert.equal(p.document.querySelectorAll('#muac-setup-title').length, 1);
     assert.equal(p.calls.filter(c => c.command === 'start-muac-update').length, 1);
 });
+
+test('MUAC same-version Proton migration describes the actual update', async () => {
+    const p = await open({ installed: '0.2.2', latest: '0.2.2', updateAvailable: true, wineMigration: true });
+    assert.equal(p.document.querySelector('.detail-patch-update-label').textContent, 'Update (removes D3D9.dll for Proton)');
+    p.setPatch({ installed: '0.2.1', latest: '0.2.2', updateAvailable: true, wineMigration: false });
+    await p.window.PatchView.render('muac');
+    assert.match(p.document.querySelector('.detail-patch-update-label').textContent, /Update available: 0.2.2/);
+});

@@ -86,6 +86,10 @@ TEST(muac_release_comparison_and_min_launcher_respect_semver) {
     CHECK(!runtime::newer_compatible("0.2.0", "0.2.1", "0.5.0", "0.5.0-beta.7"));
     CHECK(!runtime::newer_compatible("0.2.0", "0.2.1", "bad", "0.5.0-beta.7"));
     CHECK(runtime::newer_compatible("", "0.2.1", "", "0.5.0-beta.7"));
+    CHECK(runtime::newer_compatible("0.2.2", "0.2.2", "0.5.0-beta.8", "0.5.0-beta.8", true));
+    CHECK(!runtime::newer_compatible("0.2.1", "0.2.1", "", "0.5.0-beta.8", true));
+    CHECK(!runtime::newer_compatible("0.2.2", "0.2.2", "0.5.0-beta.8", "0.5.0-beta.7", true));
+    CHECK(!runtime::newer_compatible("0.2.3", "0.2.2", "", "0.5.0", true));
 }
 TEST(muac_release_channel_requires_setup_manifest_and_picks_latest_beta) {
     std::string error;
@@ -128,6 +132,87 @@ TEST(muac_runtime_updates_only_runtime_and_merges_missing_keys) {
     CHECK(runtime::record_version(after.at("_muac/runtime.json"), hash(after.at("dinput8.dll"))) == "0.2.1");
     for (const auto* file : {"Game.exe", "saves/keep", "mods/keep", "_muac/setup.json"}) CHECK(after.at(file) == before.at(file));
     CHECK(after.size() == before.size()); CHECK(!runtime::recovery_pending(f.game));
+}
+TEST(muac_wine_update_removes_and_persistently_backs_up_inherited_d3d9) {
+    fixture f; const auto before = f.snapshot(); runtime::controls control; control.wine = true;
+    // No graphics archive/DLL is consumed on Wine; all other payloads are verified.
+    runtime::update(f.game, f.bundle, f.package(), "", hash, control);
+    CHECK(!std::filesystem::exists(f.game / "D3D9.dll"));
+    const auto record = get(f.game / "_muac/runtime.json");
+    rapidjson::Document json; json.Parse(record.c_str());
+    CHECK(json["graphics"] == "wine-d3d9");
+    CHECK(json["removed_files"].Size() == 1);
+    const auto& removed = json["removed_files"][0];
+    CHECK(removed["target"] == "D3D9.dll");
+    CHECK(removed["sha256"] == hash("old graphics"));
+    CHECK(get(f.game / removed["backup"].GetString()) == "old graphics");
+    for (const auto& item : json["files"].GetArray()) CHECK(item["target"] != "D3D9.dll");
+    for (const auto* file : {"Game.exe", "saves/keep", "mods/keep", "_muac/setup.json", "dgVoodoo.conf"})
+        CHECK(get(f.game / file) == before.at(file));
+    // A second update neither restores D3D9 nor deletes the retained backup.
+    const auto backup = f.game / removed["backup"].GetString();
+    runtime::update(f.game, f.bundle, f.package(), "", hash, control);
+    CHECK(!std::filesystem::exists(f.game / "D3D9.dll")); CHECK(get(backup) == "old graphics");
+    rapidjson::Document again; again.Parse(get(f.game / "_muac/runtime.json").c_str());
+    CHECK(again["removed_files"].Size() == 1);
+    if (!again["removed_files"].Empty()) CHECK(again["removed_files"][0]["backup"] == removed["backup"]);
+}
+TEST(muac_wine_backup_collision_is_refused_and_matching_backup_is_kept) {
+    fixture f; runtime::controls control; control.wine = true;
+    const auto backup = f.game / ("_muac/backups/D3D9-" + hash("old graphics") + ".dll");
+    put(backup, "owner file"); const auto before = f.snapshot();
+    CHECK(refuses([&] { runtime::update(f.game, f.bundle, f.package(), "", hash, control); }));
+    CHECK(f.snapshot() == before);
+    put(backup, "old graphics");
+    const auto timestamp = std::filesystem::file_time_type::clock::now() - std::chrono::hours(24);
+    std::filesystem::last_write_time(backup, timestamp);
+    runtime::update(f.game, f.bundle, f.package(), "", hash, control);
+    CHECK(get(backup) == "old graphics"); CHECK(std::filesystem::last_write_time(backup) == timestamp);
+    CHECK(!std::filesystem::exists(f.game / "D3D9.dll"));
+}
+TEST(muac_wine_cancel_after_removal_restores_every_original) {
+    fixture f; const auto before = f.snapshot(); runtime::controls control; control.wine = true;
+    bool cancelled = false; control.cancelled = [&] { return cancelled; };
+    control.before_replace = [&](const std::string& target) { if (target == "dinput8.dll") cancelled = true; };
+    CHECK(refuses([&] { runtime::update(f.game, f.bundle, f.package(), "", hash, control); }));
+    CHECK(f.snapshot() == before); CHECK(!runtime::recovery_pending(f.game));
+}
+TEST(muac_wine_recovery_restores_removed_dll_and_removes_uncommitted_backup) {
+    fixture f; const auto before = f.snapshot(); const auto stage = f.game / ".muac-stage-update-fixture";
+    const auto backup = "_muac/backups/D3D9-" + hash("old graphics") + ".dll";
+    std::filesystem::create_directories(stage / "old");
+    std::filesystem::rename(f.game / "D3D9.dll", stage / "old/D3D9.dll"); put(f.game / backup, "old graphics");
+    put(stage / "journal.json", std::string(R"({"state":"committing","files":[{"target":"D3D9.dll","existed":true,"remove":true},{"target":")") +
+        backup + R"(","existed":false,"remove":false}]})");
+    CHECK(runtime::recovery_pending(f.game)); runtime::recover(f.game);
+    CHECK(f.snapshot() == before); CHECK(!runtime::recovery_pending(f.game));
+}
+TEST(muac_wine_removal_is_rolled_back_when_metadata_promotion_fails) {
+    fixture f; const auto before = f.snapshot(); runtime::controls control; control.wine = true;
+    control.before_replace = [](const std::string& target) {
+        if (target == "_muac/runtime.json") throw std::runtime_error("injected final replacement failure");
+    };
+    CHECK(refuses([&] { runtime::update(f.game, f.bundle, f.package(), "", hash, control); }));
+    CHECK(f.snapshot() == before); CHECK(!runtime::recovery_pending(f.game));
+}
+TEST(muac_wine_still_refuses_corrupt_payload_and_d3d9_directory) {
+    fixture f; const auto before = f.snapshot(); runtime::controls control; control.wine = true;
+    put(f.bundle / "version.dll", "corrupt");
+    CHECK(refuses([&] { runtime::update(f.game, f.bundle, f.package(), "", hash, control); }));
+    CHECK(f.snapshot() == before);
+    put(f.bundle / "version.dll", f.payload.at("version.dll"));
+    std::filesystem::remove(f.game / "D3D9.dll"); std::filesystem::create_directory(f.game / "D3D9.dll");
+    CHECK(refuses([&] { runtime::update(f.game, f.bundle, f.package(), "", hash, control); }));
+    CHECK(std::filesystem::is_directory(f.game / "D3D9.dll"));
+}
+TEST(muac_wine_update_without_existing_d3d9_never_places_one) {
+    fixture f; std::filesystem::remove(f.game / "D3D9.dll");
+    runtime::controls control; control.wine = true;
+    runtime::update(f.game, f.bundle, f.package(), "", hash, control);
+    CHECK(!std::filesystem::exists(f.game / "D3D9.dll"));
+    CHECK(!std::filesystem::exists(f.game / "_muac/backups"));
+    rapidjson::Document record; record.Parse(get(f.game / "_muac/runtime.json").c_str());
+    CHECK(record["graphics"] == "wine-d3d9"); CHECK(record["removed_files"].Empty());
 }
 TEST(muac_runtime_refuses_running_game_before_writes_and_rolls_back_race) {
     fixture f; const auto before = f.snapshot(); runtime::controls control; control.running = [] { return true; };
@@ -196,6 +281,16 @@ TEST(muac_runtime_unchanged_settings_are_not_replaced) {
     }
 }
 #ifdef _WIN32
+TEST(muac_wine_locked_inherited_d3d9_is_kept_with_a_clear_error) {
+    fixture f; const auto before = f.snapshot(); runtime::controls control; control.wine = true;
+    const auto lock = CreateFileW((f.game / "D3D9.dll").c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+    CHECK(lock != INVALID_HANDLE_VALUE);
+    std::string error;
+    try { runtime::update(f.game, f.bundle, f.package(), "", hash, control); } catch (const std::exception& e) { error = e.what(); }
+    CloseHandle(lock);
+    CHECK(error == runtime::file_in_use_message); CHECK(f.snapshot() == before);
+    CHECK(!runtime::recovery_pending(f.game));
+}
 TEST(muac_runtime_locked_destination_rolls_back_real_rename_failure) {
     fixture f; const auto before = f.snapshot();
     const auto lock = CreateFileW((f.game / "version.dll").c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
@@ -312,4 +407,161 @@ TEST(muac_update_uses_production_sha256_with_lowercase_manifest) {
     CHECK(!refuses([&] { runtime::update(f.game, f.bundle, manifest, f.graphics, production); }));
     CHECK(runtime::record_version(get(f.game / "_muac/runtime.json"), production(f.payload.at("dinput8.dll"))) == "0.2.1");
     CHECK(get(f.game / "D3D9.dll") == f.graphics);
+}
+
+namespace { struct simulated_power_loss {}; }
+
+TEST(muac_atomic_writes_survive_every_temporary_and_publication_boundary) {
+    for (const bool wine : {false, true}) {
+    // Discover every actual write, including all payloads, merged configuration,
+    // runtime.json, the immutable plan and both versions of the journal.
+    std::size_t points = 0;
+    { fixture f; runtime::controls c; c.wine = wine;
+      c.on_write = [&](const auto&, const auto&, bool) { ++points; }; f.update(c); }
+    CHECK(points > 10);
+    for (std::size_t crash = 0; crash < points; ++crash) {
+        fixture f; const auto before = f.snapshot(); runtime::controls c; c.wine = wine;
+        std::size_t point = 0; bool committed = false, interrupted = false;
+        c.on_write = [&](const auto& destination, const auto& temporary, bool published) {
+            if (point++ != crash) return;
+            if (!published) {
+                // A death during the write leaves a zero-byte or partial temp.
+                put(temporary, crash % 2 ? "{" : "");
+                if (destination.filename() == "journal.json" && std::filesystem::exists(destination)) {
+                    rapidjson::Document previous; previous.Parse(get(destination).c_str());
+                    CHECK(!previous.HasParseError()); CHECK(previous["state"] == "committing");
+                }
+            } else if (destination.filename() == "journal.json") {
+                rapidjson::Document journal; journal.Parse(get(destination).c_str());
+                committed = journal["state"] == "committed";
+            }
+            throw simulated_power_loss{}; // deliberately bypass normal exception rollback
+        };
+        try { f.update(c); } catch (const simulated_power_loss&) { interrupted = true; }
+        CHECK(interrupted);
+        runtime::recover(f.game); CHECK(!runtime::recovery_pending(f.game));
+        if (committed) CHECK(runtime::record_version(get(f.game / "_muac/runtime.json")) == "0.2.1");
+        else CHECK(f.snapshot() == before);
+        f.update(runtime::controls{}); // recovery never leaves subsequent Update stuck
+    }
+    }
+}
+
+TEST(muac_corrupt_journal_rolls_back_from_plan_at_every_move_boundary) {
+    std::size_t moves = 0;
+    { fixture f; runtime::controls c; c.wine = true;
+      c.before_replace = [&](const std::string&) { ++moves; }; f.update(c); }
+    for (const auto& damage : {std::string{}, std::string("{broken")}) {
+        for (std::size_t crash = 0; crash < moves; ++crash) {
+            fixture f; const auto before = f.snapshot(); runtime::controls c; c.wine = true;
+            std::size_t point = 0; bool interrupted = false;
+            c.before_replace = [&](const std::string&) {
+                if (point++ != crash) return;
+                for (const auto& entry : std::filesystem::directory_iterator(f.game))
+                    if (entry.path().filename().string().starts_with(".muac-stage-update-")) put(entry.path() / "journal.json", damage);
+                throw simulated_power_loss{};
+            };
+            try { f.update(c); } catch (const simulated_power_loss&) { interrupted = true; }
+            if (!interrupted) break;
+            CHECK(runtime::recovery_pending(f.game));
+            std::string log;
+            runtime::recover(f.game, [&](const auto& line) { log += line; });
+            CHECK(log.find("backup set") != std::string::npos);
+            CHECK(f.snapshot() == before); CHECK(!runtime::recovery_pending(f.game));
+            runtime::recover(f.game); CHECK(f.snapshot() == before);
+            f.update(c = runtime::controls{});
+        }
+    }
+}
+
+TEST(muac_legacy_empty_initial_journal_with_complete_stage_is_discarded_and_logged) {
+    fixture f; const auto before = f.snapshot(); runtime::controls c;
+    c.on_write = [&](const auto& destination, const auto&, bool published) {
+        if (published && destination.filename() == "journal.json") {
+            std::filesystem::remove(destination.parent_path() / "recovery.json");
+            put(destination, ""); throw simulated_power_loss{};
+        }
+    };
+    try { f.update(c); } catch (const simulated_power_loss&) {}
+    CHECK(runtime::recovery_pending(f.game));
+    std::string log; runtime::recover(f.game, [&](const auto& line) { log += line; });
+    CHECK(log.find("update never started") != std::string::npos);
+    CHECK(f.snapshot() == before); f.update();
+}
+
+TEST(muac_ambiguous_legacy_damage_keeps_backups_for_safe_recovery) {
+    fixture f; const auto stage = f.game / ".muac-stage-update-legacy";
+    put(stage / "journal.json", "");
+    put(stage / "old/dinput8.dll", "original input fix");
+    CHECK(refuses([&] { runtime::recover(f.game); }));
+    CHECK(get(stage / "old/dinput8.dll") == "original input fix");
+    CHECK(runtime::recovery_pending(f.game));
+}
+
+TEST(muac_missing_or_damaged_completion_journal_uses_backup_plan) {
+    for (const bool missing : {false, true}) {
+        fixture f; const auto before = f.snapshot(); runtime::controls c; c.wine = true;
+        c.on_write = [&](const auto& destination, const auto&, bool published) {
+            if (!published || destination.filename() != "journal.json") return;
+            rapidjson::Document journal; journal.Parse(get(destination).c_str());
+            if (journal["state"] != "committed") return;
+            if (missing) std::filesystem::remove(destination);
+            else put(destination, "{");
+            throw simulated_power_loss{};
+        };
+        try { f.update(c); } catch (const simulated_power_loss&) {}
+        CHECK(runtime::recovery_pending(f.game));
+        runtime::recover(f.game); CHECK(f.snapshot() == before);
+        CHECK(!runtime::recovery_pending(f.game));
+    }
+}
+
+TEST(muac_incomplete_legacy_stage_never_discards_a_possible_move) {
+    fixture f; runtime::controls c;
+    std::filesystem::path stage;
+    c.on_write = [&](const auto& destination, const auto&, bool published) {
+        if (published && destination.filename() == "journal.json") {
+            stage = destination.parent_path();
+            std::filesystem::remove(stage / "recovery.json");
+            std::filesystem::remove(stage / "new/dinput8.dll");
+            put(destination, ""); throw simulated_power_loss{};
+        }
+    };
+    try { f.update(c); } catch (const simulated_power_loss&) {}
+    CHECK(refuses([&] { runtime::recover(f.game); }));
+    CHECK(std::filesystem::exists(stage / "journal.json"));
+    CHECK(runtime::recovery_pending(f.game));
+}
+
+TEST(muac_interrupted_runtime_record_promotion_restores_original_record) {
+    fixture f; const auto before = f.snapshot(); runtime::controls c;
+    c.before_replace = [&](const std::string& target) {
+        if (target != "_muac/runtime.json") return;
+        for (const auto& entry : std::filesystem::directory_iterator(f.game)) {
+            if (!entry.path().filename().string().starts_with(".muac-stage-update-")) continue;
+            const auto backup = entry.path() / "old" / target;
+            std::filesystem::create_directories(backup.parent_path());
+            std::filesystem::rename(f.game / target, backup);
+        }
+        throw simulated_power_loss{};
+    };
+    try { f.update(c); } catch (const simulated_power_loss&) {}
+    CHECK(!std::filesystem::exists(f.game / "_muac/runtime.json"));
+    CHECK(runtime::recovery_pending(f.game));
+    runtime::recover(f.game); CHECK(f.snapshot() == before);
+}
+
+TEST(muac_legacy_completion_file_recovers_a_damaged_journal_from_backups) {
+    fixture f; const auto before = f.snapshot(); runtime::controls c;
+    c.on_write = [&](const auto& destination, const auto&, bool published) {
+        if (!published || destination.filename() != "journal.json") return;
+        rapidjson::Document journal; journal.Parse(get(destination).c_str());
+        if (journal["state"] != "committed") return;
+        put(destination.parent_path() / "journal.next", get(destination));
+        std::filesystem::remove(destination.parent_path() / "recovery.json");
+        put(destination, ""); throw simulated_power_loss{};
+    };
+    try { f.update(c); } catch (const simulated_power_loss&) {}
+    runtime::recover(f.game); CHECK(f.snapshot() == before);
+    CHECK(!runtime::recovery_pending(f.game));
 }

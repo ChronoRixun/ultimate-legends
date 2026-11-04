@@ -3,35 +3,47 @@
 The launcher's version comes from its release tag (`v0.3.2`): premake reads it with `git describe` when it
 generates the project, so a release only needs this entry and the tag.
 
-## 0.5.0-beta.8 (draft; release identity pending)
-
-### Fixed
-- Runtime update payloads, merged settings, runtime records and journals are written through flushed
-  same-directory temporary files and atomic replacement. A separate immutable recovery plan lets Update
-  roll back from backups even if its journal is missing or unreadable. A legacy empty initial journal is
-  discarded only after checking that staged files and backups show publication has not started; recovery
-  decisions are logged. Ambiguous legacy damage keeps staging and backups for manual recovery.
-- MUA credits explain that Wine uses DXVK/Proton. Run in background has Proton-specific help, and a
-  same-version migration says "Update (removes D3D9.dll for Proton)" instead of advertising a newer version.
-- `dgVoodoo.conf` remains on Wine: MUA Classic Fix reads it to enable its window-focus policy.
-
-## Unreleased (Proton MUA 2006; release identity pending)
+## 0.5.0-beta.8 (unreleased: a pre-release for the Beta update channel)
 
 ### Added
-- MUA 2006 setup and Update recognize Wine through `ntdll!wine_get_version`, accept Wine drive roots and
-  self-resolving Linux mount-point tags, and continue refusing redirected junctions/symlinks inside the tree.
-- On Wine, the platform supplies D3D9. Setup and Update skip dgVoodoo; missing D3D9.dll is allowed. Update
-  stages and retains a hash-named backup of an inherited D3D9.dll, records its removal, and removes the live DLL
-  with the existing rollback/recovery transaction. Game files, saves and custom settings are preserved.
-- The MUA 2006 options page explains a Windows-made D3D9.dll and offers Update. Migration can reapply a
-  compatible 0.2.2 runtime at the same version, without downgrading newer installations.
-- Wine hides dgVoodoo display options and explains that Steam Deck / Proton handles display mode. Controller,
-  background, mouse and online options remain editable; unsupported graphics writes are refused by the backend.
+- **Marvel: Ultimate Alliance (2006 PC) on Steam Deck / Linux (Proton).** Automatic setup from your own disc,
+  Update and Play now work under Proton. Needs MUA Classic Fix 0.2.2 (the setup package the launcher downloads),
+  whose manifest in turn requires this launcher or newer. Put the game folder on a Linux filesystem (the Deck's
+  internal storage, an ext4 SD card or your home folder), not an NTFS or network drive.
+- Under Proton, the game uses Proton's own D3D9 instead of dgVoodoo2 (whose `D3D9.dll` crashes under Wine):
+  setup and Update skip the dgVoodoo2 archive and DLL, and `_muac/runtime.json` records `graphics: wine-d3d9`.
+  Native Windows keeps the verified dgVoodoo2 setup and its display options.
+- **A Windows-made MUA 2006 installation moved to Steam Deck / Linux: choose Update.** The options page explains
+  why and offers **Update**, also when the installation is already on MUA Classic Fix 0.2.2 ("Update (removes
+  D3D9.dll for Proton)"). Update keeps a backup of the installation's `D3D9.dll` at
+  `_muac/backups/D3D9-<sha256>.dll`, records the removal and removes the live DLL inside the same staged,
+  rolled-back-on-failure transaction as every runtime update. `Game.exe`, the other game files, saves, mods and
+  settings are kept, the removal is remembered by later updates, and a newer installed runtime is never
+  downgraded. On Windows, Update keeps `D3D9.dll` as it is.
+- Under Proton, the options page hides the dgVoodoo2 display options (mode, resolution, frame limit, VSync,
+  watermark) and says "Your Steam Deck / Proton handles display mode."; controller, Run in background, mouse
+  capture and online options stay editable. The credits name DXVK/Proton there, and Run in background has
+  Proton-specific help.
+- Setup, cleanup and Update recognize Wine (`ntdll!wine_get_version`) and accept Wine drive roots and Linux mount
+  points (`/home`, an SD card), which Wine shows as linked folders. Redirected junctions and symbolic links inside
+  the disc or game tree are still refused.
 
-### Companion and validation
-- Requires muac-fix 0.2.2 for initial Wine setup. Its package requires launcher 0.5.0-beta.8 or newer (final
-  0.5.0 qualifies); the coordinator assigns the launcher release identity. Native Windows keeps dgVoodoo.
-- Full ISO setup, menu startup and Windows-to-Proton migration still need live validation on an ext4 path.
+### Fixed
+- **A launcher stopped while it writes an update journal no longer leaves MUA 2006 stuck.** In beta.7, a crash
+  at that moment could leave an empty journal: Play stayed refused and every Update retry failed with "Invalid
+  runtime JSON.". Every update payload, merged setting, runtime record and journal is now written to a flushed
+  temporary file beside it and atomically put in place, and an immutable recovery plan written before any game
+  file moves lets the next Update roll back or finish from its backups even if the journal is missing or
+  unreadable. An empty journal left by beta.7 is discarded only after the staged files and backups show nothing
+  was published yet; recovery decisions are logged, and damage that can't be resolved safely keeps the staging
+  and backups for manual recovery instead of guessing.
+
+### Known issues
+- MUA 2006 under Proton was tested under GE-Proton 11 on Linux (setup from the ISO, Update of a Windows-made
+  installation, starting the game to its main menu), not yet on a real Steam Deck. Gameplay past the menu,
+  controllers through Steam Input, saves and online play are not certified there yet.
+- Under Proton, completing **Change artwork...** through Wine's file dialog is still unverified (artwork you
+  already chose is kept).
 
 ## 0.5.0-beta.7 (unreleased: a pre-release for the Beta update channel; the last beta before 0.5.0)
 

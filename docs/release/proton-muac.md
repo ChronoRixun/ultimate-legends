@@ -1,7 +1,7 @@
 # MUA 2006 on Wine / Proton
 
-Companion: muac-fix 0.2.2, minimum launcher 0.5.0-beta.8 (or final 0.5.0).
-No launcher version is assigned by this change. Package/release integration remains a coordinator task.
+Shipped in Ultimate Legends 0.5.0-beta.8 with its companion MUA Classic Fix (muac-fix) 0.2.2, whose manifest
+requires launcher 0.5.0-beta.8 or newer (final 0.5.0 qualifies).
 
 Wine is detected by the ntdll `wine_get_version` export, without environment heuristics.
 Wine drive roots and directory mount tags (`0xA0000003`) resolving to their own path are accepted.
@@ -28,11 +28,16 @@ records the removal's target, backup, size and SHA-256. Metadata is promoted las
 locks and copy/rename errors roll back; an interrupted transaction is recovered by retrying Update.
 No game executable, disc file, save, mod or registry display setting is changed by the update.
 
-## Coordinator live checks (not run by this implementation task)
+Every staged payload, the recovery plan (`recovery.json`, written once before the first journal and never
+rewritten) and both journals are written to a flushed `<name>.tmp-<n>` file in the same folder and then renamed
+into place, so a crash never leaves a truncated journal. Recovery on the next Update rolls back from `stage/old`
+using the journal or, when it is missing or unreadable, the recovery plan.
 
-1. Build/package muac-fix 0.2.2 and this launcher with an assigned identity satisfying the floor.
-   Serve the matching manifest/package through the coordinator's isolated release feed or existing
-   test seams. Use a fresh Proton prefix and a game/output path on a native ext4 filesystem;
+## Live checks (for every release that changes this path)
+
+1. Build/package muac-fix 0.2.2 and this launcher with a version satisfying the floor.
+   Serve the matching manifest/package through an isolated release feed (`tools/dev/fake_github.py`)
+   and the Debug-only test seams. Use a fresh Proton prefix and a game/output path on a native ext4 filesystem;
    avoid WSL `/mnt`, NTFS and network mounts. Use the owner's retail ISO, never a fixture DLL.
 2. Run the launcher with the coordinator's chosen Proton (the prior investigation reached the
    menu with GE-Proton11-12). Set up the complete ISO into a new empty folder below a real mount
@@ -51,6 +56,9 @@ No game executable, disc file, save, mod or registry display setting is changed 
    Verify a real junction/symlink within the disc/game tree is refused, while the ext4 mount is
    accepted. Check Wine display advice, all remaining options, and keyboard/controller focus.
 6. On native Windows, setup/update must still verify and place dgVoodoo and expose its controls.
+7. Stop the launcher while it writes each update file (a staged payload, `recovery.json`, the first
+   journal, during the renames, the completion journal) on Windows and under Proton. The next start
+   must recover or roll back on Update and never stay stuck.
 
 Automated synthetic/native/UI tests do not prove Proton filesystem APIs, actual CEF rendering,
-hardware controls or game startup. No games, GUI, WSL or downloads are part of this task's checks.
+hardware controls or game startup.

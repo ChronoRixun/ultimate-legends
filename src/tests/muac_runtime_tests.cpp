@@ -408,3 +408,160 @@ TEST(muac_update_uses_production_sha256_with_lowercase_manifest) {
     CHECK(runtime::record_version(get(f.game / "_muac/runtime.json"), production(f.payload.at("dinput8.dll"))) == "0.2.1");
     CHECK(get(f.game / "D3D9.dll") == f.graphics);
 }
+
+namespace { struct simulated_power_loss {}; }
+
+TEST(muac_atomic_writes_survive_every_temporary_and_publication_boundary) {
+    for (const bool wine : {false, true}) {
+    // Discover every actual write, including all payloads, merged configuration,
+    // runtime.json, the immutable plan and both versions of the journal.
+    std::size_t points = 0;
+    { fixture f; runtime::controls c; c.wine = wine;
+      c.on_write = [&](const auto&, const auto&, bool) { ++points; }; f.update(c); }
+    CHECK(points > 10);
+    for (std::size_t crash = 0; crash < points; ++crash) {
+        fixture f; const auto before = f.snapshot(); runtime::controls c; c.wine = wine;
+        std::size_t point = 0; bool committed = false, interrupted = false;
+        c.on_write = [&](const auto& destination, const auto& temporary, bool published) {
+            if (point++ != crash) return;
+            if (!published) {
+                // A death during the write leaves a zero-byte or partial temp.
+                put(temporary, crash % 2 ? "{" : "");
+                if (destination.filename() == "journal.json" && std::filesystem::exists(destination)) {
+                    rapidjson::Document previous; previous.Parse(get(destination).c_str());
+                    CHECK(!previous.HasParseError()); CHECK(previous["state"] == "committing");
+                }
+            } else if (destination.filename() == "journal.json") {
+                rapidjson::Document journal; journal.Parse(get(destination).c_str());
+                committed = journal["state"] == "committed";
+            }
+            throw simulated_power_loss{}; // deliberately bypass normal exception rollback
+        };
+        try { f.update(c); } catch (const simulated_power_loss&) { interrupted = true; }
+        CHECK(interrupted);
+        runtime::recover(f.game); CHECK(!runtime::recovery_pending(f.game));
+        if (committed) CHECK(runtime::record_version(get(f.game / "_muac/runtime.json")) == "0.2.1");
+        else CHECK(f.snapshot() == before);
+        f.update(runtime::controls{}); // recovery never leaves subsequent Update stuck
+    }
+    }
+}
+
+TEST(muac_corrupt_journal_rolls_back_from_plan_at_every_move_boundary) {
+    std::size_t moves = 0;
+    { fixture f; runtime::controls c; c.wine = true;
+      c.before_replace = [&](const std::string&) { ++moves; }; f.update(c); }
+    for (const auto& damage : {std::string{}, std::string("{broken")}) {
+        for (std::size_t crash = 0; crash < moves; ++crash) {
+            fixture f; const auto before = f.snapshot(); runtime::controls c; c.wine = true;
+            std::size_t point = 0; bool interrupted = false;
+            c.before_replace = [&](const std::string&) {
+                if (point++ != crash) return;
+                for (const auto& entry : std::filesystem::directory_iterator(f.game))
+                    if (entry.path().filename().string().starts_with(".muac-stage-update-")) put(entry.path() / "journal.json", damage);
+                throw simulated_power_loss{};
+            };
+            try { f.update(c); } catch (const simulated_power_loss&) { interrupted = true; }
+            if (!interrupted) break;
+            CHECK(runtime::recovery_pending(f.game));
+            std::string log;
+            runtime::recover(f.game, [&](const auto& line) { log += line; });
+            CHECK(log.find("backup set") != std::string::npos);
+            CHECK(f.snapshot() == before); CHECK(!runtime::recovery_pending(f.game));
+            runtime::recover(f.game); CHECK(f.snapshot() == before);
+            f.update(c = runtime::controls{});
+        }
+    }
+}
+
+TEST(muac_legacy_empty_initial_journal_with_complete_stage_is_discarded_and_logged) {
+    fixture f; const auto before = f.snapshot(); runtime::controls c;
+    c.on_write = [&](const auto& destination, const auto&, bool published) {
+        if (published && destination.filename() == "journal.json") {
+            std::filesystem::remove(destination.parent_path() / "recovery.json");
+            put(destination, ""); throw simulated_power_loss{};
+        }
+    };
+    try { f.update(c); } catch (const simulated_power_loss&) {}
+    CHECK(runtime::recovery_pending(f.game));
+    std::string log; runtime::recover(f.game, [&](const auto& line) { log += line; });
+    CHECK(log.find("update never started") != std::string::npos);
+    CHECK(f.snapshot() == before); f.update();
+}
+
+TEST(muac_ambiguous_legacy_damage_keeps_backups_for_safe_recovery) {
+    fixture f; const auto stage = f.game / ".muac-stage-update-legacy";
+    put(stage / "journal.json", "");
+    put(stage / "old/dinput8.dll", "original input fix");
+    CHECK(refuses([&] { runtime::recover(f.game); }));
+    CHECK(get(stage / "old/dinput8.dll") == "original input fix");
+    CHECK(runtime::recovery_pending(f.game));
+}
+
+TEST(muac_missing_or_damaged_completion_journal_uses_backup_plan) {
+    for (const bool missing : {false, true}) {
+        fixture f; const auto before = f.snapshot(); runtime::controls c; c.wine = true;
+        c.on_write = [&](const auto& destination, const auto&, bool published) {
+            if (!published || destination.filename() != "journal.json") return;
+            rapidjson::Document journal; journal.Parse(get(destination).c_str());
+            if (journal["state"] != "committed") return;
+            if (missing) std::filesystem::remove(destination);
+            else put(destination, "{");
+            throw simulated_power_loss{};
+        };
+        try { f.update(c); } catch (const simulated_power_loss&) {}
+        CHECK(runtime::recovery_pending(f.game));
+        runtime::recover(f.game); CHECK(f.snapshot() == before);
+        CHECK(!runtime::recovery_pending(f.game));
+    }
+}
+
+TEST(muac_incomplete_legacy_stage_never_discards_a_possible_move) {
+    fixture f; runtime::controls c;
+    std::filesystem::path stage;
+    c.on_write = [&](const auto& destination, const auto&, bool published) {
+        if (published && destination.filename() == "journal.json") {
+            stage = destination.parent_path();
+            std::filesystem::remove(stage / "recovery.json");
+            std::filesystem::remove(stage / "new/dinput8.dll");
+            put(destination, ""); throw simulated_power_loss{};
+        }
+    };
+    try { f.update(c); } catch (const simulated_power_loss&) {}
+    CHECK(refuses([&] { runtime::recover(f.game); }));
+    CHECK(std::filesystem::exists(stage / "journal.json"));
+    CHECK(runtime::recovery_pending(f.game));
+}
+
+TEST(muac_interrupted_runtime_record_promotion_restores_original_record) {
+    fixture f; const auto before = f.snapshot(); runtime::controls c;
+    c.before_replace = [&](const std::string& target) {
+        if (target != "_muac/runtime.json") return;
+        for (const auto& entry : std::filesystem::directory_iterator(f.game)) {
+            if (!entry.path().filename().string().starts_with(".muac-stage-update-")) continue;
+            const auto backup = entry.path() / "old" / target;
+            std::filesystem::create_directories(backup.parent_path());
+            std::filesystem::rename(f.game / target, backup);
+        }
+        throw simulated_power_loss{};
+    };
+    try { f.update(c); } catch (const simulated_power_loss&) {}
+    CHECK(!std::filesystem::exists(f.game / "_muac/runtime.json"));
+    CHECK(runtime::recovery_pending(f.game));
+    runtime::recover(f.game); CHECK(f.snapshot() == before);
+}
+
+TEST(muac_legacy_completion_file_recovers_a_damaged_journal_from_backups) {
+    fixture f; const auto before = f.snapshot(); runtime::controls c;
+    c.on_write = [&](const auto& destination, const auto&, bool published) {
+        if (!published || destination.filename() != "journal.json") return;
+        rapidjson::Document journal; journal.Parse(get(destination).c_str());
+        if (journal["state"] != "committed") return;
+        put(destination.parent_path() / "journal.next", get(destination));
+        std::filesystem::remove(destination.parent_path() / "recovery.json");
+        put(destination, ""); throw simulated_power_loss{};
+    };
+    try { f.update(c); } catch (const simulated_power_loss&) {}
+    runtime::recover(f.game); CHECK(f.snapshot() == before);
+    CHECK(!runtime::recovery_pending(f.game));
+}

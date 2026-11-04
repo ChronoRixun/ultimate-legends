@@ -308,6 +308,7 @@ namespace patch_status
         out.AddMember("page", make_string(page, allocator), allocator);
         out.AddMember("checking", checking, allocator);
         out.AddMember("updateAvailable", update_available, allocator);
+        out.AddMember("wineMigration", migration && installed && *installed == latest, allocator);
         // The update channel: "beta" only for a patch that follows it; a pre-release in the folder
         // (the page's Beta badge); on Stable, a beta newer than the latest release (it stays until
         // the player switches back, Settings > Update channel); the channel's last release found when

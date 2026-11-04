@@ -14,6 +14,7 @@
 #include <utils/cryptography.hpp>
 #include <utils/flags.hpp>
 #include <utils/io.hpp>
+#include <utils/logger.hpp>
 #include <utils/nt.hpp>
 #include <utils/properties.hpp>
 #include <utils/string.hpp>
@@ -149,6 +150,7 @@ namespace {
                 muac::runtime::controls controls;
                 controls.running = [output] { return utils::nt::is_any_image_running({output / L"Game.exe"}); };
                 controls.cancelled = stop;
+                controls.log = [](const std::string& message) { utils::logger::write("{}", message); };
                 muac::runtime::update(output, bundle, runtime, muac::platform::is_wine() ? std::string{} : graphics_dll(archive, runtime.dll_size),
                     [](const std::string& bytes) { return utils::cryptography::sha256::compute(bytes, true); }, controls);
                 std::lock_guard lock(work->mutex);
@@ -232,7 +234,7 @@ bool start_update(std::string& error) {
     auto hold = updater::reserve(*folder, updater::folder_use::builder);
     if (!hold) { error = "The game folder is busy. Wait for the current operation to finish."; return false; }
     if (utils::nt::is_any_image_running({*folder / L"Game.exe"})) { error = "Close MUA 2006 before updating MUA Classic Fix."; return false; }
-    try { muac::runtime::recover(*folder); } catch (const std::exception& e) { error = e.what(); return false; }
+    try { muac::runtime::recover(*folder, [](const std::string& message) { utils::logger::write("{}", message); }); } catch (const std::exception& e) { error = e.what(); return false; }
     auto work = std::make_shared<job>(); work->updating = true; work->hold = std::move(hold);
     work->output = utils::string::path_to_utf8(*folder); current = work;
     std::thread([work, output = *folder, channel = release_source::current_channel()] { run(work, {}, output, channel); }).detach();

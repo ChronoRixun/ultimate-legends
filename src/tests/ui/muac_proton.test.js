@@ -26,6 +26,8 @@ test('MUAC Proton: wrapper settings are hidden while other options remain usable
         assert.ok(!p.document.querySelector(`[data-muac-setting="${key}"]`), key);
     for (const key of ['ControllerSupport', 'RunInBackground', 'CaptureMouse', 'OnlineService'])
         assert.ok(p.document.querySelector(`[data-muac-setting="${key}"]`), key);
+    assert.doesNotMatch(p.document.querySelector('[data-row="RunInBackground"]').textContent, /windowed|borderless/i);
+    assert.match(p.window.GameUtils.getGameConfig('muac').credits, /DXVK\/Proton under Wine/);
     assert.match(p.document.querySelector('#muac-options-panel').textContent, /Your Steam Deck \/ Proton handles display mode/);
     const control = p.document.querySelector('[data-muac-setting="ControllerSupport"]');
     control.value = '0'; control.dispatchEvent(new p.window.Event('change', { bubbles: true })); await settle();

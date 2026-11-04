@@ -60,7 +60,7 @@
             row('Watermark', 'muac.watermark', 'muac.watermarkBody', flags())
         ];
         body.innerHTML = protonAdvice() + (data.wine ? '' : graphics.join('')) + [
-            row('RunInBackground', 'display.runInBackground', 'muac.backgroundBody', flags()),
+            row('RunInBackground', 'display.runInBackground', data.wine ? 'muac.backgroundWineBody' : 'muac.backgroundBody', flags()),
             row('ControllerSupport', 'muac.controller', 'muac.controllerBody', flags()),
             row('CaptureMouse', 'muac.capture', 'muac.captureBody', flags()),
             row('OnlineService', 'muac.online', 'muac.onlineBody', [['openspy', 'OpenSpy'], ['off', t('display.off')]])

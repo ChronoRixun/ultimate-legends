@@ -9,6 +9,12 @@
 #include <set>
 #include <atomic>
 #include <chrono>
+#ifdef _WIN32
+#include <Windows.h>
+#else
+#include <fcntl.h>
+#include <unistd.h>
+#endif
 
 namespace muac::runtime {
 namespace {
@@ -63,10 +69,40 @@ namespace {
         rapidjson::StringBuffer buffer; rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
         value.Accept(writer); return std::string(buffer.GetString(), buffer.GetSize()) + "\n";
     }
-    void write_file(const std::filesystem::path& path, const std::string& bytes) {
+    void write_file(const std::filesystem::path& path, const std::string& bytes, const controls& control) {
         guard(path); std::filesystem::create_directories(path.parent_path());
-        std::ofstream out(path, std::ios::binary | std::ios::trunc);
-        require(static_cast<bool>(out.write(bytes.data(), static_cast<std::streamsize>(bytes.size())).flush()), "Could not stage runtime file.");
+        static std::atomic_uint counter{};
+        const auto temporary = path.parent_path() / (path.filename().string() + ".tmp-" +
+            std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + "-" + std::to_string(++counter));
+        guard(temporary);
+#ifdef _WIN32
+        const auto handle = CreateFileW(temporary.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+        require(handle != INVALID_HANDLE_VALUE, "Could not create runtime temporary file.");
+        DWORD written{};
+        const bool flushed = WriteFile(handle, bytes.data(), static_cast<DWORD>(bytes.size()), &written, nullptr) &&
+            written == bytes.size() && FlushFileBuffers(handle);
+        const bool closed = CloseHandle(handle) != FALSE;
+        require(flushed && closed, "Could not flush runtime temporary file.");
+#else
+        const auto handle = ::open(temporary.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0600);
+        require(handle >= 0, "Could not create runtime temporary file.");
+        const bool flushed = ::write(handle, bytes.data(), bytes.size()) == static_cast<ssize_t>(bytes.size()) && ::fsync(handle) == 0;
+        const bool closed = ::close(handle) == 0;
+        require(flushed && closed, "Could not flush runtime temporary file.");
+#endif
+        if (control.on_write) control.on_write(path, temporary, false);
+#ifdef _WIN32
+        require(MoveFileExW(temporary.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != FALSE,
+                "Could not publish runtime file.");
+#else
+        std::filesystem::rename(temporary, path);
+        const auto directory = ::open(path.parent_path().c_str(), O_RDONLY | O_DIRECTORY);
+        require(directory >= 0, "Could not open runtime directory.");
+        const bool synced = ::fsync(directory) == 0;
+        ::close(directory);
+        require(synced, "Could not flush runtime directory.");
+#endif
+        if (control.on_write) control.on_write(path, temporary, true);
     }
     bool safe_relative(const std::string& path) {
         if (path.empty() || path.front() == '/' || path.find_first_of("\\:*?\"<>|") != std::string::npos) return false;
@@ -330,25 +366,106 @@ bool recovery_pending(const std::filesystem::path& game) {
         if (ec) return false;
         if (!entry->path().filename().native().starts_with(std::filesystem::path(".muac-stage-update-").native())) continue;
         const auto file = entry->path() / "journal.json";
-        if (!std::filesystem::exists(file, ec)) continue;
+        if (!std::filesystem::exists(file, ec)) {
+            if (std::filesystem::exists(entry->path() / "recovery.json", ec) ||
+                std::filesystem::exists(entry->path() / "old", ec) ||
+                std::filesystem::exists(entry->path() / "journal.next", ec)) return true;
+            continue;
+        }
         try {
             if (text(document(read_status_file(file, 128 * 1024)), "state") != "committed") return true;
         } catch (const std::exception&) { return true; }
     }
     return false;
 }
-void recover(const std::filesystem::path& game) {
+void recover(const std::filesystem::path& game, const recovery_log& log) {
     guard(game);
     for (const auto& entry : std::filesystem::directory_iterator(game)) {
         if (!entry.path().filename().native().starts_with(std::filesystem::path(".muac-stage-update-").native())) continue;
         const auto stage = entry.path(); std::error_code ec;
         require(muac_setup::cleanup::safe_stage(game, stage, ec), "Unsafe runtime recovery folder.");
         const auto journal_file = stage / "journal.json";
+        // beta.7 also left a complete journal.next when its completion rename
+        // was interrupted; that saved file list can recover its backup set too.
+        const auto plan_file = std::filesystem::exists(stage / "recovery.json") ? stage / "recovery.json" : stage / "journal.next";
+        std::optional<rapidjson::Document> journal;
         if (std::filesystem::exists(journal_file)) {
-            const auto journal = document(read_file(journal_file, 128 * 1024));
-            const auto state = text(journal, "state");
-            require(state == "committing" || state == "committed", "Invalid runtime recovery state.");
-            if (state == "committing") restore(game, stage, journal);
+            try {
+                auto parsed = document(read_file(journal_file, 128 * 1024));
+                const auto state = text(parsed, "state");
+                require(state == "committing" || state == "committed", "Invalid runtime recovery state.");
+                require(parsed.HasMember("files") && parsed["files"].IsArray(), "Invalid runtime recovery journal.");
+                journal.emplace(std::move(parsed));
+            } catch (const std::exception&) { /* Use the immutable plan below. */ }
+        }
+        if (journal) {
+            if (text(*journal, "state") == "committing") {
+                restore(game, stage, *journal);
+                if (log) log("MUA Classic Fix: rolled back the interrupted update from its backups.");
+            }
+        } else if (std::filesystem::exists(plan_file)) {
+            // Written and flushed BEFORE the first journal or move; never rewritten.
+            // A damaged completion journal is deliberately rolled back, not guessed committed.
+            const auto plan = document(read_file(plan_file, 128 * 1024));
+            const auto state = text(plan, "state");
+            require(state == "committing" || (plan_file.filename() == "journal.next" && state == "committed"), "Invalid runtime recovery plan.");
+            restore(game, stage, plan);
+            if (log) log("MUA Classic Fix: missing or invalid journal; rolled back using the recovery plan and backup set.");
+        } else {
+            // Legacy beta.7 stages have no independent plan. Its journal.json was
+            // written only once, before moves (completion used journal.next).
+            // Never discard a backup set on the assumption that no move occurred.
+            bool moved = false;
+            if (std::filesystem::exists(stage / "old"))
+                for (const auto& old : std::filesystem::recursive_directory_iterator(stage / "old"))
+                    if (old.is_regular_file()) moved = true;
+            require(!moved, "The legacy runtime journal is damaged and backups need manual recovery; staging was kept.");
+            if (std::filesystem::exists(journal_file)) {
+                // An empty/truncated initial journal must still have the complete
+                // staged runtime binaries and version record, prior to publication.
+                const auto record = document(read_file(stage / "new/_muac/runtime.json", 128 * 1024));
+                require(record_version(serialize(record)).has_value() && record.HasMember("files") && record["files"].IsArray(),
+                        "Cannot verify the legacy update stage; staging was kept.");
+                std::set<std::string> seen;
+                std::string first_staged;
+                for (const auto& file : std::filesystem::recursive_directory_iterator(stage / "new")) {
+                    if (!file.is_regular_file()) continue;
+                    const auto target = file.path().lexically_relative(stage / "new").generic_string();
+                    if (target != "_muac/runtime.json" && target_allowed(target) &&
+                        (first_staged.empty() || target < first_staged)) first_staged = target;
+                }
+                require(!first_staged.empty(), "Incomplete legacy runtime stage.");
+                for (const auto& item : record["files"].GetArray()) {
+                    const auto target = text(item, "target");
+                    require(target_allowed(target) && seen.insert(target).second, "Unsafe legacy runtime record.");
+                    // Settings can be omitted from staging when unchanged. Every
+                    // non-settings payload must remain staged, including D3D9 on Windows.
+                    if (!std::filesystem::is_regular_file(stage / "new" / target))
+                        require(settings(target) && target > first_staged && std::filesystem::is_regular_file(game / target),
+                            "A legacy runtime file may have moved; staging was kept.");
+                }
+                require(seen.contains("dinput8.dll") && seen.contains("version.dll"), "Incomplete legacy runtime stage.");
+                if (record.HasMember("removed_files") && record["removed_files"].IsArray())
+                    for (const auto& removed : record["removed_files"].GetArray()) {
+                        require(text(removed, "target") == "D3D9.dll", "Unsafe legacy removal record.");
+                        // A new persistent backup is promoted before the binaries.
+                        const auto backup = text(removed, "backup");
+                        require(graphics_backup(backup), "Unsafe legacy graphics backup.");
+                        // New removal receipts require the original DLL still live.
+                        // An older receipt is allowed only when the previous live record
+                        // already contains it (no new removal was attempted).
+                        bool prior_receipt = false;
+                        if (!std::filesystem::is_regular_file(stage / "new" / backup) && std::filesystem::exists(game / "_muac/runtime.json")) {
+                            const auto prior = document(read_file(game / "_muac/runtime.json", 128 * 1024));
+                            if (prior.HasMember("removed_files") && prior["removed_files"].IsArray())
+                                for (const auto& receipt : prior["removed_files"].GetArray())
+                                    if (receipt == removed) prior_receipt = true;
+                        }
+                        require(std::filesystem::is_regular_file(game / "D3D9.dll") || prior_receipt,
+                            "A legacy graphics file may have moved; staging was kept.");
+                    }
+            }
+            if (log) log("MUA Classic Fix: update never started; no files moved, discarding incomplete staging and journal.");
         }
         remove_stage(game, stage);
     }
@@ -357,7 +474,7 @@ void update(const std::filesystem::path& game, const std::filesystem::path& bund
             const std::string& graphics_dll, const hash_function& raw_hash, const controls& control) {
     // Production SHA-256 is upper-case hex; package and runtime records are lower-case.
     const auto hash = [&raw_hash](const std::string& bytes) { return lower(raw_hash(bytes)); };
-    check(control); guard(game); guard(bundle); recover(game);
+    check(control); guard(game); guard(bundle); recover(game, control.log);
     if (!control.wine)
         require(graphics_dll.size() == manifest.dll_size && hash(graphics_dll) == manifest.dll_sha256, "Graphics DLL failed SHA-256 verification.");
     static std::atomic_uint counter{};
@@ -453,12 +570,14 @@ void update(const std::filesystem::path& game, const std::filesystem::path& bund
             const bool existed = std::filesystem::exists(live);
             require(!existed || std::filesystem::is_regular_file(live), "Runtime destination is not a regular file.");
             const bool removal = remove_graphics && target == "D3D9.dll";
-            if (!removal) write_file(stage / "new" / target, files.at(target));
+            if (!removal) write_file(stage / "new" / target, files.at(target), control);
             rapidjson::Value item(rapidjson::kObjectType);
             item.AddMember("target", rapidjson::Value(target.c_str(), a), a); item.AddMember("existed", existed, a);
             item.AddMember("remove", removal, a); list.PushBack(item, a);
         }
-        journal.AddMember("files", list, a); write_file(stage / "journal.json", serialize(journal));
+        journal.AddMember("files", list, a);
+        write_file(stage / "recovery.json", serialize(journal), control);
+        write_file(stage / "journal.json", serialize(journal), control);
         check(control); committing = true;
         for (const auto& item : journal["files"].GetArray()) {
             check(control); const auto target = text(item, "target");
@@ -471,14 +590,7 @@ void update(const std::filesystem::path& game, const std::filesystem::path& bund
         }
         check(control);
         journal["state"].SetString("committed", a);
-        write_file(stage / "journal.next", serialize(journal));
-        // Keep the original journal until a complete replacement is ready.
-#ifdef _WIN32
-        require(MoveFileExW((stage / "journal.next").c_str(), (stage / "journal.json").c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != FALSE,
-                "Could not finish runtime transaction.");
-#else
-        std::filesystem::rename(stage / "journal.next", stage / "journal.json");
-#endif
+        write_file(stage / "journal.json", serialize(journal), control);
     } catch (const std::exception& error) {
         const auto* filesystem_error = dynamic_cast<const std::filesystem::filesystem_error*>(&error);
         const auto code = filesystem_error ? filesystem_error->code().value() : 0;

@@ -3,6 +3,18 @@
 The launcher's version comes from its release tag (`v0.3.2`): premake reads it with `git describe` when it
 generates the project, so a release only needs this entry and the tag.
 
+## 0.5.0-beta.8 (draft; release identity pending)
+
+### Fixed
+- Runtime update payloads, merged settings, runtime records and journals are written through flushed
+  same-directory temporary files and atomic replacement. A separate immutable recovery plan lets Update
+  roll back from backups even if its journal is missing or unreadable. A legacy empty initial journal is
+  discarded only after checking that staged files and backups show publication has not started; recovery
+  decisions are logged. Ambiguous legacy damage keeps staging and backups for manual recovery.
+- MUA credits explain that Wine uses DXVK/Proton. Run in background has Proton-specific help, and a
+  same-version migration says "Update (removes D3D9.dll for Proton)" instead of advertising a newer version.
+- `dgVoodoo.conf` remains on Wine: MUA Classic Fix reads it to enable its window-focus policy.
+
 ## Unreleased (Proton MUA 2006; release identity pending)
 
 ### Added

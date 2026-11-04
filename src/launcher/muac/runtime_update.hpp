@@ -35,16 +35,21 @@ namespace muac::runtime {
     // No links, junctions, alternate streams or lexical traversal in any ancestor.
     void guard(const std::filesystem::path& path);
     using hash_function = std::function<std::string(const std::string&)>;
+    using recovery_log = std::function<void(const std::string&)>;
     struct controls {
         bool wine = platform::is_wine();
         std::function<bool()> running = [] { return false; };
         std::function<bool()> cancelled = [] { return false; };
         // Filesystem fault injection for transaction regressions; unset in production.
         std::function<void(const std::string&)> before_replace;
+        // Called with the destination, same-directory temporary file, and whether
+        // publication completed. Tests can interrupt without unwinding the transaction.
+        std::function<void(const std::filesystem::path&, const std::filesystem::path&, bool)> on_write;
+        recovery_log log;
     };
     // Recovery is performed before preparing another update. A journal remains if
     // rollback cannot finish, so a retry can restore the original files.
-    void recover(const std::filesystem::path& game);
+    void recover(const std::filesystem::path& game, const recovery_log& log = {});
     bool recovery_pending(const std::filesystem::path& game);
     void update(const std::filesystem::path& game, const std::filesystem::path& bundle,
                 const package& manifest, const std::string& graphics_dll,

@@ -14,7 +14,8 @@ const PROPERTY_KEYS = {
         OFFLINE_MODE: 'launcher-offline-mode',
         PORTABLE_MODE: 'launcher-portable-mode',
         REDUCE_MOTION: 'launcher-reduce-motion',
-        GRAYSCALE_UNINSTALLED: 'launcher-grayscale-uninstalled'
+        GRAYSCALE_UNINSTALLED: 'launcher-grayscale-uninstalled',
+        GAME_ORDER: 'launcher-game-order'
     },
     GAME: {
         INSTALL: 'install',
@@ -138,7 +139,11 @@ class GameUtils {
      * @returns {object} Complete game configuration object
      */
     static getGameConfig(game) {
-        return this.GAME_CONFIGS[game] || null;
+        const config = this.GAME_CONFIGS[game];
+        if (!config) return null;
+        const custom = window.Artwork && window.Artwork.records[game];
+        return custom ? { ...config, capsulePath: custom.capsule || config.capsulePath,
+            heroImagePath: custom.hero || config.heroImagePath } : config;
     }
 
     /**
@@ -179,7 +184,7 @@ class GameUtils {
      * @returns {array} Ordered game configuration objects
      */
     static getAllGameConfigs() {
-        return this.GAME_ORDER
+        return this.getAllGameIds()
             .map(uiId => this.getGameConfigByUIId(uiId))
             .filter(Boolean);
     }
@@ -239,7 +244,7 @@ class GameUtils {
      * @returns {array} Array of all game UI identifiers
      */
     static getAllGameIds() {
-        return this.GAME_ORDER.slice();
+        return window.GameOrder ? window.GameOrder.get() : this.GAME_ORDER.slice();
     }
 
     /**

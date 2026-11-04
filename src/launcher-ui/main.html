@@ -11,6 +11,8 @@
     <link href="./assets/css/main.css" rel="stylesheet" />
     <script src="./assets/js/core/utils.js"></script>
     <script src="./assets/js/core/i18n.js"></script>
+    <script src="./assets/js/core/game-order.js"></script>
+    <script src="./assets/js/ui/artwork.js"></script>
     <script src="./assets/js/core/command.js"></script>
     <script src="./assets/js/core/focus-nav.js"></script>
     <script src="./assets/js/core/gamepad-nav.js"></script>
@@ -43,6 +45,7 @@
 </head>
 
 <body class="hidden">
+    <span id="game-order-status" role="status" aria-live="polite" class="game-order-status"></span>
     <div class="window">
         <div class="title-bar">
             <span class="title-text">ULTIMATE LEGENDS</span>
@@ -398,6 +401,7 @@
                         <section class="settings-section">
                             <h3 data-i18n="settings.maintenance">Maintenance</h3>
                             <div class="settings-actions">
+                                <button type="button" class="settings-action-btn" id="reset-game-order-btn" data-i18n="gameOrder.reset">Reset game order</button>
                                 <button class="settings-action-btn reset-btn" id="reset-all-settings-btn" data-i18n="settings.resetAllSettings">Reset All Settings</button>
                                 <button class="settings-action-btn console-btn" id="show-console-btn">Show Console</button>
                                 <button class="settings-action-btn logs-btn" id="open-logs-btn" onclick="window.executeCommand('open-logs')" data-i18n="support.openLogs">Open log folder</button>

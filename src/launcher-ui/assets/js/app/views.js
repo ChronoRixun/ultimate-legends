@@ -207,6 +207,7 @@
 
     function renderHomeHero(config, status) {
         if (!config) return;
+        config = GameUtils.getGameConfig(config.uiId) || config;
 
         const normalizedStatus = status || 'not-setup';
         const isInstalled = normalizedStatus === 'installed';
@@ -530,33 +531,26 @@
 
     let installedGameIds = new Set();
 
-    function updateSidebarMyGames(recentIds) {
+    function updateSidebarMyGames() {
         const list = document.querySelector('.sidebar .game-list');
         if (!list) return;
         const items = Array.from(list.querySelectorAll('.game-item'));
 
-        const orderIndex = new Map(GameUtils.GAME_ORDER.map((id, i) => [id, i]));
-        const recencyIndex = new Map((recentIds || []).map((id, i) => [id, i]));
+        const orderIndex = new Map(GameUtils.getAllGameIds().map((id, i) => [id, i]));
 
-        const installedItems = items.filter(it => {
-            const id = it.dataset.game || it.id;
-            return installedGameIds.has(id) && !isHidden(id);
-        });
-        installedItems.sort((a, b) => {
-            const ai = recencyIndex.has(a.dataset.game) ? recencyIndex.get(a.dataset.game) : Infinity;
-            const bi = recencyIndex.has(b.dataset.game) ? recencyIndex.get(b.dataset.game) : Infinity;
-            if (ai !== bi) return ai - bi;
+        items.sort((a, b) => {
             const ao = orderIndex.has(a.dataset.game) ? orderIndex.get(a.dataset.game) : 99;
             const bo = orderIndex.has(b.dataset.game) ? orderIndex.get(b.dataset.game) : 99;
             return ao - bo;
         });
 
-        items.forEach(it => { it.style.display = 'none'; });
-
-        installedItems.forEach(it => {
-            it.style.display = '';
+        const focused = document.activeElement;
+        items.forEach(it => {
+            const id = it.dataset.game || it.id;
+            it.style.display = installedGameIds.has(id) && !isHidden(id) ? '' : 'none';
             list.appendChild(it);
         });
+        if (focused && focused !== document.body && list.contains(focused)) focused.focus({ preventScroll: true });
     }
 
     function renderHome() {
@@ -597,7 +591,9 @@
             item.setAttribute('title', config.displayName);
             item.setAttribute('aria-label', config.displayName);
             bindCardContextMenu(item);
+            if (window.GameOrder) window.GameOrder.bindDrag(item, true);
         });
+        if (window.GameOrder) window.GameOrder.apply();
     }
 
     let cardMenuEl = null;
@@ -688,7 +684,8 @@
                     label: isPinned(gameId) ? t('common.unpinFromHome') : t('common.pinToHome'),
                     action: () => togglePin(gameId)
                 },
-                { label: t('common.gameDetails'), action: () => navigateTo(gameId) }
+                { label: t('common.gameDetails'), action: () => navigateTo(gameId) },
+                ...(window.GameOrder ? window.GameOrder.menuItems(gameId) : [])
             ];
         }
         const status = card.dataset.status || 'not-setup';
@@ -728,6 +725,8 @@
             action: () => toggleHidden(gameId)
         });
         items.push({ label: t('common.gameDetails'), action: () => navigateTo(gameId) });
+        if (window.Artwork) items.push({ separator: true }, ...window.Artwork.menuItems(gameId));
+        if (window.GameOrder) items.push({ separator: true }, ...window.GameOrder.menuItems(gameId));
         return items;
     }
 
@@ -825,6 +824,8 @@
         grid.querySelectorAll('.library-card').forEach(card => {
             card.addEventListener('click', () => navigateTo(card.dataset.game));
             bindCardContextMenu(card);
+
+            if (window.GameOrder) window.GameOrder.bindDrag(card, false);
 
             const button = card.querySelector('.library-install-btn');
             if (!button) return;

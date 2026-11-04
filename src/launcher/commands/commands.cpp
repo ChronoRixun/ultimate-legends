@@ -15,6 +15,7 @@
 #include "models_commands.hpp"
 #include "update_commands.hpp"
 #include "muac_commands.hpp"
+#include "artwork_commands.hpp"
 
 namespace commands
 {
@@ -49,5 +50,6 @@ namespace commands
         models_commands::register_commands(cef_ui, ctx);
         update_commands::register_commands(cef_ui, ctx);
         muac_commands::register_commands(cef_ui, ctx);
+        artwork_commands::register_commands(cef_ui, ctx);
     }
 }

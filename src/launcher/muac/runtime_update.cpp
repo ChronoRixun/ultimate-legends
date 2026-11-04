@@ -26,8 +26,13 @@ namespace {
     const std::set<std::string> optional = {"_muac/THIRD_PARTY.txt", "_muac/licenses/SafeDiscLoader2.txt",
         "_muac/licenses/muac-fix.txt", "_muac/licenses/minhook-BSD.txt", "_muac/licenses/mua-controller-fix-MIT.txt",
         "_muac/licenses/xml2-fix-MIT.txt", "_muac/licenses/SafeDiscLoader2-Minhook.txt", "_muac/licenses/tiny-json-MIT.txt"};
+    bool graphics_backup(const std::string& name) {
+        constexpr std::string_view prefix = "_muac/backups/D3D9-";
+        return name.starts_with(prefix) && name.ends_with(".dll") && name.size() == prefix.size() + 64 + 4 &&
+            name.substr(prefix.size(), 64).find_first_not_of("0123456789abcdef") == std::string::npos;
+    }
     bool target_allowed(const std::string& name) {
-        return required.contains(name) || optional.contains(name) || name == "D3D9.dll" || name == "_muac/runtime.json";
+        return required.contains(name) || optional.contains(name) || name == "D3D9.dll" || name == "_muac/runtime.json" || graphics_backup(name);
     }
     void require(bool ok, const std::string& message) { if (!ok) throw std::runtime_error(message); }
     std::string text(const rapidjson::Value& value, const char* key) {
@@ -304,9 +309,14 @@ std::optional<std::string> record_version(const std::string& json, const std::st
         return release_channel::is_version(version) ? std::optional(version) : std::nullopt;
     } catch (const std::exception&) { return std::nullopt; }
 }
-bool newer_compatible(const std::string& installed, const std::string& latest, const std::string& minimum, const std::string& launcher) {
+bool newer_compatible(const std::string& installed, const std::string& latest, const std::string& minimum, const std::string& launcher, bool wine_migration) {
     return release_channel::is_version(latest) && (minimum.empty() || (release_channel::is_version(minimum) && release_channel::compare(launcher, minimum) >= 0)) &&
-        (installed.empty() || release_channel::compare(latest, installed) > 0);
+        (installed.empty() || release_channel::compare(latest, installed) > 0 ||
+         (wine_migration && release_channel::compare(latest, "0.2.2") >= 0 && release_channel::compare(latest, installed) == 0));
+}
+bool needs_wine_migration(const std::filesystem::path& folder, bool wine) {
+    std::error_code ec;
+    return wine && std::filesystem::exists(folder / "D3D9.dll", ec) && !ec;
 }
 bool recovery_pending(const std::filesystem::path& game) {
     // Read-only, so no link guard: a ready install reached through a junction or symlink (a moved
@@ -348,7 +358,8 @@ void update(const std::filesystem::path& game, const std::filesystem::path& bund
     // Production SHA-256 is upper-case hex; package and runtime records are lower-case.
     const auto hash = [&raw_hash](const std::string& bytes) { return lower(raw_hash(bytes)); };
     check(control); guard(game); guard(bundle); recover(game);
-    require(graphics_dll.size() == manifest.dll_size && hash(graphics_dll) == manifest.dll_sha256, "Graphics DLL failed SHA-256 verification.");
+    if (!control.wine)
+        require(graphics_dll.size() == manifest.dll_size && hash(graphics_dll) == manifest.dll_sha256, "Graphics DLL failed SHA-256 verification.");
     static std::atomic_uint counter{};
     const auto stage = game / (".muac-stage-update-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + "-" + std::to_string(++counter));
     require(std::filesystem::create_directory(stage), "Could not create runtime staging.");
@@ -372,12 +383,59 @@ void update(const std::filesystem::path& game, const std::filesystem::path& bund
             files.emplace(item.target, std::move(bytes));
         }
         for (const auto& name : required) require(files.contains(name), "Incomplete runtime package.");
-        files.emplace("D3D9.dll", graphics_dll);
+        std::string removed_backup, removed_hash;
+        std::uint64_t removed_size{};
+        bool remove_graphics = false;
+        guard(game / "D3D9.dll");
+        if (!control.wine) files.emplace("D3D9.dll", graphics_dll);
+        else if (std::filesystem::exists(game / "D3D9.dll")) {
+            const auto original = read_file(game / "D3D9.dll");
+            removed_hash = hash(original); removed_size = original.size();
+            removed_backup = "_muac/backups/D3D9-" + removed_hash + ".dll";
+            guard(game / removed_backup);
+            if (std::filesystem::exists(game / removed_backup)) {
+                require(read_file(game / removed_backup) == original, "The D3D9 backup path already contains different data.");
+            } else files.emplace(removed_backup, original);
+            remove_graphics = true;
+        }
         rapidjson::Document record; record.SetObject(); auto& r = record.GetAllocator();
         record.AddMember("schema", 1, r); record.AddMember("prepared", true, r);
         record.AddMember("version", rapidjson::Value(manifest.version.c_str(), r), r);
+        record.AddMember("graphics", rapidjson::Value(control.wine ? "wine-d3d9" : "dgvoodoo", r), r);
+        rapidjson::Value removed(rapidjson::kArrayType);
+        if (remove_graphics) {
+            rapidjson::Value item(rapidjson::kObjectType);
+            item.AddMember("target", "D3D9.dll", r);
+            item.AddMember("backup", rapidjson::Value(removed_backup.c_str(), r), r);
+            item.AddMember("size", removed_size, r);
+            item.AddMember("sha256", rapidjson::Value(removed_hash.c_str(), r), r);
+            removed.PushBack(item, r);
+        }
+        // Retain the removal receipt across later updates, even though there is
+        // no longer a live DLL to remove. Old/malformed stamps are optional.
+        if (control.wine && std::filesystem::exists(game / "_muac/runtime.json")) {
+            try {
+                const auto previous = document(read_file(game / "_muac/runtime.json", 128 * 1024));
+                if (previous.HasMember("removed_files") && previous["removed_files"].IsArray()) {
+                    std::set<std::string> backups;
+                    if (remove_graphics) backups.insert(removed_backup);
+                    for (const auto& prior : previous["removed_files"].GetArray()) {
+                        if (removed.Size() >= 32) break;
+                        const auto prior_hash = checksum(prior, "sha256"), backup = text(prior, "backup");
+                        if (text(prior, "target") != "D3D9.dll" || backup != "_muac/backups/D3D9-" + prior_hash + ".dll" ||
+                            !prior.HasMember("size") || !prior["size"].IsUint64() || prior["size"].GetUint64() > file_limit || !backups.insert(backup).second) continue;
+                        rapidjson::Value receipt(rapidjson::kObjectType);
+                        for (const auto* key : {"target", "backup", "sha256", "size"})
+                            receipt.AddMember(rapidjson::StringRef(key), rapidjson::Value(prior[key], r), r);
+                        removed.PushBack(receipt, r);
+                    }
+                }
+            } catch (const std::exception&) { /* Older/manual installs may have no usable receipt. */ }
+        }
+        record.AddMember("removed_files", removed, r);
         rapidjson::Value recorded(rapidjson::kArrayType);
         for (const auto& [target, bytes] : files) {
+            if (graphics_backup(target)) continue; // Backups have their own removal receipts.
             rapidjson::Value item(rapidjson::kObjectType);
             item.AddMember("target", rapidjson::Value(target.c_str(), r), r);
             item.AddMember("size", static_cast<std::uint64_t>(bytes.size()), r);
@@ -386,6 +444,7 @@ void update(const std::filesystem::path& game, const std::filesystem::path& bund
         record.AddMember("files", recorded, r); files.emplace("_muac/runtime.json", serialize(record));
         // Metadata is last: until every file is promoted, the old version remains recorded.
         std::vector<std::string> order;
+        if (remove_graphics) order.push_back("D3D9.dll");
         for (const auto& [target, bytes] : files)
             if (target != "_muac/runtime.json" && !unchanged_settings.contains(target)) order.push_back(target);
         order.push_back("_muac/runtime.json");
@@ -393,9 +452,11 @@ void update(const std::filesystem::path& game, const std::filesystem::path& bund
             const auto live = game / target; guard(live);
             const bool existed = std::filesystem::exists(live);
             require(!existed || std::filesystem::is_regular_file(live), "Runtime destination is not a regular file.");
-            write_file(stage / "new" / target, files.at(target));
+            const bool removal = remove_graphics && target == "D3D9.dll";
+            if (!removal) write_file(stage / "new" / target, files.at(target));
             rapidjson::Value item(rapidjson::kObjectType);
-            item.AddMember("target", rapidjson::Value(target.c_str(), a), a); item.AddMember("existed", existed, a); list.PushBack(item, a);
+            item.AddMember("target", rapidjson::Value(target.c_str(), a), a); item.AddMember("existed", existed, a);
+            item.AddMember("remove", removal, a); list.PushBack(item, a);
         }
         journal.AddMember("files", list, a); write_file(stage / "journal.json", serialize(journal));
         check(control); committing = true;
@@ -406,7 +467,7 @@ void update(const std::filesystem::path& game, const std::filesystem::path& bund
             guard(live); guard(backup); guard(stage / "new" / target);
             std::filesystem::create_directories(live.parent_path()); std::filesystem::create_directories(backup.parent_path());
             if (item["existed"].GetBool()) std::filesystem::rename(live, backup);
-            std::filesystem::rename(stage / "new" / target, live);
+            if (!item["remove"].GetBool()) std::filesystem::rename(stage / "new" / target, live);
         }
         check(control);
         journal["state"].SetString("committed", a);

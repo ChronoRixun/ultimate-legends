@@ -20,6 +20,8 @@
             muac: {
                 title: 'MUA 2006 options',
                 intro: 'Display, input and online settings for your MUA 2006 installation.',
+                protonDisplay: 'Your Steam Deck / Proton handles display mode.',
+                protonD3d9: 'D3D9.dll from a Windows installation can crash under Proton. Choose Update to use MUA Classic Fix 0.2.2 or newer; it backs up and removes this DLL. A compatible release and launcher are required on your selected update channel.',
                 setUp: 'Choose your prepared MUA 2006 game folder with Set up to enable these options.',
                 missing: 'Compatibility components are missing: {{files}}. Finish preparing the installation before playing or changing these options.',
                 custom: '{{value}} (custom)',

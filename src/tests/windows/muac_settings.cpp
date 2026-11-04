@@ -82,6 +82,20 @@ int main() {
         CHECK(bytes(graphics) == before_graphics && bytes(input) == before_input);
         CHECK(muac::read(test.folder).at("Resolution") == "1920x1080");
     }
+    const auto prior_failures = failures;
+    const auto missing_wine = muac::missing_runtime(test.folder, true);
+    const auto missing_windows = muac::missing_runtime(test.folder, false);
+    CHECK(std::find(missing_wine.begin(), missing_wine.end(), "D3D9.dll") == missing_wine.end());
+    CHECK(std::find(missing_windows.begin(), missing_windows.end(), "D3D9.dll") != missing_windows.end());
+    CHECK(std::find(missing_wine.begin(), missing_wine.end(), "version.dll") != missing_wine.end());
+    CHECK(!muac::write(test.folder, {{"Mode","borderless"}}, error, true));
+    CHECK(!muac::write(test.folder, {{"Resolution","1280x800"}}, error, true));
+    CHECK(bytes(graphics) == before_graphics && bytes(input) == before_input);
+    CHECK(muac::write(test.folder, {{"ControllerSupport","0"},{"CaptureMouse","0"}}, error, true));
+    CHECK(bytes(graphics) == before_graphics);
+    CHECK(muac::read(test.folder, true).at("ControllerSupport") == "0");
+    CHECK(muac::read(test.folder, true).at("CaptureMouse") == "0");
+    std::printf("MUAC Wine settings: %d failures\n", failures - prior_failures);
     std::printf("MUAC native settings: %d failures\n", failures);
     return failures ? 1 : 0;
 }

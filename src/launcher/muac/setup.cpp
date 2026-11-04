@@ -97,11 +97,14 @@ namespace {
             if (!manifest) throw std::runtime_error(error.empty() ? "Connect to the internet to download MUA 2006 setup." : error);
             if (manifest->api != 1 || (!expected.empty() && manifest->version != expected))
                 throw std::runtime_error("The setup package does not match the selected release or supported protocol.");
+            if (muac::platform::is_wine() && release_channel::compare(manifest->version, "0.2.2") < 0)
+                throw std::runtime_error("MUA 2006 on Proton needs MUA Classic Fix 0.2.2 or newer on your selected update channel.");
             if (!muac::runtime::newer_compatible("", manifest->version, manifest->min_launcher, launcher_update::running_version()))
                 throw std::runtime_error("This setup needs Ultimate Legends " + manifest->min_launcher + " or newer.");
             if (work->updating) {
                 const auto version = patch_status::muac_installed_version(output);
-                if (version && !muac::runtime::newer_compatible(*version, manifest->version, manifest->min_launcher, launcher_update::running_version()))
+                if (version && !muac::runtime::newer_compatible(*version, manifest->version, manifest->min_launcher, launcher_update::running_version(),
+                        muac::runtime::needs_wine_migration(output)))
                     throw std::runtime_error("MUA Classic Fix is already up to date on this channel. A newer installed release was kept.");
             }
             const auto progress = [work](std::uint64_t done, std::uint64_t total) {
@@ -129,7 +132,7 @@ namespace {
             std::filesystem::create_directories(cache);
             const auto archive = cache / (hash + ".zip");
             phase(work, "Downloading graphics compatibility");
-            if (!valid_archive(archive, size, hash)) {
+            if (!muac::platform::is_wine() && !valid_archive(archive, size, hash)) {
                 if (offline) throw std::runtime_error("Connect to the internet to download graphics compatibility.");
                 const auto partial = cache / (hash + ".partial");
                 std::string actual;
@@ -146,7 +149,7 @@ namespace {
                 muac::runtime::controls controls;
                 controls.running = [output] { return utils::nt::is_any_image_running({output / L"Game.exe"}); };
                 controls.cancelled = stop;
-                muac::runtime::update(output, bundle, runtime, graphics_dll(archive, runtime.dll_size),
+                muac::runtime::update(output, bundle, runtime, muac::platform::is_wine() ? std::string{} : graphics_dll(archive, runtime.dll_size),
                     [](const std::string& bytes) { return utils::cryptography::sha256::compute(bytes, true); }, controls);
                 std::lock_guard lock(work->mutex);
                 work->success = true; work->active = false; work->phase = "MUA Classic Fix updated"; work->hold.reset();

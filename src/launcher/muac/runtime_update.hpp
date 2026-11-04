@@ -5,6 +5,7 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include "platform.hpp"
 
 namespace muac::runtime {
     inline constexpr auto pending_message = "The last MUA Classic Fix update didn't finish. Choose Update to finish it.";
@@ -26,7 +27,8 @@ namespace muac::runtime {
     package parse_package(const std::string& json, const std::string& expected_version);
     std::optional<std::string> record_version(const std::string& json, const std::string& dll_sha256 = {});
     bool newer_compatible(const std::string& installed, const std::string& latest,
-                          const std::string& minimum, const std::string& launcher);
+                          const std::string& minimum, const std::string& launcher, bool wine_migration = false);
+    bool needs_wine_migration(const std::filesystem::path& folder, bool wine = platform::is_wine());
     std::string read_file(const std::filesystem::path& path, std::uint64_t maximum = 128 * 1024 * 1024);
     // For read-only status checks (version record, recovery state): no link guard, size-capped.
     std::string read_status_file(const std::filesystem::path& path, std::uint64_t maximum = 128 * 1024 * 1024);
@@ -34,6 +36,7 @@ namespace muac::runtime {
     void guard(const std::filesystem::path& path);
     using hash_function = std::function<std::string(const std::string&)>;
     struct controls {
+        bool wine = platform::is_wine();
         std::function<bool()> running = [] { return false; };
         std::function<bool()> cancelled = [] { return false; };
         // Filesystem fault injection for transaction regressions; unset in production.

@@ -2,11 +2,19 @@
 #include <filesystem>
 #include <string>
 #include <system_error>
+#include "platform.hpp"
+#include <cstdint>
 #ifdef _WIN32
 #include <Windows.h>
 #endif
 
 namespace muac_setup::cleanup {
+    // Shared with the helper's synthetic mount fixtures: only Wine drive roots
+    // and directory mount tags resolving to themselves receive an exemption.
+    inline bool allowed_wine_reparse(bool wine, bool drive_root, bool directory,
+                                      std::uint32_t tag, bool resolves_to_self) {
+        return wine && (drive_root || (directory && tag == 0xA0000003 && resolves_to_self));
+    }
     // Strictly one reported direct child, never a sibling, glob, alias or output
     // itself. Keep lexical checks separate so untrusted '..' is never normalized
     // into an otherwise permitted path.
@@ -34,11 +42,35 @@ namespace muac_setup::cleanup {
             return false;
         }
         if (!(attributes & FILE_ATTRIBUTE_REPARSE_POINT)) return false;
-        // A Wine DOS drive mapping is the only permitted reparse ancestor.
-        const auto ntdll = GetModuleHandleW(L"ntdll.dll");
+        if (!muac::platform::is_wine()) return true;
         const auto drive = path.root_name().native();
-        return !(path == path.root_path() && drive.size() == 2 && drive[1] == L':' &&
-            ntdll && GetProcAddress(ntdll, "wine_get_version"));
+        const bool drive_root = path == path.root_path() && drive.size() == 2 && drive[1] == L':';
+        if (drive_root) return false;
+        if (!(attributes & FILE_ATTRIBUTE_DIRECTORY)) return true;
+        const auto tagged = CreateFileW(path.c_str(), FILE_READ_ATTRIBUTES,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+        if (tagged == INVALID_HANDLE_VALUE) { ec = std::error_code(GetLastError(), std::system_category()); return true; }
+        FILE_ATTRIBUTE_TAG_INFO info{};
+        const bool queried = GetFileInformationByHandleEx(tagged, FileAttributeTagInfo, &info, sizeof(info)) != FALSE;
+        const auto tag_error = GetLastError(); CloseHandle(tagged);
+        if (!queried) { ec = std::error_code(tag_error, std::system_category()); return true; }
+        if (info.ReparseTag != 0xA0000003) return true;
+        const auto resolved = CreateFileW(path.c_str(), FILE_READ_ATTRIBUTES,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+        if (resolved == INVALID_HANDLE_VALUE) { ec = std::error_code(GetLastError(), std::system_category()); return true; }
+        const auto length = GetFinalPathNameByHandleW(resolved, nullptr, 0, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+        std::wstring final(length, L'\0');
+        const auto written = length ? GetFinalPathNameByHandleW(resolved, final.data(), length, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS) : 0;
+        const auto final_error = GetLastError(); CloseHandle(resolved);
+        if (!written || written >= length) { ec = std::error_code(final_error ? final_error : ERROR_INVALID_NAME, std::system_category()); return true; }
+        final.resize(written);
+        if (final.starts_with(L"\\\\?\\UNC\\")) final = L"\\\\" + final.substr(8);
+        else if (final.starts_with(L"\\\\?\\")) final.erase(0, 4);
+        const auto chosen = path.lexically_normal().native();
+        const bool same = CompareStringOrdinal(chosen.c_str(), -1, final.c_str(), -1, TRUE) == CSTR_EQUAL;
+        return !allowed_wine_reparse(true, false, true, info.ReparseTag, same);
 #else
         const auto status = std::filesystem::symlink_status(path, ec);
         if (ec == std::errc::no_such_file_or_directory) ec.clear();

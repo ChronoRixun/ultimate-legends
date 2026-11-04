@@ -86,6 +86,10 @@ TEST(muac_release_comparison_and_min_launcher_respect_semver) {
     CHECK(!runtime::newer_compatible("0.2.0", "0.2.1", "0.5.0", "0.5.0-beta.7"));
     CHECK(!runtime::newer_compatible("0.2.0", "0.2.1", "bad", "0.5.0-beta.7"));
     CHECK(runtime::newer_compatible("", "0.2.1", "", "0.5.0-beta.7"));
+    CHECK(runtime::newer_compatible("0.2.2", "0.2.2", "0.5.0-beta.8", "0.5.0-beta.8", true));
+    CHECK(!runtime::newer_compatible("0.2.1", "0.2.1", "", "0.5.0-beta.8", true));
+    CHECK(!runtime::newer_compatible("0.2.2", "0.2.2", "0.5.0-beta.8", "0.5.0-beta.7", true));
+    CHECK(!runtime::newer_compatible("0.2.3", "0.2.2", "", "0.5.0", true));
 }
 TEST(muac_release_channel_requires_setup_manifest_and_picks_latest_beta) {
     std::string error;
@@ -128,6 +132,87 @@ TEST(muac_runtime_updates_only_runtime_and_merges_missing_keys) {
     CHECK(runtime::record_version(after.at("_muac/runtime.json"), hash(after.at("dinput8.dll"))) == "0.2.1");
     for (const auto* file : {"Game.exe", "saves/keep", "mods/keep", "_muac/setup.json"}) CHECK(after.at(file) == before.at(file));
     CHECK(after.size() == before.size()); CHECK(!runtime::recovery_pending(f.game));
+}
+TEST(muac_wine_update_removes_and_persistently_backs_up_inherited_d3d9) {
+    fixture f; const auto before = f.snapshot(); runtime::controls control; control.wine = true;
+    // No graphics archive/DLL is consumed on Wine; all other payloads are verified.
+    runtime::update(f.game, f.bundle, f.package(), "", hash, control);
+    CHECK(!std::filesystem::exists(f.game / "D3D9.dll"));
+    const auto record = get(f.game / "_muac/runtime.json");
+    rapidjson::Document json; json.Parse(record.c_str());
+    CHECK(json["graphics"] == "wine-d3d9");
+    CHECK(json["removed_files"].Size() == 1);
+    const auto& removed = json["removed_files"][0];
+    CHECK(removed["target"] == "D3D9.dll");
+    CHECK(removed["sha256"] == hash("old graphics"));
+    CHECK(get(f.game / removed["backup"].GetString()) == "old graphics");
+    for (const auto& item : json["files"].GetArray()) CHECK(item["target"] != "D3D9.dll");
+    for (const auto* file : {"Game.exe", "saves/keep", "mods/keep", "_muac/setup.json", "dgVoodoo.conf"})
+        CHECK(get(f.game / file) == before.at(file));
+    // A second update neither restores D3D9 nor deletes the retained backup.
+    const auto backup = f.game / removed["backup"].GetString();
+    runtime::update(f.game, f.bundle, f.package(), "", hash, control);
+    CHECK(!std::filesystem::exists(f.game / "D3D9.dll")); CHECK(get(backup) == "old graphics");
+    rapidjson::Document again; again.Parse(get(f.game / "_muac/runtime.json").c_str());
+    CHECK(again["removed_files"].Size() == 1);
+    if (!again["removed_files"].Empty()) CHECK(again["removed_files"][0]["backup"] == removed["backup"]);
+}
+TEST(muac_wine_backup_collision_is_refused_and_matching_backup_is_kept) {
+    fixture f; runtime::controls control; control.wine = true;
+    const auto backup = f.game / ("_muac/backups/D3D9-" + hash("old graphics") + ".dll");
+    put(backup, "owner file"); const auto before = f.snapshot();
+    CHECK(refuses([&] { runtime::update(f.game, f.bundle, f.package(), "", hash, control); }));
+    CHECK(f.snapshot() == before);
+    put(backup, "old graphics");
+    const auto timestamp = std::filesystem::file_time_type::clock::now() - std::chrono::hours(24);
+    std::filesystem::last_write_time(backup, timestamp);
+    runtime::update(f.game, f.bundle, f.package(), "", hash, control);
+    CHECK(get(backup) == "old graphics"); CHECK(std::filesystem::last_write_time(backup) == timestamp);
+    CHECK(!std::filesystem::exists(f.game / "D3D9.dll"));
+}
+TEST(muac_wine_cancel_after_removal_restores_every_original) {
+    fixture f; const auto before = f.snapshot(); runtime::controls control; control.wine = true;
+    bool cancelled = false; control.cancelled = [&] { return cancelled; };
+    control.before_replace = [&](const std::string& target) { if (target == "dinput8.dll") cancelled = true; };
+    CHECK(refuses([&] { runtime::update(f.game, f.bundle, f.package(), "", hash, control); }));
+    CHECK(f.snapshot() == before); CHECK(!runtime::recovery_pending(f.game));
+}
+TEST(muac_wine_recovery_restores_removed_dll_and_removes_uncommitted_backup) {
+    fixture f; const auto before = f.snapshot(); const auto stage = f.game / ".muac-stage-update-fixture";
+    const auto backup = "_muac/backups/D3D9-" + hash("old graphics") + ".dll";
+    std::filesystem::create_directories(stage / "old");
+    std::filesystem::rename(f.game / "D3D9.dll", stage / "old/D3D9.dll"); put(f.game / backup, "old graphics");
+    put(stage / "journal.json", std::string(R"({"state":"committing","files":[{"target":"D3D9.dll","existed":true,"remove":true},{"target":")") +
+        backup + R"(","existed":false,"remove":false}]})");
+    CHECK(runtime::recovery_pending(f.game)); runtime::recover(f.game);
+    CHECK(f.snapshot() == before); CHECK(!runtime::recovery_pending(f.game));
+}
+TEST(muac_wine_removal_is_rolled_back_when_metadata_promotion_fails) {
+    fixture f; const auto before = f.snapshot(); runtime::controls control; control.wine = true;
+    control.before_replace = [](const std::string& target) {
+        if (target == "_muac/runtime.json") throw std::runtime_error("injected final replacement failure");
+    };
+    CHECK(refuses([&] { runtime::update(f.game, f.bundle, f.package(), "", hash, control); }));
+    CHECK(f.snapshot() == before); CHECK(!runtime::recovery_pending(f.game));
+}
+TEST(muac_wine_still_refuses_corrupt_payload_and_d3d9_directory) {
+    fixture f; const auto before = f.snapshot(); runtime::controls control; control.wine = true;
+    put(f.bundle / "version.dll", "corrupt");
+    CHECK(refuses([&] { runtime::update(f.game, f.bundle, f.package(), "", hash, control); }));
+    CHECK(f.snapshot() == before);
+    put(f.bundle / "version.dll", f.payload.at("version.dll"));
+    std::filesystem::remove(f.game / "D3D9.dll"); std::filesystem::create_directory(f.game / "D3D9.dll");
+    CHECK(refuses([&] { runtime::update(f.game, f.bundle, f.package(), "", hash, control); }));
+    CHECK(std::filesystem::is_directory(f.game / "D3D9.dll"));
+}
+TEST(muac_wine_update_without_existing_d3d9_never_places_one) {
+    fixture f; std::filesystem::remove(f.game / "D3D9.dll");
+    runtime::controls control; control.wine = true;
+    runtime::update(f.game, f.bundle, f.package(), "", hash, control);
+    CHECK(!std::filesystem::exists(f.game / "D3D9.dll"));
+    CHECK(!std::filesystem::exists(f.game / "_muac/backups"));
+    rapidjson::Document record; record.Parse(get(f.game / "_muac/runtime.json").c_str());
+    CHECK(record["graphics"] == "wine-d3d9"); CHECK(record["removed_files"].Empty());
 }
 TEST(muac_runtime_refuses_running_game_before_writes_and_rolls_back_race) {
     fixture f; const auto before = f.snapshot(); runtime::controls control; control.running = [] { return true; };
@@ -196,6 +281,16 @@ TEST(muac_runtime_unchanged_settings_are_not_replaced) {
     }
 }
 #ifdef _WIN32
+TEST(muac_wine_locked_inherited_d3d9_is_kept_with_a_clear_error) {
+    fixture f; const auto before = f.snapshot(); runtime::controls control; control.wine = true;
+    const auto lock = CreateFileW((f.game / "D3D9.dll").c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+    CHECK(lock != INVALID_HANDLE_VALUE);
+    std::string error;
+    try { runtime::update(f.game, f.bundle, f.package(), "", hash, control); } catch (const std::exception& e) { error = e.what(); }
+    CloseHandle(lock);
+    CHECK(error == runtime::file_in_use_message); CHECK(f.snapshot() == before);
+    CHECK(!runtime::recovery_pending(f.game));
+}
 TEST(muac_runtime_locked_destination_rolls_back_real_rename_failure) {
     fixture f; const auto before = f.snapshot();
     const auto lock = CreateFileW((f.game / "version.dll").c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);

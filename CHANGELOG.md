@@ -23,15 +23,15 @@ generates the project, so a release only needs this entry and the tag.
 - **Custom artwork works under Proton / Steam Deck.** A chosen picture was dropped at the next start
   when the launcher folder sits below a linked folder (under Proton every Linux folder such as
   `/home` is one). Links inside the launcher's own artwork folder are still refused.
-- **MUA Classic Fix Update works through a junction or symbolic link to the game folder.** The launcher
-  resolves the real folder once before updating; links inside the runtime tree are still refused.
+- **MUA Classic Fix Update works through a junction or symbolic link to the game folder** on Windows. The
+  launcher resolves the real folder once before updating; links inside the runtime tree are still refused.
 - **Update errors explain how to continue.** A locked runtime file asks you to close the game or the
   program using it and try Update again. Play and options tell you to choose Update after an interrupted
   update.
 
 ### Known issues
-- MUA 2006 under Proton / Steam Deck is still not supported: automatic setup refuses Linux folders and
-  the game does not start under Proton yet. The launcher's MUA 2006 page shows its version there.
+- MUA 2006 under Proton / Steam Deck is still not supported: automatic setup and Update refuse Linux
+  folders and the game does not start under Proton yet. The launcher's MUA 2006 page shows its version there.
 
 ## 0.5.0-beta.6 (unreleased: a pre-release for the Beta update channel)
 

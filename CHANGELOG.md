@@ -8,7 +8,8 @@ generates the project, so a release only needs this entry and the tag.
 The stable release of the eight 0.5.0 betas (below): character models for X-Men Legends, Marvel: Ultimate Alliance
 (2006 PC) setup, options, MUA Classic Fix version line and in-place Update, MUA 2006 on Steam Deck / Proton (MUA
 Classic Fix 0.2.2), custom artwork and game order, in-page drop-downs, and the beta.3 / beta.4 build fixes. Tagged
-first as `v0.5.0-rc.1` (a pre-release for the Beta update channel), then as `v0.5.0` on the same commit. The release
+as `v0.5.0-rc.1` and `v0.5.0-rc.2` (pre-releases for the Beta update channel; rc.2 adds the two fixes from the
+rc.1 real-pad check), then as `v0.5.0` on rc.2's commit. The release
 notes are `docs/release/v0.5.0-notes.md`.
 
 ### Changed
@@ -21,6 +22,12 @@ notes are `docs/release/v0.5.0-notes.md`.
   and pointed at the Beta channel.
 
 ### Fixed
+- **Controller: every Character models control and every Mods row can be reached with the pad** (found in the
+  rc.1 real-pad check: with a models set installed, focus skipped the model controls and Up could not leave the
+  section; Mods rows lost focus after a redraw on the X-Men Legends, MUA and MUA2 pages).
+- **Cancel stops a Character models build.** It used to show Cancelling... while the conversion went on; now the
+  build runs in a private staging folder, Cancel stops the tool within a few seconds and nothing changes in the game
+  (models and load order stay as they were).
 - **The Classic conversation box needs Legends Classic builder 0.6.0-beta.3 or newer** (beta.4 to beta.8 said
   0.6.0-beta.2). 0.6.0-beta.2's builder parses `--classic-conversation` but does not implement it, so beta.2 and
   older keep the option hidden and are never sent the argument; the refusal text names 0.6.0-beta.3.

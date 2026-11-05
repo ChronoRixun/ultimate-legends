@@ -84,11 +84,13 @@ internet address: share a private code to play only with friends. Joining a camp
 the game's Joined Game screen and come in at the next level change.
 
 The X-Men Legends **Appearance** section offers **Classic conversation box (XML1 look)** when
-Legends Classic builder 0.6.0-beta.2 or newer is installed. It is off by default. Choose it and rebuild to use
+Legends Classic builder 0.6.0-beta.3 or newer is installed. It is off by default. Choose it and rebuild to use
 the blue conversation background from your own XML1 source; turn it off and rebuild to restore the PC look.
 A newer builder being available does not enable the option until it is installed.
 
-**Save import preview:** **Import an X-Men Legends save** on the built game's page opens an offline
+**Save import preview (hidden in 0.5.0):** save import is planned for a later release, so 0.5.0 shows no
+Import button; the code stays behind `Xml1SaveImport.enabled` (off) and the UI tests turn it on. With it on,
+**Import an X-Men Legends save** on the built game's page opens an offline
 campaign picker, source summary and empty-slot preview. Choose an extracted Xbox save folder, an
 XML1-recomp installation/save folder, or a standalone raw/QCOW2 xemu HDD image and the installation's actual `SaveLC` folder. Image campaigns are
 read without mounting or extracting files. The preview lists heroes, levels, checkpoint progress and

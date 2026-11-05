@@ -467,7 +467,7 @@ test('save import enhances source, campaign and slot pickers and restores visibl
         if (command === 'get-xml1-job') return { id: request.id, finished: true, active: false, exitCode: 0, result };
         return null;
     };
-    load('app/xml1-save-import.js'); window.Xml1SaveImport.open(); await tick();
+    load('app/xml1-save-import.js'); window.Xml1SaveImport.enabled = true; window.Xml1SaveImport.open(); await tick();
     const select = id => document.getElementById(`xml1-import-${id}`);
     const trigger = id => document.getElementById(`xml1-import-${id}-button`);
     const action = name => host.querySelector(`[data-import-act="${name}"]`);
@@ -505,7 +505,7 @@ test('recomp folder campaign selection keeps focus reachable when reinspection r
         if (command === 'get-xml1-job') return { id: 1, finished: true, active: false, exitCode: 0, result };
         return null;
     };
-    load('app/xml1-save-import.js'); window.Xml1SaveImport.open();
+    load('app/xml1-save-import.js'); window.Xml1SaveImport.enabled = true; window.Xml1SaveImport.open();
     const type = document.getElementById('xml1-import-source-type');
     type.value = 'recomp'; type.dispatchEvent(new Event('change'));
     host.querySelector('[data-import-act="source"]').click(); await tick();

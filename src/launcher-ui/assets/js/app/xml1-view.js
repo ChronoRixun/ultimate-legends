@@ -188,7 +188,8 @@
             </div>` : '';
 
         const actions = [];
-        if (s.install && s.build && s.build.stamp && window.Xml1SaveImport) {
+        const saveImport = !!(window.Xml1SaveImport && window.Xml1SaveImport.enabled === true);
+        if (s.install && s.build && s.build.stamp && saveImport) {
             actions.push(button('import-save', t('saveImport.title'), blocked || s.running ? 'disabled' : ''));
         }
         if (state === 'building') {
@@ -237,7 +238,7 @@
                 ${rows}
                 ${appearance}
                 <div class="xml1-actions">${actions.join('')}</div>
-                <div id="xml1-save-import"></div>
+                ${saveImport ? '<div id="xml1-save-import"></div>' : ''}
             </div>`;
 
         const appearanceBox = host.querySelector('[data-option="classicConversation"]');
@@ -245,7 +246,7 @@
             appearanceBox.addEventListener('change', () => port.setClassicConversation(appearanceBox.checked));
             if (appearanceFocus) appearanceBox.focus();
         }
-        if (window.Xml1SaveImport) window.Xml1SaveImport.mount(importFocus);
+        if (saveImport) window.Xml1SaveImport.mount(importFocus);
         host.querySelectorAll('[data-act]').forEach(element => {
             element.addEventListener('click', () => act(gameId, element.dataset.act));
         });
@@ -269,7 +270,7 @@
         const s = port.status;
         switch (action) {
             case 'import-save':
-                window.Xml1SaveImport.open();
+                if (window.Xml1SaveImport) window.Xml1SaveImport.open();
                 break;
             case 'setup':
             case 'show-progress':

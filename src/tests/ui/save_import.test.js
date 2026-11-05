@@ -29,6 +29,7 @@ class Backend {
 async function open(scenario = 'gated') {
     const backend = new Backend(scenario);
     const p = page({ scripts: ['core/utils.js', 'core/i18n.js', 'app/xml1-save-import.js'], backend, offline: true, body: '<div id="xml1-save-import"></div>' });
+    p.window.Xml1SaveImport.enabled = true; // hidden in 0.5.0 (off by default); these tests cover the preview itself
     p.window.Xml1SaveImport.open();
     const control = action => p.document.querySelector(`[data-import-act="${action}"]`);
     const click = async action => { assert.ok(control(action), action); control(action).click(); await settle(); };
@@ -218,10 +219,28 @@ test('save import: all three interface languages render the flow without untrans
     }
 });
 
+test('save import: hidden by default - no Import button on a built game, open() and mount() show nothing, no command runs', async () => {
+    const backend = new Backend('gated');
+    const p = page({ scripts: ['core/utils.js', 'core/i18n.js', 'app/xml1-port.js', 'app/xml1-save-import.js', 'app/xml1-view.js'], backend,
+        offline: true, body: '<div id="xml1-build-panel"></div>' });
+    assert.equal(p.window.Xml1SaveImport.enabled, false);
+    const port = p.window.Xml1Port;
+    port.status = { install: 'C:\\Games\\LC', exists: true, state: 'ready', builder: { installed: true }, build: { stamp: true }, fix: { installed: true, ok: true } };
+    p.window.Xml1View.render('xml1');
+    assert.equal(p.document.querySelector('[data-act="import-save"]'), null);
+    assert.equal(p.document.getElementById('xml1-save-import'), null);
+    assert.doesNotMatch(p.document.getElementById('xml1-build-panel').textContent, /Import an X-Men Legends save/);
+    p.window.Xml1SaveImport.open(); p.window.Xml1SaveImport.mount(); await settle();
+    assert.equal(p.document.getElementById('xml1-import-source-type'), null);
+    assert.equal(port.isWorking(), false);
+    assert.equal(backend.calls.filter(call => /import/.test(call.command)).length, 0);
+});
+
 test('save import: the real library page exposes the button only for a built game and disables it while busy', async () => {
     const backend = new Backend('gated');
     const p = page({ scripts: ['core/utils.js', 'core/i18n.js', 'app/xml1-port.js', 'app/xml1-save-import.js', 'app/xml1-view.js'], backend,
         offline: true, body: '<div id="xml1-build-panel"></div>' });
+    p.window.Xml1SaveImport.enabled = true;
     const port = p.window.Xml1Port;
     port.status = { install: 'C:\\Games\\LC', exists: true, state: 'ready', builder: { installed: true }, build: { stamp: true }, fix: { installed: true, ok: true } };
     p.window.Xml1View.render('xml1');

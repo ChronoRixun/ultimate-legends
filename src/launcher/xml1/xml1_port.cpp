@@ -780,7 +780,7 @@ namespace xml1_port
         const auto appearance_supported = xml1::supports_classic_conversation(builder->version);
         if (options.classic_conversation && !appearance_supported)
         {
-            error = {"L_BUILDER_FEATURE", "Update Legends Classic to 0.6.0-beta.2 or newer before choosing the Classic conversation box."};
+            error = {"L_BUILDER_FEATURE", "Update Legends Classic to 0.6.0-beta.3 or newer before choosing the Classic conversation box."};
             return std::nullopt;
         }
         // A fresh build must not fall back to Stable's fix when Beta could not be resolved.

@@ -9,7 +9,7 @@ async function open({ supported = true, installed = true, enabled = false, fixOk
     const status = { state: 'ready', install: 'C:\\Games\\LC', exists: true, isInstalled: true,
         iso: 'C:\\Owned\\XML1.iso', isoExists: true, movies: true, keepCache: true, classicConversation: enabled,
         xml2: { setUp: true }, build: { stamp: true, game: true }, fix: { installed: true, ok: fixOk, version: '1.8.1', required: '1.11.0-beta.1' },
-        builder: { installed, classicConversation: supported, version: supported ? '0.6.0-beta.2' : '0.6.0-beta.1' } };
+        builder: { installed, classicConversation: supported, version: supported ? '0.6.0-beta.3' : '0.6.0-beta.2' } };
     const p = page({ scripts: ['core/utils.js', 'core/i18n.js', 'core/focus-nav.js', 'app/xml1-port.js', 'app/xml1-view.js', 'app/xml1-setup.js'],
         body: '<div id="xml1-build-panel"></div>', offline: true,
         backend: { handle(command, data) {
@@ -32,10 +32,10 @@ async function open({ supported = true, installed = true, enabled = false, fixOk
     return { ...p, calls, status, port: p.window.Xml1Port, box: () => p.document.querySelector('#xml1-build-panel [data-option="classicConversation"]') };
 }
 
-test('Classic conversation: hidden for beta.1 or no installed builder even if an update supports it', async () => {
+test('Classic conversation: hidden for beta.2 or no installed builder even if an update supports it', async () => {
     for (const options of [{ supported: false }, { installed: false }]) {
         const p = await open(options);
-        p.status.builder.latest = { version: '0.6.0-beta.2' };
+        p.status.builder.latest = { version: '0.6.0-beta.3' };
         p.window.Xml1View.render('xml1');
         assert.equal(p.box(), null);
     }

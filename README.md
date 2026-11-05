@@ -84,7 +84,7 @@ internet address: share a private code to play only with friends. Joining a camp
 the game's Joined Game screen and come in at the next level change.
 
 The X-Men Legends **Appearance** section offers **Classic conversation box (XML1 look)** when
-Legends Classic builder 0.6.0-beta.2 or newer is installed. It is off by default. Choose it and rebuild to use
+Legends Classic builder 0.6.0-beta.3 or newer is installed. It is off by default. Choose it and rebuild to use
 the blue conversation background from your own XML1 source; turn it off and rebuild to restore the PC look.
 A newer builder being available does not enable the option until it is installed.
 

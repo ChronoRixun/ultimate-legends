@@ -3,7 +3,29 @@
 The launcher's version comes from its release tag (`v0.3.2`): premake reads it with `git describe` when it
 generates the project, so a release only needs this entry and the tag.
 
-## 0.5.0-beta.8 (unreleased: a pre-release for the Beta update channel)
+## 0.5.0 (2026-11-05)
+
+The stable release of the eight 0.5.0 betas (below): character models for X-Men Legends, Marvel: Ultimate Alliance
+(2006 PC) setup, options, MUA Classic Fix version line and in-place Update, MUA 2006 on Steam Deck / Proton (MUA
+Classic Fix 0.2.2), custom artwork and game order, in-page drop-downs, and the beta.3 / beta.4 build fixes. Tagged
+first as `v0.5.0-rc.1` (a pre-release for the Beta update channel), then as `v0.5.0` on the same commit. The release
+notes are `docs/release/v0.5.0-notes.md`.
+
+### Changed
+- **The save-import preview is hidden.** The X-Men Legends **Import an X-Men Legends save** button and its screens
+  (beta.4 to beta.8, installing and Undo turned off) are not shown in 0.5.0; save import is planned for a later
+  release. The code, the launcher commands and the tests stay: `Xml1SaveImport.enabled` (off) gates the page's
+  button, `open()` and the panel, and the UI tests turn it on to keep covering the preview.
+- **Character models on the Stable channel** use the first stable legends-models release, 0.3.0 (the tool of
+  0.3.0-beta.3). Stable takes only `releases/latest`, so before it the section said the tool was not published yet
+  and pointed at the Beta channel.
+
+### Fixed
+- **The Classic conversation box needs Legends Classic builder 0.6.0-beta.3 or newer** (beta.4 to beta.8 said
+  0.6.0-beta.2). 0.6.0-beta.2's builder parses `--classic-conversation` but does not implement it, so beta.2 and
+  older keep the option hidden and are never sent the argument; the refusal text names 0.6.0-beta.3.
+
+## 0.5.0-beta.8 (2026-11-04: a pre-release for the Beta update channel)
 
 ### Added
 - **Marvel: Ultimate Alliance (2006 PC) on Steam Deck / Linux (Proton).** Automatic setup from your own disc,
@@ -45,7 +67,7 @@ generates the project, so a release only needs this entry and the tag.
 - Under Proton, completing **Change artwork...** through Wine's file dialog is still unverified (artwork you
   already chose is kept).
 
-## 0.5.0-beta.7 (unreleased: a pre-release for the Beta update channel; the last beta before 0.5.0)
+## 0.5.0-beta.7 (2026-11-04: a pre-release for the Beta update channel)
 
 ### Added
 - **MUA 2006 shows its MUA Classic Fix version and offers Update.** The version comes from setup's runtime
@@ -75,7 +97,7 @@ generates the project, so a release only needs this entry and the tag.
 - MUA 2006 under Proton / Steam Deck is still not supported: automatic setup and Update refuse Linux
   folders and the game does not start under Proton yet. The launcher's MUA 2006 page shows its version there.
 
-## 0.5.0-beta.6 (unreleased: a pre-release for the Beta update channel)
+## 0.5.0-beta.6 (2026-11-03: a pre-release for the Beta update channel)
 
 ### Added
 - **Choose your own game artwork.** Right-click a game's card (or open its menu with the keyboard or a
@@ -104,7 +126,7 @@ generates the project, so a release only needs this entry and the tag.
   Proton (SafeDiscLoader2 fails there). X-Men Legends and the 2016 games are not affected.
 - Choosing a picture for artwork under Proton opens Wine's own file dialog; it has been checked on Windows only.
 
-## 0.5.0-beta.5 (unreleased: a pre-release for the Beta update channel)
+## 0.5.0-beta.5 (2026-11-03: a pre-release for the Beta update channel)
 
 ### Added
 - **Marvel: Ultimate Alliance (2006 PC) options page.** Once the game is set up, its page offers display mode,
@@ -128,7 +150,7 @@ generates the project, so a release only needs this entry and the tag.
   launcher's 15 s cancel grace (slow destination drives); nothing is registered.
 - Managed MUA 2006 setup is refused under Proton/Wine ("Linked folders are not supported for setup.").
 
-## 0.5.0-beta.4 (unreleased: a pre-release for the Beta update channel)
+## 0.5.0-beta.4 (2026-11-03: a pre-release for the Beta update channel)
 
 ### Added
 - **Classic conversation box (XML1 look)** under X-Men Legends' Appearance and advanced build options.

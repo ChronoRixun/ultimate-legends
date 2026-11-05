@@ -1,5 +1,10 @@
 # Save import: host protocol and release checks
 
+> **Hidden in 0.5.0.** Save import is planned for a later release. `Xml1SaveImport.enabled`
+> (`src/launcher-ui/assets/js/app/xml1-save-import.js`) is `false`, so the page has no Import button and
+> `open()` / `mount()` show nothing; the commands and tests below are kept and the UI tests set the flag to
+> `true`. Turn it on to bring the flow back.
+
 The built X-Men Legends page offers **Import an X-Men Legends save**. This is a
 preview integration with the LC `import-xml1-save` command. Player installation
 is deliberately disabled in both repositories until the converter's real-save,

@@ -1,5 +1,10 @@
 // Offline import wizard. JSONL work stays alive across page redraws; only a
 // successful apply result may say Imported. Source discovery and previews write nothing.
+//
+// Hidden in 0.5.0: save import is planned for a later release (installing an imported save and Undo are
+// still off), so `Xml1SaveImport.enabled` starts false. While it is false the X-Men Legends page shows no
+// Import button, open() does nothing and mount() leaves its host empty. The code, commands and tests stay;
+// set the flag to true (the UI tests do) to bring the preview back.
 (function () {
     'use strict';
     const run = (command, payload) => window.executeCommand(command, payload);
@@ -64,8 +69,9 @@
         const focus = savedFocus || captureFocus();
         const element = host();
         if (!element) return;
-        element.hidden = !state.opened;
-        if (!state.opened) { element.innerHTML = ''; return; }
+        const shown = state.opened && window.Xml1SaveImport.enabled === true;
+        element.hidden = !shown;
+        if (!shown) { element.innerHTML = ''; return; }
         const report = state.report;
         const facts = report || state.sourceReport;
         const disabled = locked() ? 'disabled' : '';
@@ -281,7 +287,11 @@
         }
     }
     window.Xml1SaveImport = {
-        open() { state.opened = true; mount(); const first = document.getElementById('xml1-import-source-type'); if (first) first.focus(); },
+        enabled: false,
+        open() {
+            if (window.Xml1SaveImport.enabled !== true) return;
+            state.opened = true; mount(); const first = document.getElementById('xml1-import-source-type'); if (first) first.focus();
+        },
         mount, captureFocus, isBusy: locked
     };
 })();

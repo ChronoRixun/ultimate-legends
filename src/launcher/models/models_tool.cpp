@@ -1,5 +1,7 @@
 #include "std_include.hpp"
 #include "models_tool.hpp"
+#include "build_transaction.hpp"
+#include "process_wait.hpp"
 
 #include "game_config.hpp"
 #include "tools/tool_install.hpp"
@@ -40,6 +42,8 @@ namespace models_tool
             HANDLE process{};
             HANDLE job{};
             std::filesystem::path cancel_file;
+            std::unique_ptr<build_transaction> build;
+            std::chrono::milliseconds cancel_grace = std::chrono::seconds(2);
         };
 
         std::mutex mutex_;
@@ -289,7 +293,14 @@ namespace models_tool
             }
             if (!AssignProcessToJobObject(job, process.hProcess))
             {
-                utils::logger::write("legends-models: could not assign the job object ({})", system_message(GetLastError()));
+                error = "Could not contain the character-model tool: " + system_message(GetLastError());
+                TerminateProcess(process.hProcess, 1);
+                WaitForSingleObject(process.hProcess, INFINITE);
+                CloseHandle(process.hThread);
+                CloseHandle(process.hProcess);
+                CloseHandle(job);
+                close_all();
+                return false;
             }
             ResumeThread(process.hThread);
             CloseHandle(process.hThread);
@@ -346,9 +357,11 @@ namespace models_tool
 
             std::thread([state, stdout_reader = std::move(stdout_reader), stderr_reader = std::move(stderr_reader)]() mutable
             {
-                WaitForSingleObject(state->process, INFINITE);
-                DWORD exit_code = 1;
-                GetExitCodeProcess(state->process, &exit_code);
+                auto exit_code = wait_for_process(state->process, state->job, [state]
+                {
+                    std::lock_guard lock(mutex_);
+                    return state->snapshot.cancel_requested;
+                }, state->cancel_grace);
                 {
                     // Converter processes the tool left behind end with the job; then the pipes close.
                     std::lock_guard lock(mutex_);
@@ -362,7 +375,23 @@ namespace models_tool
                 CloseHandle(state->process);
                 state->process = nullptr;
                 auto& snapshot = state->snapshot;
-                snapshot.exit_code = snapshot.cancel_requested && state->cancel_file.empty() ? 130 : static_cast<int>(exit_code);
+                if (state->build && !snapshot.cancel_requested && (exit_code == 0 || exit_code == 10))
+                {
+                    try
+                    {
+                        // Cancellation and publication share this lock: an accepted cancel always
+                        // discards staging; after commit the run is already finished.
+                        state->build->commit();
+                    }
+                    catch (const std::exception& e)
+                    {
+                        snapshot.stderr_tail.push_back(e.what());
+                        utils::logger::write("legends-models: publication failed: {}", e.what());
+                        exit_code = 1;
+                    }
+                }
+                state->build.reset(); // after the whole process tree and both pipe readers have stopped
+                snapshot.exit_code = snapshot.cancel_requested ? 130 : static_cast<int>(exit_code);
                 if (!state->cancel_file.empty()) utils::io::remove_file(state->cancel_file);
                 snapshot.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - state->started).count();
                 snapshot.active = false;
@@ -812,7 +841,7 @@ namespace models_tool
         }
 
         std::string args_error;
-        const auto args = models_args::build_args(request, args_error);
+        auto args = models_args::build_args(request, args_error);
         if (!args)
         {
             error = {"L_USAGE", args_error};
@@ -840,15 +869,32 @@ namespace models_tool
         }
 
         utils::io::create_directory(work_folder());
-        if (request.command == "build" && tool_install::compare_versions(tool->version, "0.3.0-beta.4") >= 0)
-        {
-            state->cancel_file = work_folder() / (".cancel-" + std::to_string(GetCurrentProcessId()) + "-" +
-                std::to_string(GetTickCount64()) + "-" + std::to_string(state->snapshot.id));
-        }
         std::string spawn_error;
-        if (!spawn(state, tool->exe, *args, spawn_error))
+        try
+        {
+            if (request.command == "build")
+            {
+                const auto token = std::to_string(GetCurrentProcessId()) + "-" + std::to_string(GetTickCount64()) +
+                    "-" + std::to_string(state->snapshot.id);
+                state->build = std::make_unique<build_transaction>(*port, token);
+                args->insert(args->end(), {"--game", utils::string::path_to_utf8(state->build->game())});
+                // Published v0.3.0 and earlier have no cooperative reader. Stop them at
+                // the next watchdog tick rather than letting them start more characters.
+                if (!tool->dev && tool_install::compare_versions(tool->version, "0.3.0") <= 0)
+                    state->cancel_grace = std::chrono::milliseconds(0);
+                // Unknown environment variables are harmless to v0.3.0; newer tools can exit
+                // cooperatively. The watchdog never assumes a version implies support.
+                state->cancel_file = work_folder() / (".cancel-" + token);
+            }
+        }
+        catch (const std::exception& e)
+        {
+            spawn_error = e.what();
+        }
+        if (!spawn_error.empty() || !spawn(state, tool->exe, *args, spawn_error))
         {
             std::lock_guard lock(mutex_);
+            state->build.reset();
             state->snapshot.start_error = spawn_error;
             state->snapshot.finished = true;
             state->snapshot.exit_code = -1;
@@ -903,17 +949,12 @@ namespace models_tool
         {
             return false;
         }
-        // beta.4 checks this request during conversion and before publication. Once publication
-        // starts it completes consistently; retain the folder reservation until the process exits.
+        // Keep the folder reservation through tree termination, pipe drain and staging cleanup.
+        // Repeated requests must not extend the watchdog's grace period.
         const auto& state = found->second;
-        if (!state->cancel_file.empty())
-        {
-            if (!utils::io::write_file(state->cancel_file, "cancel\n")) return false;
-        }
-        else
-        {
-            TerminateJobObject(state->job, 130);
-        }
+        if (state->snapshot.cancel_requested) return true;
+        if (!state->cancel_file.empty() && !utils::io::write_file(state->cancel_file, "cancel\n"))
+            utils::logger::write("legends-models: cancel file write failed; watchdog will stop the process tree");
         state->snapshot.cancel_requested = true;
         utils::logger::write("legends-models: {} cancelled", found->second->snapshot.command);
         return true;

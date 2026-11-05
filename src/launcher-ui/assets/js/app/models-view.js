@@ -68,6 +68,8 @@
                 runs: 0,           // tool runs in flight (plan / verify / ... included)
                 acting: 0,         // player actions in flight (handle())
                 mirrorOpen: false,
+                moreOpen: false,
+                pendingFocus: null, // a control temporarily disabled/replaced by a job redraw
                 gameId,
                 previews: {},      // costume preview path -> data: URL (null while asked / when refused)
                 toolChecked: false // the tool's release asked for once per launcher run
@@ -1067,7 +1069,7 @@
 
     function modesHTML(s, disabled) {
         const mode = currentMode(s);
-        const moreOpen = MORE_MODES.includes(mode);
+        const moreOpen = s.moreOpen || MORE_MODES.includes(mode);
         const note = !upgradedAvailable(s) ? `<div class="ul-models-note is-muted ul-models-upgraded-note">${escapeHtml(t('models.upgradedNeeds'))}</div>` : '';
         return `
             <div class="ul-models-modes">
@@ -1310,8 +1312,12 @@
         const host = panel(gameId);
         if (!host) return;
         const s = getState(gameId);
-        const focused = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.focus : null;
-        const focusInside = focused && document.activeElement.closest && document.activeElement.closest(`#${gameId}-models-panel`);
+        const active = document.activeElement;
+        const focused = active && active.dataset ? active.dataset.focus : null;
+        if (focused && host.contains(active)) s.pendingFocus = focused;
+        // A disabled control can lose focus while cancelling/loading. Keep its
+        // identity until it returns, unless the player has moved somewhere else.
+        else if (active && active !== document.body && document.body.contains(active)) s.pendingFocus = null;
 
         if (!s.status) {
             host.innerHTML = `<div class="ul-display ul-models"><div class="ul-display-empty">${escapeHtml(t('models.loading'))}</div></div>`;
@@ -1356,7 +1362,7 @@
         }
 
         host.innerHTML = `
-            <div class="ul-display ul-models" data-mode="${escapeHtml(mode)}" data-busy="${working ? 'true' : 'false'}">
+            <div class="ul-display ul-models" data-nav-ordered data-mode="${escapeHtml(mode)}" data-busy="${working ? 'true' : 'false'}">
                 <p class="ul-models-intro">${escapeHtml(t('models.intro'))}</p>
                 ${head}
                 ${tool.found && s.status.port && s.status.port.built ? `
@@ -1390,10 +1396,16 @@
         });
         const mirror = host.querySelector('.ul-models-mirror');
         if (mirror) mirror.addEventListener('toggle', () => { s.mirrorOpen = mirror.open; });
+        const more = host.querySelector('.ul-models-more');
+        if (more) more.addEventListener('toggle', () => { s.moreOpen = more.open; });
 
-        if (focusInside) {
-            const again = host.querySelector(`[data-focus="${focused}"]`);
-            if (again && !again.disabled) again.focus();
+        if (s.pendingFocus) {
+            const again = host.querySelector(`[data-focus="${s.pendingFocus}"]`)
+                || host.querySelector(`[data-focus="${working ? 'cancel' : 'apply'}"]`);
+            if (again && !again.disabled) {
+                again.focus();
+                s.pendingFocus = null;
+            }
         }
     }
 

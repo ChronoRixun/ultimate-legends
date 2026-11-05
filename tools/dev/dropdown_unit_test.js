@@ -441,6 +441,68 @@ test('GamepadNav polling routes real A/D-pad/B actions into the in-page picker',
     context.navigator.getGamepads = () => [];
 });
 
+for (const installed of [true, false]) test(`Models ${installed ? 'installed set' : 'uninstalled set'} pad traversal includes the enhanced costume trigger`, async () => {
+    const { host } = await fixture('<button id="above">Discord</button><div id="xml1-models-panel"></div><button id="below">Mods</button><select hidden><option>fixture</option></select>');
+    load('app/models-view.js');
+    const panel = host.querySelector('#xml1-models-panel');
+    const state = window.ModelsView._state('xml1');
+    const status = { tool: { found: true }, port: { built: true }, settings: { mode: 'community', costumes: {} },
+        installed: installed ? [{ group: 'Models-Community', mode: 'community', enabled: true,
+            characters: [{ hero: 'cyclops', tier: 'community', source: 'Original' }] }] : [] };
+    const rows = [{ hero: 'cyclops', name: 'Cyclops', tier: 'community', source: 'Original' }];
+    Object.assign(state, { status, plan: { rows }, scan: { heroes: { cyclops: { tiers: {
+        community: { costumes: ['Original', 'Alternate'] }
+    } } } } });
+    window.executeCommand = async (command, payload) => {
+        if (command === 'get-models-status') return status;
+        if (command === 'set-models-settings') {
+            status.settings.costumes = payload.costumes;
+            rows[0].source = 'Alternate';
+            return { success: true, settings: status.settings };
+        }
+        if (command === 'models-run') return { success: true, id: 'pad-plan' };
+        if (command === 'get-models-job') return { finished: true, exitCode: 0,
+            lines: [JSON.stringify({ event: 'result', rows })] };
+        throw new Error(`Unexpected command ${command}`);
+    };
+    const box = (x, y, width = 120) => ({ left: x, top: y, right: x + width, bottom: y + 30, width, height: 30 });
+    window.FocusNav.setRectSource(element => {
+        if (element.id === 'above') return box(650, 20);
+        if (element.id === 'below') return box(650, 500);
+        if (element.classList.contains('ul-models')) return box(20, 100, 800);
+        const name = element.dataset.focus;
+        if (name === 'mirror') return box(20, 450, 800);
+        if (name === 'costume-cyclops') return box(300, 300, 200);
+        return box(20, 100);
+    });
+    const pad = { connected: true, buttons: [], axes: [0, 0] };
+    context.navigator.getGamepads = () => [pad];
+    const tap = async index => {
+        pad.buttons[index] = 1; window.GamepadNav.poll();
+        pad.buttons[index] = 0; window.GamepadNav.poll();
+        await tick();
+    };
+    const at = () => document.activeElement.dataset.focus || document.activeElement.id;
+    try {
+        window.ModelsView.render('xml1'); await tick();
+        host.querySelector('#above').focus();
+        const order = ['mode-off', 'mode-community', 'more', 'apply', ...(installed ? ['remove', 'verify'] : []), 'costume-cyclops', 'mirror', 'below'];
+        for (const name of order) { await tap(13); assert.equal(at(), name); }
+        for (const name of order.slice(0, -1).reverse().concat('above')) { await tap(12); assert.equal(at(), name); }
+        const trigger = () => panel.querySelector('[role="combobox"]');
+        trigger().focus();
+        await tap(0); await tap(13); await tap(1);
+        assert.equal(status.settings.costumes.cyclops, undefined, 'B cancels the enhanced picker');
+        await tap(0); await tap(13); await tap(0); await tick();
+        assert.equal(status.settings.costumes.cyclops, 'community:Alternate');
+        assert.equal(document.activeElement, trigger(), 'redraw restores the visible trigger');
+        assert.equal(panel.querySelector('select').tabIndex, -1, 'native select stays out of pad navigation');
+    } finally {
+        context.navigator.getGamepads = () => [];
+        window.FocusNav.setRectSource(null);
+    }
+});
+
 test('Steam Input keyboard/gamepad echo does not double-activate the dropdown', async () => {
     await new Promise(resolve => setTimeout(resolve, 110));
     const { select, button } = await fixture();

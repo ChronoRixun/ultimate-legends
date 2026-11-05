@@ -40,7 +40,10 @@
     // reached from both.
     const REGIONS = '.sidebar, .content-area';
     // What tells a re-rendered control for the one it replaced (with its tag and first class).
-    const IDENTITY = ['id', 'data-game', 'data-op', 'data-key', 'data-value', 'data-act', 'data-filter', 'data-idx', 'data-row', 'data-field', 'data-option', 'data-choice'];
+    const IDENTITY = ['id', 'data-game', 'data-op', 'data-key', 'data-value', 'data-act', 'data-filter', 'data-idx', 'data-row', 'data-field', 'data-option', 'data-choice', 'data-focus'];
+    // Dense panels can opt into Up/Down in reading order, including controls on the
+    // same row. Spatial navigation sees the panel's full box when entering/leaving.
+    const ORDERED = '[data-nav-ordered]';
 
     const stack = []; // open layers: { element, opener, sawActive }
     const fading = new WeakSet(); // closed layers still on screen for their fade-out
@@ -79,6 +82,12 @@
         if (!element || !connected(element)) return false;
         for (let node = element; node && node.nodeType === 1; node = node.parentNode) {
             if (node.hidden || node.hasAttribute('inert') || (node.style && node.style.display === 'none')) return false;
+            // Closed details may retain layout boxes in Chromium. Only their own
+            // first summary (and its descendants) can receive focus.
+            if (node !== element && node.tagName === 'DETAILS' && !node.open) {
+                const summary = Array.from(node.children).find(child => child.tagName === 'SUMMARY');
+                if (!summary || !contains(summary, element)) return false;
+            }
         }
         if (typeof element.getClientRects === 'function' && element.getClientRects().length === 0) return false;
         if (typeof window.getComputedStyle === 'function' && window.getComputedStyle(element).visibility === 'hidden') return false;
@@ -250,14 +259,30 @@
     function move(direction) {
         const from = current();
         if (!from) return focus(topLayer() ? firstIn(topLayer()) : pageDefault(activePage()));
-        const list = candidates()
+        const vertical = direction === 'up' || direction === 'down';
+        const ordered = vertical && from.closest(ORDERED);
+        const available = candidates();
+        if (ordered) {
+            const controls = available.filter(element => contains(ordered, element));
+            const next = controls[controls.indexOf(from) + (direction === 'down' ? 1 : -1)];
+            if (next) return focus(next);
+        }
+        const seen = new Set();
+        const list = available
             .filter(element => element !== from && !contains(element, from))
-            .map(element => ({ element, rect: rectOf(element) }));
+            .map(element => {
+                const group = vertical && element.closest(ORDERED);
+                if (!group) return { element, rect: rectOf(element) };
+                if (group === ordered || seen.has(group)) return null;
+                seen.add(group);
+                const controls = available.filter(control => contains(group, control));
+                return { element: direction === 'down' ? controls[0] : controls[controls.length - 1], rect: rectOf(group) };
+            }).filter(Boolean);
         const region = from.closest(REGIONS);
         const reachable = direction === 'left' || direction === 'right' || !region
             ? list
             : list.filter(candidate => [region, null].includes(candidate.element.closest(REGIONS)));
-        const next = pick(rectOf(from), reachable, direction, element => contains(from, element));
+        const next = pick(rectOf(ordered || from), reachable, direction, element => contains(from, element));
         if (next) return focus(next);
         // Nothing further that way: show more of a long page or popup instead.
         if (direction === 'up' || direction === 'down') scrollFrom(from, direction === 'down' ? 1 : -1);
@@ -280,8 +305,10 @@
         const list = all(button.parentNode, '.toggle-btn');
         const next = list[list.indexOf(button) + (direction === 'right' ? 1 : -1)];
         if (!next || next.disabled) return;
-        next.click();
         focus(next);
+        // The click may synchronously replace the group. Let its renderer retain
+        // the new choice's focus instead of trying to focus a detached button.
+        next.click();
     }
 
     function startPicking(select) {

@@ -241,10 +241,13 @@ class Backend {
     }
 }
 
-async function open(options = {}, { refresh = true, offline = false } = {}) {
+async function open(options = {}, { refresh = true, offline = false, pad = false } = {}) {
     const backend = new Backend(options);
-    const body = '<div id="xml1-page"><div id="xml1-models-panel"></div></div>';
-    const p = page({ scripts: ['core/utils.js', 'core/i18n.js', 'app/models-view.js'], body, backend, offline });
+    const body = '<div class="content-area"><div class="page-section" id="xml1-page"><button id="above">Discord</button><div id="xml1-models-panel"></div><button id="below">Mods</button></div></div>';
+    const scripts = ['core/utils.js', 'core/i18n.js', 'app/models-view.js'];
+    if (pad) scripts.push('core/focus-nav.js', 'core/gamepad-nav.js', 'ui/message-box.js');
+    const p = page({ scripts, body, backend, offline });
+    if (pad) p.document.querySelector('.window').hidden = true;
     p.window.ModelsView.render('xml1');
     await p.clock.advance(0);
     if (refresh) {
@@ -262,6 +265,154 @@ async function open(options = {}, { refresh = true, offline = false } = {}) {
     }, ms, 'the run to end');
     return { ...p, backend, $, $$, row, statusOf, act, settle };
 }
+
+// Model controls sit at the left of the page, below right-aligned Display/Discord
+// controls. The full-width mirror summary used to win the spatial score, skipping
+// the modes, actions and costumes. Boxes represent layout, not a navigation order.
+async function modelsPad(installed = false, options = {}) {
+    const p = await open({ mua1: true, installed: installed ? [{
+        folder: 'Community-Beast', group: 'Models-Community', mode: 'community',
+        listed: true, enabled: true, credits: true,
+        characters: [{ hero: 'beast', tier: 'community', source: 'Classic' }]
+    }] : [], ...options }, { pad: true });
+    const box = (x, y, w = 100, h = 30) => ({ left: x, top: y, width: w, height: h, right: x + w, bottom: y + h });
+    p.window.FocusNav.setRectSource(element => {
+        if (element.id === 'above') return box(650, 20, 150);
+        if (element.id === 'below') return box(650, 550, 150);
+        if (element.id === 'xml1-models-panel') return box(20, 100, 800, 420);
+        if (element.classList.contains('ul-models')) return box(20, 100, 800, 420);
+        const name = element.dataset.focus;
+        if (name && name.startsWith('mode-')) return box(20 + ['off', 'community', 'upgraded', 'sharpen', 'xml2'].indexOf(element.dataset.mode) * 120, 100);
+        if (name === 'more') return box(450, 100, 60);
+        if (name === 'mirror') return box(20, 450, 800);
+        if (name === 'mirror-input') return box(20, 490, 600);
+        if (name === 'save-mirror') return box(650, 490);
+        if (name && name.startsWith('costume-')) return box(300, 300, 200);
+        if (element.dataset.act) return box(20 + ['apply', 'update', 'remove', 'verify', 'open-mods', 'cancel'].indexOf(element.dataset.act) * 110, 180);
+        // Message box buttons are side by side.
+        if (element.closest('#message-box')) return box(element.hasAttribute('data-escape') ? 20 : 150, 200);
+        return box(0, 0, 0, 0);
+    });
+    let state = { connected: true, mapping: 'standard', buttons: [], axes: [0, 0] };
+    p.window.navigator.getGamepads = () => [state];
+    const press = async name => {
+        const buttons = [];
+        const index = { up: 12, down: 13, left: 14, right: 15, a: 0, b: 1 }[name];
+        if (index !== undefined) buttons[index] = { pressed: true, value: 1 };
+        state = { connected: true, mapping: 'standard', buttons, axes: name === 'stick-up' ? [0, -1] : name === 'stick-down' ? [0, 1] : [0, 0] };
+        p.window.GamepadNav.poll();
+        state = { connected: true, mapping: 'standard', buttons: [], axes: [0, 0] };
+        p.window.GamepadNav.poll();
+        p.window.FocusNav.sync(); // Observe a modal closing before the next async render.
+        await p.clock.advance(0);
+        p.window.FocusNav.sync(); // MutationObserver in the browser; the small DOM has none.
+    };
+    const at = () => p.document.activeElement.dataset.focus || p.document.activeElement.id;
+    return { ...p, press, at };
+}
+
+for (const installed of [true, false]) test(`models pad: ${installed ? 'installed community set' : 'no installed set'} walks every control and leaves both ends`, async () => {
+    const p = await modelsPad(installed);
+    const order = ['mode-off', 'mode-community', 'mode-upgraded', 'more', 'apply',
+        ...(installed ? ['update', 'remove', 'verify'] : []), 'open-mods', 'costume-wolverine', 'mirror'];
+    p.document.getElementById('above').focus();
+    for (const name of [...order, 'below']) {
+        await p.press('down');
+        assert.equal(p.at(), name, `Down reaches ${name}`);
+    }
+    await p.press('down');
+    assert.equal(p.at(), 'below', 'page end does not wrap');
+    for (const name of [...order].reverse().concat('above')) {
+        await p.press('stick-up');
+        assert.equal(p.at(), name, `stick Up reaches ${name}`);
+    }
+});
+
+test('models pad: More, mode redraws, costume A/B, mirror and disabled choices stay reachable', async () => {
+    const p = await modelsPad(true);
+    p.$('[data-focus="more"]').focus();
+    await p.press('a');
+    p.window.ModelsView.render('xml1');
+    await p.clock.advance(0);
+    await p.press('down');
+    assert.equal(p.at(), 'mode-sharpen');
+    await p.press('a');
+    await p.clock.until(() => p.window.ModelsView._state('xml1').acting === 0);
+    assert.equal(p.at(), 'mode-sharpen', 'mode survives a plan redraw');
+    await p.press('right');
+    await p.clock.until(() => p.window.ModelsView._state('xml1').acting === 0);
+    assert.equal(p.at(), 'mode-xml2', 'Left/Right focuses the new mode before its click redraws');
+    await p.press('up');
+    assert.equal(p.at(), 'mode-sharpen');
+
+    p.$('[data-focus="mode-community"]').focus();
+    await p.press('a');
+    await p.clock.until(() => p.window.ModelsView._state('xml1').acting === 0);
+    p.$('[data-focus="costume-wolverine"]').focus();
+    await p.press('a'); await p.press('down'); await p.press('b');
+    assert.equal(p.backend.settings.costumes.wolverine, undefined, 'B discards the preview');
+    await p.press('a'); await p.press('down'); await p.press('a');
+    await p.clock.until(() => p.window.ModelsView._state('xml1').acting === 0);
+    assert.equal(p.backend.settings.costumes.wolverine, 'community:Ultimate XML1');
+    assert.equal(p.at(), 'costume-wolverine', 'costume survives redraw');
+    await p.press('down'); await p.press('a'); await p.press('down');
+    assert.equal(p.at(), 'mirror-input');
+    await p.press('down'); assert.equal(p.at(), 'save-mirror');
+    await p.press('down'); assert.equal(p.at(), 'below');
+
+    const q = await modelsPad(false, { mua1: false });
+    q.$('[data-focus="mode-community"]').focus();
+    await q.press('down');
+    assert.equal(q.at(), 'more', 'unavailable Upgraded and closed More children are skipped');
+    await q.press('up'); assert.equal(q.at(), 'mode-community');
+});
+
+test('models pad: Apply terms can be declined with B or accepted with A; an active build can be cancelled', async () => {
+    const p = await modelsPad(false);
+    p.backend.settings.termsAccepted = false;
+    p.window.ModelsView._state('xml1').status.settings.termsAccepted = false;
+    p.backend.hold = true;
+    p.act('apply').focus();
+    await p.press('a');
+    assert.ok(p.document.querySelector('#message-box.visible'));
+    await p.press('b');
+    assert.equal(p.backend.commands('build').length, 0);
+    assert.equal(p.at(), 'apply', 'B returns to Apply');
+    await p.press('a'); await p.press('right'); await p.press('a');
+    await p.clock.until(() => !!p.act('cancel'));
+    assert.equal(p.at(), 'cancel', 'Apply hands focus to Cancel while building');
+    await p.press('a'); await p.press('b');
+    assert.equal(p.backend.cancels.length, 0, 'B keeps building');
+    await p.press('a'); await p.press('right'); await p.press('a');
+    await p.settle();
+    await p.clock.until(() => p.window.ModelsView._state('xml1').acting === 0);
+    assert.equal(p.at(), 'apply', 'Cancel hands focus back to Apply');
+    assert.equal(p.backend.cancels.length, 1);
+    assert.equal(p.backend.settings.termsAccepted, true);
+});
+
+test('models pad: a temporarily disabled mode recovers by identity without taking focus back from another section', async () => {
+    const p = await modelsPad(true);
+    const s = p.window.ModelsView._state('xml1');
+    p.$('[data-focus="mode-community"]').focus();
+    s.loading = true;
+    p.window.ModelsView.render('xml1');
+    await p.clock.advance(0);
+    p.document.activeElement = p.document.body; // browser drops a removed/disabled control
+    s.loading = false;
+    p.window.ModelsView.render('xml1');
+    await p.clock.advance(0);
+    assert.equal(p.at(), 'mode-community');
+
+    s.loading = true;
+    p.window.ModelsView.render('xml1');
+    await p.clock.advance(0);
+    p.document.getElementById('above').focus();
+    s.loading = false;
+    p.window.ModelsView.render('xml1');
+    await p.clock.advance(0);
+    assert.equal(p.at(), 'above');
+});
 
 test('models: no tool installed - the page says so and runs nothing', async () => {
     const p = await open({ tool: false });
@@ -415,18 +566,25 @@ test("models: after a build, another appearance's plan shows its own statuses, n
     assert.equal(p.$('.ul-models-downloads'), null);
 });
 
-test('models: Cancel asks, then kills the run; the previous models stay', async () => {
+test('models: cancel during conversion preserves models and a retry works', async () => {
     const p = await open();
     p.backend.hold = true;
     p.backend.chunk = 1;
     p.window.showMessageBox = async () => 1;
     p.act('apply').click();
-    await p.clock.until(() => p.act('cancel'), 5000, 'Cancel');
+    await p.clock.until(() => p.window.ModelsView._state('xml1').job?.stage === 'convert', 5000, 'conversion to start');
     p.act('cancel').click();
     await p.settle();
     assert.equal(p.backend.cancels.length, 1);
     assert.match(p.$('.ul-models-outcome').textContent, /Cancelled\. The models you had before are unchanged/);
     assert.equal(p.backend.saves.filter(save => save.mode).length, 0, 'a cancelled build stores no mode');
+    assert.equal(p.backend.installed.length, 0, 'no partial pack is installed');
+    p.backend.hold = false;
+    p.act('apply').click();
+    await p.settle();
+    assert.equal(p.backend.commands('build').length, 2);
+    assert.equal(p.backend.installed.length, 1, 'the retry publishes normally');
+    assert.ok(!p.window.ModelsView._state('xml1').job.cancelRequested, 'retry has fresh cancellation state');
 });
 
 test('models: a failed build says why in plain words, with details', async () => {

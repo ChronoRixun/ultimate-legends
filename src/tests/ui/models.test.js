@@ -566,18 +566,25 @@ test("models: after a build, another appearance's plan shows its own statuses, n
     assert.equal(p.$('.ul-models-downloads'), null);
 });
 
-test('models: Cancel asks, then kills the run; the previous models stay', async () => {
+test('models: cancel during conversion preserves models and a retry works', async () => {
     const p = await open();
     p.backend.hold = true;
     p.backend.chunk = 1;
     p.window.showMessageBox = async () => 1;
     p.act('apply').click();
-    await p.clock.until(() => p.act('cancel'), 5000, 'Cancel');
+    await p.clock.until(() => p.window.ModelsView._state('xml1').job?.stage === 'convert', 5000, 'conversion to start');
     p.act('cancel').click();
     await p.settle();
     assert.equal(p.backend.cancels.length, 1);
     assert.match(p.$('.ul-models-outcome').textContent, /Cancelled\. The models you had before are unchanged/);
     assert.equal(p.backend.saves.filter(save => save.mode).length, 0, 'a cancelled build stores no mode');
+    assert.equal(p.backend.installed.length, 0, 'no partial pack is installed');
+    p.backend.hold = false;
+    p.act('apply').click();
+    await p.settle();
+    assert.equal(p.backend.commands('build').length, 2);
+    assert.equal(p.backend.installed.length, 1, 'the retry publishes normally');
+    assert.ok(!p.window.ModelsView._state('xml1').job.cancelRequested, 'retry has fresh cancellation state');
 });
 
 test('models: a failed build says why in plain words, with details', async () => {

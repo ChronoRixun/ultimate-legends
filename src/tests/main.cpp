@@ -26,8 +26,11 @@ namespace tests
     }
 }
 
-int main()
+std::optional<int> models_cancel_fixture(int argc, char** argv);
+
+int main(int argc, char** argv)
 {
+    if (const auto fixture = models_cancel_fixture(argc, argv)) return *fixture;
     auto failed_tests = 0;
     for (const auto& test : tests::registry())
     {

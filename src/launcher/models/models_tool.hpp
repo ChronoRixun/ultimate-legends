@@ -16,7 +16,10 @@
 // Runs the character-model tool (legends-models, LAUNCHER-API.md) for the Character models section of
 // the X-Men Legends page (app/models-view.js). One run at a time: the launcher starts
 // `legends-models <command> --json ...` with its own pipes in a job object that kills the tool and its
-// converter processes when the run ends or the launcher exits (beta.4+ Cancel is cooperative); it keeps every JSON line
+// converter processes when the run ends or the launcher exits. Cancel requests cooperative exit, then
+// terminates the tree within two seconds (published v0.3.0: next watchdog tick).
+// Builds use a private --game staging folder and only
+// publish on an uncancelled successful exit. It keeps every JSON line
 // of stdout for the page (which reads them from an index, so a long build's events are each delivered
 // once) and the last lines of stderr for the launcher log and a failed run's details.
 //

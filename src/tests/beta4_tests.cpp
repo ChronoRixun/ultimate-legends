@@ -35,9 +35,9 @@ namespace
 
 TEST(classic_conversation_uses_the_installed_builder_release_not_an_available_update)
 {
-    for (const auto* version : {"", "dev", "garbage", "0.4.0", "0.6.0-beta.1"})
+    for (const auto* version : {"", "dev", "garbage", "0.4.0", "0.6.0-beta.1", "0.6.0-beta.2"})
         CHECK(!xml1::supports_classic_conversation(version));
-    for (const auto* version : {"0.6.0-beta.2", "0.6.0-beta.10", "0.6.0-rc.1", "0.6.0", "0.7.0"})
+    for (const auto* version : {"0.6.0-beta.3", "0.6.0-beta.10", "0.6.0-rc.1", "0.6.0", "0.7.0"})
         CHECK(xml1::supports_classic_conversation(version));
 }
 
@@ -45,10 +45,14 @@ TEST(classic_conversation_passes_explicit_off_and_xml1_only_to_supported_builder
 {
     CHECK(xml1::conversation_arguments("0.6.0-beta.1", false).empty());
     CHECK(xml1::conversation_arguments("0.6.0-beta.1", true).empty());
+    // 0.6.0-beta.2's builder accepts the option without the feature (xml1 = E_USAGE): send nothing, not even off.
+    CHECK(xml1::conversation_arguments("0.6.0-beta.2", false).empty());
+    CHECK(xml1::conversation_arguments("0.6.0-beta.2", true).empty());
     const std::vector<std::wstring> on{L"--classic-conversation", L"xml1"};
     const std::vector<std::wstring> off{L"--classic-conversation", L"off"};
-    CHECK(xml1::conversation_arguments("0.6.0-beta.2", true) == on);
-    CHECK(xml1::conversation_arguments("0.6.0-beta.2", false) == off);
+    CHECK(xml1::conversation_arguments("0.6.0-beta.3", true) == on);
+    CHECK(xml1::conversation_arguments("0.6.0-beta.3", false) == off);
+    CHECK(xml1::conversation_arguments("0.6.0-rc.1", true) == on);
 }
 
 TEST(early_cancel_or_process_start_failure_can_restore_an_unchanged_ready_build)

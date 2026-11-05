@@ -5047,7 +5047,7 @@ html[data-reduce-motion] .ul-online-spinner { animation: none; }
 .xml1-import-heroes th, .xml1-import-heroes td { text-align: left; padding: 4px 8px; }
 .xml1-import-history, .xml1-import-preview { margin-top: 14px; }
 
-/* The preview uses the same centered cover crop as library cards and game banners. */
+/* The preview uses the same centered cover crop as cards, banners and sidebar icons. */
 .artwork-preview {
     display: block;
     object-fit: cover;
@@ -5058,6 +5058,7 @@ html[data-reduce-motion] .ul-online-spinner { animation: none; }
 }
 .artwork-preview-capsule { width: 200px; height: 300px; }
 .artwork-preview-hero { width: 560px; height: 180px; }
+.artwork-preview-icon { width: 200px; height: 200px; }
 
 /* Reordering uses native drag thresholds; bright insertion bars mark the drop side. */
 .library-card[draggable="true"], .game-item[draggable="true"] { position: relative; }

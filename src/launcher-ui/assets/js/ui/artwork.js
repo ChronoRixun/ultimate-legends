@@ -31,7 +31,13 @@
         if (!config) return;
         document.querySelectorAll('img').forEach(img => {
             if (img.getAttribute('src') === previous.capsulePath) img.setAttribute('src', config.capsulePath);
+            if (img.getAttribute('src') === previous.iconPath) img.setAttribute('src', config.iconPath);
         });
+        // A default icon may already have fallen back to the capsule before the player picks one.
+        if (previous.iconPath !== config.iconPath) {
+            document.querySelectorAll(`.sidebar .game-item[data-game="${game}"] img`)
+                .forEach(img => { if (img.getAttribute('src') !== config.iconPath) img.setAttribute('src', config.iconPath); });
+        }
         document.querySelectorAll(`.library-card[data-game="${game}"], .client-card[data-game="${game}"]`)
             .forEach(card => card.classList.toggle('has-custom-art', !!records[game]?.capsule));
         document.getElementById(`${game}-page`)?.classList.toggle('has-custom-banner', !!records[game]?.hero);
@@ -56,11 +62,11 @@
         let result;
         try { result = await window.executeCommand('get-artwork', { game }); } catch (_) { return; }
         records[game] = {};
-        for (const kind of ['capsule', 'hero']) {
+        for (const kind of ['capsule', 'hero', 'icon']) {
             const url = result && result[kind];
             if (!valid(game, kind, url)) continue;
             records[game][kind] = url;
-            // Background images have no error event. Probe both kinds with the CEF decoder,
+            // Background images have no error event. Probe every kind with the CEF decoder,
             // and keep the handler alive to catch a missing or damaged managed copy.
             const probe = new Image();
             probe.onerror = () => broken(game, kind, url);
@@ -69,16 +75,16 @@
         if (update) apply(game, previous);
     }
     async function change(game, kind) {
-        if (busy || !GameUtils.GAME_ORDER.includes(game) || !['capsule', 'hero'].includes(kind)) return;
+        if (busy || !GameUtils.GAME_ORDER.includes(game) || !['capsule', 'hero', 'icon'].includes(kind)) return;
         busy = true;
         let picked;
         let committed = false;
         try {
-            picked = await window.executeCommand('pick-artwork', { game, kind, title: t(kind === 'hero' ? 'artwork.changeBanner' : 'artwork.change') });
+            picked = await window.executeCommand('pick-artwork', { game, kind, title: t(kind === 'hero' ? 'artwork.changeBanner' : kind === 'icon' ? 'artwork.changeIcon' : 'artwork.change') });
             if (!picked || (!picked.error && !picked.preview)) return;
             if (picked.error || !valid(game, kind, picked.preview)) throw new Error('artwork');
             const converted = await decodePreview(picked.preview, picked.convert);
-            const crop = kind === 'hero' ? 'hero' : 'capsule';
+            const crop = kind;
             const message = `<p>${escape(t('artwork.previewBody'))}</p><img class="artwork-preview artwork-preview-${crop}" src="${escape(picked.preview)}" alt="${escape(t('artwork.preview'))}">`;
             const choice = await window.showMessageBox(escape(t('artwork.preview')), message,
                 [t('artwork.use'), { label: t('common.cancel'), cancel: true }]);
@@ -95,11 +101,11 @@
             busy = false;
         }
     }
-    async function reset(game) {
-        if (busy) return;
+    async function reset(game, kind) {
+        if (busy || !GameUtils.GAME_ORDER.includes(game) || (kind && !['capsule', 'hero', 'icon'].includes(kind))) return;
         busy = true;
         try {
-            const cleared = await window.executeCommand('reset-artwork', { game });
+            const cleared = await window.executeCommand('reset-artwork', { game, ...(kind ? { kind } : {}) });
             await load(game, true);
             if (!cleared) throw new Error('artwork');
         } catch (_) { window.showToast(t('artwork.failed'), 'error'); }
@@ -108,18 +114,27 @@
     function menuItems(game) {
         const items = [
             { label: t('artwork.change'), action: () => change(game, 'capsule') },
-            { label: t('artwork.changeBanner'), action: () => change(game, 'hero') }
+            { label: t('artwork.changeBanner'), action: () => change(game, 'hero') },
+            { label: t('artwork.changeIcon'), action: () => change(game, 'icon') }
         ];
         if (records[game] && (records[game].capsule || records[game].hero)) {
             items.push({ label: t('artwork.reset'), action: () => reset(game) });
         }
+        if (records[game]?.icon) {
+            items.push({ label: t('artwork.resetIcon'), action: () => reset(game, 'icon') });
+        }
         return items;
     }
-    // Detect a managed card deleted after startup. Banner probes run on each load/change.
+    // Detect managed images deleted after startup. Probes also run on each load/change.
     document.addEventListener('error', event => {
         const src = event.target && event.target.getAttribute && event.target.getAttribute('src');
-        for (const game of GameUtils.GAME_ORDER) for (const kind of ['capsule', 'hero']) {
-            if (valid(game, kind, src)) broken(game, kind, src);
+        for (const game of GameUtils.GAME_ORDER) for (const kind of ['capsule', 'hero', 'icon']) {
+            if (valid(game, kind, src)) {
+                // Restore the default icon before the sidebar's inline fallback can replace
+                // it with a capsule. A later failure of the default still uses that fallback.
+                if (kind === 'icon' && records[game]?.icon === src) event.stopPropagation();
+                broken(game, kind, src);
+            }
         }
     }, true);
     window.Artwork = { records, load, change, reset, menuItems,

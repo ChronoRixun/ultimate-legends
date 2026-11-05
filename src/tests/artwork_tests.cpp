@@ -20,6 +20,9 @@ TEST(artwork_paths_accept_only_fixed_games_kinds_and_opaque_records) {
     CHECK(artwork::managed_path(work.root, "xml1", "capsule", "abc123.png"));
     CHECK(artwork::managed_path(work.root, "mua", "hero", "ff.jpg"));
     CHECK(artwork::managed_path(work.root, "mua2", "hero", "ff.webp"));
+    CHECK(artwork::managed_path(work.root, "muac", "icon", "ff.webp"));
+    CHECK(!artwork::managed_path(work.root, "mua", "../icon", "ff.png"));
+    CHECK(!artwork::managed_path(work.root, "mua", "icon", "../ff.png"));
     for (const auto record : {"../abc.png", "abc/def.png", "abc.png:stream", "abc.svg", "abc.png/", "C:/abc.png", ".png", "abc.png.bak"})
         CHECK(!artwork::managed_path(work.root, "xml1", "capsule", record));
     CHECK(!artwork::managed_path(work.root, "../xml1", "capsule", "ff.png"));
@@ -82,6 +85,24 @@ TEST(artwork_writes_are_staged_and_never_truncate_an_existing_copy) {
     CHECK(std::filesystem::is_directory(*blocked));
     CHECK(artwork::read_image(*path) == png());
 }
+TEST(artwork_icons_persist_and_reset_independently_of_cards_banners_and_other_games) {
+    scratch work;
+    for (const auto kind : {"capsule", "hero", "icon"})
+        CHECK(artwork::write_image(work.root, "mua", kind, "ab.png", png()));
+    CHECK(artwork::write_image(work.root, "xml1", "icon", "ab.png", png()));
+    // Reconstruct the managed path from the saved opaque record, as a fresh launcher does.
+    const auto reopened = artwork::managed_path(std::filesystem::path(work.root.native()), "mua", "icon", "ab.png");
+    CHECK(reopened);
+    CHECK(artwork::read_image(*reopened) == png());
+    CHECK(!artwork::write_image(work.root, "mua", "icon", "ac.png", "not an image"));
+    CHECK(!artwork::write_image(work.root, "mua", "icon", "ac.jpg", png()));
+    CHECK(artwork::read_image(*reopened) == png());
+    CHECK(artwork::remove_image(work.root, "mua", "icon", "ab.png"));
+    CHECK(!artwork::read_image(*reopened));
+    for (const auto kind : {"capsule", "hero"})
+        CHECK(artwork::read_image(*artwork::managed_path(work.root, "mua", kind, "ab.png")) == png());
+    CHECK(artwork::read_image(*artwork::managed_path(work.root, "xml1", "icon", "ab.png")) == png());
+}
 #ifdef _WIN32
 TEST(artwork_real_decoder_refuses_truncated_disguised_and_oversized_images) {
     auto bytes = png();
@@ -139,6 +160,9 @@ TEST(artwork_refuses_junctions_at_the_game_folder_and_root) {
     CHECK(!artwork::managed_path(work.root, "mua", "capsule", "ab.png"));
     CHECK(!artwork::remove_image(work.root, "mua", "capsule", "ab.png"));
     CHECK(!artwork::write_image(work.root, "mua", "capsule", "ac.png", png()));
+    CHECK(!artwork::managed_path(work.root, "mua", "icon", "ab.png"));
+    CHECK(!artwork::write_image(work.root, "mua", "icon", "ac.png", png()));
+    CHECK(!artwork::remove_image(work.root, "mua", "icon", "ab.png"));
     CHECK(artwork::read_image(target / "capsule-ab.png") == png());
     CHECK(RemoveDirectoryW(link.c_str()) != FALSE);
     const auto alias = work.root / "alias";
@@ -161,6 +185,9 @@ TEST(artwork_paths_accept_a_launcher_folder_below_a_linked_parent) {
     CHECK(artwork::write_image(parent / "launcher", "xml1", "capsule", "ab.png", png()));
     CHECK(artwork::read_image(real / "launcher" / "user" / "art" / "xml1" / "capsule-ab.png") == png());
     CHECK(artwork::remove_image(parent / "launcher", "xml1", "capsule", "ab.png"));
+    CHECK(artwork::write_image(parent / "launcher", "xml1", "icon", "ac.png", png()));
+    CHECK(artwork::read_image(real / "launcher" / "user" / "art" / "xml1" / "icon-ac.png") == png());
+    CHECK(artwork::remove_image(parent / "launcher", "xml1", "icon", "ac.png"));
     CHECK(RemoveDirectoryW(parent.c_str()) != FALSE);
 }
 #endif

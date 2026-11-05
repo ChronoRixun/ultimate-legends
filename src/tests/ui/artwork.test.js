@@ -2,7 +2,7 @@
 const assert = require('node:assert/strict');
 const { page, test, settle, MouseEvent } = require('./harness');
 
-function setup({ record = {}, picked, choice = 0, imageFails = false, convert = false, focus = false, game = 'mua' } = {}) {
+function setup({ record = {}, picked, choice = 0, imageFails = false, convert = false, focus = false, game = 'mua', width = 600, height = 900 } = {}) {
     const calls = [];
     const backend = { handle(command, data) {
         calls.push({ command, data });
@@ -14,7 +14,7 @@ function setup({ record = {}, picked, choice = 0, imageFails = false, convert = 
         }
         if (command === 'reset-artwork') {
             if (data.kind) delete record[data.kind];
-            else { delete record.capsule; delete record.hero; }
+            else { delete record.capsule; delete record.hero; delete record.icon; }
             return true;
         }
         return null;
@@ -24,7 +24,7 @@ function setup({ record = {}, picked, choice = 0, imageFails = false, convert = 
     const p = page({ scripts, backend });
     const images = [];
     p.window.Image = class {
-        constructor() { this.naturalWidth = 600; this.naturalHeight = 900; images.push(this); }
+        constructor() { this.naturalWidth = width; this.naturalHeight = height; images.push(this); }
         set src(value) {
             this.url = value;
             Promise.resolve().then(() => {
@@ -52,11 +52,11 @@ test('artwork: defaults, managed overrides, and reset cover both card and banner
     await p.art.loadAll();
     assert.equal(p.utils.getGameConfig('mua').capsulePath, '/custom-art/mua/capsule/12.png');
     assert.equal(p.utils.getHeroImagePath('mua'), '/custom-art/mua/hero/34.jpg');
-    assert.equal(p.art.menuItems('mua').length, 3);
+    assert.equal(p.art.menuItems('mua').length, 4);
     await p.art.reset('mua');
     assert.equal(p.utils.getGameConfig('mua').capsulePath, defaults.capsulePath);
     assert.equal(p.utils.getHeroImagePath('mua'), defaults.heroImagePath);
-    assert.equal(p.art.menuItems('mua').length, 2);
+    assert.equal(p.art.menuItems('mua').length, 3);
 });
 
 async function renderArtworkSurfaces(p) {
@@ -219,7 +219,9 @@ test('artwork: library context menu exposes change actions and conditional reset
     let menu = p.document.querySelector('.library-card-menu');
     assert.match(menu.textContent, /Change artwork\.\.\./);
     assert.match(menu.textContent, /Change banner\.\.\./);
+    assert.match(menu.textContent, /Change icon\.\.\./);
     assert.doesNotMatch(menu.textContent, /Reset artwork/);
+    assert.doesNotMatch(menu.textContent, /Reset icon/);
     p.record.hero = '/custom-art/mua/hero/12.png';
     await p.art.load('mua');
     card.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
@@ -230,10 +232,19 @@ test('artwork: library context menu exposes change actions and conditional reset
 
 test('artwork: every supported language supplies the new artwork labels', () => {
     const p = setup();
+    const labels = {
+        en: ['Change icon...', 'Reset icon'],
+        fr: ['Changer l’icône...', 'Réinitialiser l’icône'],
+        es: ['Cambiar icono...', 'Restablecer icono'],
+        ru: ['Изменить значок...', 'Сбросить значок']
+    };
+    p.art.records.mua = { icon: '/custom-art/mua/icon/12.png' };
     for (const language of ['en', 'fr', 'es', 'ru']) {
         p.window.LauncherI18n.setLanguage(language);
         assert.equal(p.art.menuItems('mua')[0].label, 'Change artwork...');
         assert.equal(p.art.menuItems('mua')[1].label, 'Change banner...');
+        assert.equal(p.art.menuItems('mua')[2].label, labels[language][0]);
+        assert.equal(p.art.menuItems('mua')[3].label, labels[language][1]);
     }
 });
 
@@ -264,6 +275,140 @@ test('artwork: keyboard and pad reach the menu, preview, and Escape cancellation
     nav.sync();
     assert.equal(modal.classList.contains('visible'), false);
     assert.equal(p.calls.find(c => c.command === 'confirm-artwork').data.cancel, true);
+    assert.equal(p.document.activeElement, card);
+});
+
+test('artwork: icon preview updates existing sidebar nodes and survives a fresh UI session for every game', async () => {
+    for (const game of ['mua', 'mua2', 'xml2', 'muac', 'xml1']) {
+        const record = {};
+        const p = setup({ game, record });
+        p.window.AppViews.renderSidebarGames();
+        const item = p.document.querySelector(`.sidebar .game-item[data-game="${game}"]`);
+        const image = item.querySelector('img');
+        const title = item.getAttribute('aria-label');
+        const other = p.document.querySelector(`.sidebar .game-item[data-game="${game === 'mua' ? 'xml1' : 'mua'}"] img`);
+        const otherSrc = other.getAttribute('src');
+        const capsule = p.utils.getGameConfig(game).capsulePath;
+        // Simulate the existing sidebar fallback when a bundled ICO could not load.
+        image.setAttribute('src', capsule);
+        await p.art.change(game, 'icon');
+        assert.match(p.messages[0][1], /artwork-preview-icon/);
+        assert.equal(p.calls.find(c => c.command === 'pick-artwork').data.title, 'Change icon...');
+        assert.equal(image.getAttribute('src'), `/custom-art/${game}/icon/abc.png`);
+        assert.equal(item.querySelector('img'), image, 'keep the live sidebar node and its focus/listeners');
+        assert.equal(item.getAttribute('aria-label'), title);
+        assert.equal(other.getAttribute('src'), otherSrc);
+        assert.equal(p.utils.getGameConfig(game).capsulePath, capsule);
+        const restarted = setup({ game, record });
+        await restarted.art.loadAll();
+        restarted.window.AppViews.renderSidebarGames();
+        assert.equal(restarted.document.querySelector(`.game-item[data-game="${game}"] img`).getAttribute('src'), `/custom-art/${game}/icon/abc.png`);
+        await restarted.art.reset(game, 'icon');
+        assert.equal(restarted.document.querySelector(`.game-item[data-game="${game}"] img`).getAttribute('src'), restarted.utils.GAME_CONFIGS[game].iconPath);
+    }
+});
+
+test('artwork: Reset icon preserves cards and banners; Reset artwork clears every kind', async () => {
+    const record = { capsule: '/custom-art/mua/capsule/12.png', hero: '/custom-art/mua/hero/34.jpg', icon: '/custom-art/mua/icon/56.png' };
+    const p = setup({ record });
+    await p.art.loadAll();
+    p.window.AppViews.renderLibrary();
+    const card = p.document.querySelector('.library-card[data-game="mua"]');
+    card.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+    const reset = p.document.querySelectorAll('.library-card-menu-item').find(button => button.textContent === 'Reset icon');
+    assert.ok(reset);
+    reset.click();
+    await settle();
+    assert.equal(p.utils.getIconPath('mua'), p.utils.GAME_CONFIGS.mua.iconPath);
+    assert.equal(p.utils.getGameConfig('mua').capsulePath, record.capsule);
+    assert.equal(p.utils.getHeroImagePath('mua'), record.hero);
+    assert.equal(p.calls.find(c => c.command === 'reset-artwork').data.kind, 'icon');
+    await p.art.change('mua', 'icon');
+    await p.art.reset('mua');
+    assert.deepEqual(record, {});
+    assert.equal(p.utils.getIconPath('mua'), p.utils.GAME_CONFIGS.mua.iconPath);
+});
+
+test('artwork: broken and stale icon errors restore only the current icon default', async () => {
+    const p = setup({ record: { icon: '/custom-art/mua/icon/12.png', capsule: '/custom-art/mua/capsule/34.png' } });
+    await p.art.loadAll();
+    p.window.AppViews.renderSidebarGames();
+    const image = p.document.querySelector('.game-item[data-game="mua"] img');
+    p.record.icon = '/custom-art/mua/icon/56.png';
+    await p.art.load('mua', true);
+    // The original icon probe is after the capsule probe.
+    p.images[1].onerror();
+    await settle();
+    assert.equal(image.getAttribute('src'), '/custom-art/mua/icon/56.png');
+    assert.equal(p.calls.filter(c => c.command === 'reset-artwork').length, 0);
+    const error = new p.window.Event('error');
+    image.dispatchEvent(error);
+    await settle();
+    assert.equal(error.stopped, true, 'stop the sidebar capsule fallback for a managed icon failure');
+    assert.equal(image.getAttribute('src'), p.utils.GAME_CONFIGS.mua.iconPath);
+    assert.equal(p.utils.getGameConfig('mua').capsulePath, '/custom-art/mua/capsule/34.png');
+    assert.equal(p.calls.find(c => c.command === 'reset-artwork').data.record, '56.png');
+});
+
+test('artwork: invalid icon records, refused files, oversized images and cancellation preserve the existing icon', async () => {
+    for (const options of [
+        { picked: { error: true } }, { imageFails: true }, { width: 4001, height: 4000 }, { width: 0 },
+        { picked: { record: 'abc.png', preview: 'https://example.invalid/icon.png' } },
+        { picked: { record: 'abc.png', preview: '/custom-art/mua/icon/../../abc.png' } }, { choice: 1 }
+    ]) {
+        const p = setup({ ...options, record: { icon: '/custom-art/mua/icon/12.png' } });
+        // Install the existing state without loading probes that the decode-failure fixture would reject.
+        p.art.records.mua = { icon: p.record.icon };
+        await p.art.change('mua', 'icon');
+        assert.equal(p.utils.getIconPath('mua'), '/custom-art/mua/icon/12.png');
+        assert.equal(p.calls.some(c => c.command === 'confirm-artwork' && !c.data.cancel), false);
+    }
+    const p = setup({ record: { icon: '/custom-art/mua/hero/12.png' } });
+    await p.art.loadAll();
+    assert.equal(p.utils.getIconPath('mua'), p.utils.GAME_CONFIGS.mua.iconPath);
+});
+
+test('artwork: pad context menu reaches Change icon, Use artwork, Cancel and Reset icon', async () => {
+    const p = setup({ focus: true });
+    p.document.getElementById('home-page').style.display = 'none';
+    p.document.getElementById('library-page').style.display = 'block';
+    p.window.AppViews.renderLibrary();
+    p.window.AppViews.renderSidebarGames();
+    const nav = p.window.FocusNav;
+    const card = p.document.querySelector('.library-card[data-game="mua"]');
+    const reach = label => {
+        // The harness has no layout: give buttons vertical rectangles so this exercises
+        // real D-pad spatial navigation, including membership in the focus candidate list.
+        nav.setRectSource(element => {
+            const buttons = p.document.querySelectorAll('.library-card-menu-item, .mb-buttons button');
+            const index = buttons.indexOf(element);
+            return { left: 20, top: 20 + Math.max(0, index) * 40, width: 180, height: 30,
+                right: 200, bottom: 50 + Math.max(0, index) * 40 };
+        });
+        for (let i = 0; i < 20 && p.document.activeElement.textContent !== label; i++) nav.press('ArrowDown', 'pad');
+        assert.equal(p.document.activeElement.textContent, label);
+    };
+    const open = () => { card.focus(); nav.press('ContextMenu', 'pad'); nav.sync(); };
+    open();
+    reach('Change icon...');
+    nav.press('Enter', 'pad');
+    await settle(); nav.sync();
+    const modal = p.document.getElementById('message-box');
+    assert.ok(modal.querySelector('.artwork-preview-icon'));
+    assert.equal(p.document.activeElement.textContent, 'Use artwork');
+    nav.press('Enter', 'pad');
+    await settle(); nav.sync();
+    assert.equal(p.utils.getIconPath('mua'), '/custom-art/mua/icon/abc.png');
+    assert.equal(p.document.activeElement, card);
+    open(); reach('Change icon...'); nav.press('Enter', 'pad');
+    await settle(); nav.sync();
+    reach('Cancel'); nav.press('Enter', 'pad');
+    await settle(); nav.sync();
+    assert.equal(p.calls.filter(c => c.command === 'confirm-artwork' && c.data.cancel).length, 1);
+    assert.equal(p.document.activeElement, card);
+    open(); reach('Reset icon'); nav.press('Enter', 'pad');
+    await settle(); nav.sync();
+    assert.equal(p.utils.getIconPath('mua'), p.utils.GAME_CONFIGS.mua.iconPath);
     assert.equal(p.document.activeElement, card);
 });
 

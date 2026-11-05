@@ -21,10 +21,12 @@ Ultimate Legends never downloads or distributes game files. Every game runs from
 
 ## Custom artwork
 
-Right-click a game in the Library or on Home and choose **Change artwork...** for its card or
-**Change banner...** for its game-page background. The keyboard menu key (or Shift+F10) and the
-controller's context-menu action open the same menu. Pick your own local PNG, JPEG or WebP, review
-the centered crop, then choose **Use artwork**. **Reset artwork** restores both defaults.
+Right-click a game in the Library or on Home and choose **Change artwork...** for its card,
+**Change banner...** for its game-page background, or **Change icon...** for its square sidebar icon.
+The keyboard menu key (or Shift+F10) and the controller's context-menu action open the same menu.
+Pick your own local PNG, JPEG or WebP, review
+the centered crop, then choose **Use artwork**. **Reset icon** restores just the default icon;
+**Reset artwork** restores the card, banner and icon defaults.
 
 Images must be at most 20 MiB and 16 million pixels. The launcher keeps its own copy in its user-data
 folder, including in portable mode; the source stays unchanged. WebP is saved as PNG. Artwork is

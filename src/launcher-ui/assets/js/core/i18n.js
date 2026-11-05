@@ -11,6 +11,8 @@
             artwork: {
                 change: 'Change artwork...',
                 changeBanner: 'Change banner...',
+                changeIcon: 'Change icon...',
+                resetIcon: 'Reset icon',
                 reset: 'Reset artwork',
                 preview: 'Preview artwork',
                 previewBody: 'The image is cropped to fill this area. Only a copy is saved locally; nothing is uploaded.',
@@ -1372,6 +1374,8 @@
             artwork: {
                 change: 'Change artwork...',
                 changeBanner: 'Change banner...',
+                changeIcon: 'Changer l’icône...',
+                resetIcon: 'Réinitialiser l’icône',
                 reset: 'Reset artwork',
                 preview: 'Preview artwork',
                 previewBody: 'The image is cropped to fill this area. Only a copy is saved locally; nothing is uploaded.',
@@ -2049,6 +2053,8 @@
             artwork: {
                 change: 'Change artwork...',
                 changeBanner: 'Change banner...',
+                changeIcon: 'Cambiar icono...',
+                resetIcon: 'Restablecer icono',
                 reset: 'Reset artwork',
                 preview: 'Preview artwork',
                 previewBody: 'The image is cropped to fill this area. Only a copy is saved locally; nothing is uploaded.',
@@ -2726,6 +2732,8 @@
             artwork: {
                 change: 'Change artwork...',
                 changeBanner: 'Change banner...',
+                changeIcon: 'Изменить значок...',
+                resetIcon: 'Сбросить значок',
                 reset: 'Reset artwork',
                 preview: 'Preview artwork',
                 previewBody: 'The image is cropped to fill this area. Only a copy is saved locally; nothing is uploaded.',

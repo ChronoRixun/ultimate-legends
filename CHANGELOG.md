@@ -3,7 +3,7 @@
 The launcher's version comes from its release tag (`v0.3.2`): premake reads it with `git describe` when it
 generates the project, so a release only needs this entry and the tag.
 
-## 0.6.0-beta.1 (unreleased)
+## 0.6.0-beta.1 (2026-11-05: a pre-release for the Beta update channel)
 
 ### Added
 - **Custom sidebar game icons.** Open a Library or Home card menu (right-click, keyboard menu key or

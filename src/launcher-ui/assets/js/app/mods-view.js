@@ -52,6 +52,9 @@
 
     function rowHTML(mod, index, count) {
         const title = mod.title || mod.name;
+        // The list is replaced after edits/refreshes. Keep each row's actions
+        // distinct so controller/keyboard focus returns to the same mod.
+        const focus = action => `data-focus="${escapeHtml(`mod-${mod.name}-${action}`)}"`;
         const details = [
             mod.version ? t('mods.version', { version: mod.version }) : '',
             mod.author ? t('mods.by', { author: mod.author }) : '',
@@ -61,7 +64,7 @@
         return `
             <li class="ul-mod${mod.enabled ? '' : ' is-disabled'}" data-name="${escapeHtml(mod.name)}">
                 <label class="ul-mod-toggle" title="${escapeHtml(t(mod.enabled ? 'mods.disable' : 'mods.enable'))}">
-                    <input type="checkbox" class="ul-mod-enabled"${mod.enabled ? ' checked' : ''}>
+                    <input type="checkbox" class="ul-mod-enabled" ${focus('enabled')}${mod.enabled ? ' checked' : ''}>
                     <span class="ul-mod-switch"></span>
                 </label>
                 <div class="ul-mod-info">
@@ -70,12 +73,12 @@
                     ${mod.description ? `<div class="ul-mod-description">${escapeHtml(mod.description)}</div>` : ''}
                 </div>
                 <div class="ul-mod-order">
-                    <button class="ul-mod-icon-button ul-mod-up" title="${escapeHtml(t('mods.moveUp'))}"${index === 0 ? ' disabled' : ''}>&#9650;</button>
-                    <button class="ul-mod-icon-button ul-mod-down" title="${escapeHtml(t('mods.moveDown'))}"${index === count - 1 ? ' disabled' : ''}>&#9660;</button>
+                    <button class="ul-mod-icon-button ul-mod-up" ${focus('up')} title="${escapeHtml(t('mods.moveUp'))}"${index === 0 ? ' disabled' : ''}>&#9650;</button>
+                    <button class="ul-mod-icon-button ul-mod-down" ${focus('down')} title="${escapeHtml(t('mods.moveDown'))}"${index === count - 1 ? ' disabled' : ''}>&#9660;</button>
                 </div>
                 <div class="ul-mod-actions">
-                    <button class="secondary-action ul-mod-open" title="${escapeHtml(t('mods.openModFolder'))}"><span class="secondary-action-icon folder-icon"></span></button>
-                    <button class="secondary-action ul-mod-remove" title="${escapeHtml(t('mods.remove'))}">${escapeHtml(t('mods.remove'))}</button>
+                    <button class="secondary-action ul-mod-open" ${focus('open')} title="${escapeHtml(t('mods.openModFolder'))}"><span class="secondary-action-icon folder-icon"></span></button>
+                    <button class="secondary-action ul-mod-remove" ${focus('remove')} title="${escapeHtml(t('mods.remove'))}">${escapeHtml(t('mods.remove'))}</button>
                 </div>
             </li>`;
     }

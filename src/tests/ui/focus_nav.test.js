@@ -183,6 +183,64 @@ test('focus nav: the context menu key opens a card\'s menu where the card is', (
 
 // ---- toggles, selects, text ----
 
+test('focus nav: collapsed details exclude controls even when they retain layout boxes', () => {
+    const t = open(`
+        <button id="above" data-rect="0,0,100,30">Above</button>
+        <details id="outer"><summary id="summary" data-rect="0,60,200,30"><span id="label">More</span></summary>
+            <button id="hidden" data-rect="0,100,100,30">Hidden</button>
+            <details open><summary id="nested" data-rect="0,140,100,30">Nested</summary></details>
+        </details>
+        <button id="below" data-rect="0,200,100,30">Below</button>`);
+    // Geometry alone is insufficient: some Chromium versions lay out closed content.
+    for (const id of ['summary', 'hidden', 'nested']) t.$(`#${id}`).getClientRects = () => [{}];
+    assert.equal(t.nav.isFocusable(t.$('#summary')), true);
+    assert.equal(t.nav.isFocusable(t.$('#hidden')), false);
+    assert.equal(t.nav.isFocusable(t.$('#nested')), false, 'an open inner fold is still hidden by its parent');
+    t.$('#summary').focus();
+    t.key('ArrowDown'); assert.equal(t.focused().id, 'below');
+    t.key('ArrowUp'); assert.equal(t.focused().id, 'summary');
+    t.key('Enter');
+    t.key('ArrowDown'); assert.equal(t.focused().id, 'hidden');
+    t.$('#outer').open = false;
+    t.$('#above').focus();
+    t.key('ArrowDown'); assert.equal(t.focused().id, 'summary');
+    t.$('#outer').setAttribute('tabindex', '0');
+    assert.equal(t.nav.isFocusable(t.$('#outer')), true, 'a closed fold can itself have an explicit tab stop');
+});
+
+test('focus nav: redraw recovery distinguishes modes with the same tag and class', () => {
+    const t = open('<div id="modes"></div>');
+    const modes = '<button class="toggle-btn" data-focus="mode-off">Off</button><button class="toggle-btn" data-focus="mode-community">Community</button>';
+    t.$('#modes').innerHTML = modes;
+    t.$('[data-focus="mode-community"]').focus();
+    t.key('Tab');
+    t.$('#modes').innerHTML = modes;
+    t.document.activeElement = t.document.body;
+    t.nav.sync();
+    assert.equal(t.focused().dataset.focus, 'mode-community');
+});
+
+for (const game of ['xml1', 'mua', 'mua2']) test(`focus nav: ${game} Mods redraw preserves the focused row and action`, async () => {
+    const p = page({
+        scripts: ['core/utils.js', 'core/i18n.js', 'core/focus-nav.js', 'app/mods-view.js'],
+        body: `<div class="content-area"><div class="page-section" id="${game}-page"><div id="${game}-mods-panel"></div></div></div>`,
+        backend: { handle: () => ({ installed: true, mods: ['first', 'second', 'third'].map(name => ({ name, enabled: true })) }) }
+    });
+    p.document.querySelector('.window').hidden = true;
+    const rows = () => p.document.querySelectorAll('.ul-mod');
+    p.window.ModsView.render(game);
+    await p.clock.advance(0);
+    p.window.FocusNav.press('Tab');
+    for (const control of ['ul-mod-enabled', 'ul-mod-up', 'ul-mod-down', 'ul-mod-open', 'ul-mod-remove']) {
+        rows()[1].querySelector(`.${control}`).focus();
+        p.window.ModsView.render(game);
+        await p.clock.advance(0);
+        p.document.activeElement = p.document.body;
+        p.window.FocusNav.sync();
+        assert.ok(p.document.activeElement === rows()[1].querySelector(`.${control}`), `${control} stays on the second mod`);
+    }
+});
+
 test('focus nav: Left and Right switch a toggle group and stay put at either end', () => {
     const t = open(`
         <div class="toggle-group small" id="group">

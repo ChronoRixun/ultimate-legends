@@ -11,7 +11,7 @@ namespace artwork {
     inline bool game_id(std::string_view game) {
         return game == "mua" || game == "mua2" || game == "xml2" || game == "muac" || game == "xml1";
     }
-    inline bool kind_id(std::string_view kind) { return kind == "capsule" || kind == "hero"; }
+    inline bool kind_id(std::string_view kind) { return kind == "capsule" || kind == "hero" || kind == "icon"; }
     inline std::string image_type(std::string_view bytes) {
         if (bytes.empty() || bytes.size() > max_bytes) return {};
         if (bytes.starts_with(std::string_view("\x89PNG\r\n\x1a\n", 8))) return "png";

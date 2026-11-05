@@ -143,7 +143,8 @@ class GameUtils {
         if (!config) return null;
         const custom = window.Artwork && window.Artwork.records[game];
         return custom ? { ...config, capsulePath: custom.capsule || config.capsulePath,
-            heroImagePath: custom.hero || config.heroImagePath } : config;
+            heroImagePath: custom.hero || config.heroImagePath,
+            iconPath: custom.icon || config.iconPath } : config;
     }
 
     /**

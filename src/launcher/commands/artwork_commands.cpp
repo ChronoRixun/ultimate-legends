@@ -27,7 +27,7 @@ namespace commands::artwork_commands {
             const auto config = game_config::get_game_config(game);
             if (!config) return;
             const auto root = utils::properties::get_appdata_path();
-            for (const auto kind : {"capsule", "hero"}) {
+            for (const auto kind : {"capsule", "hero", "icon"}) {
                 const auto record = config->get(property(kind)).value_or("");
                 if (record.empty()) continue;
                 const auto path = artwork::managed_path(root, game, kind, record);
@@ -142,7 +142,7 @@ namespace commands::artwork_commands {
             const auto requested = member(value, "kind");
             const auto expected = member(value, "record");
             bool cleared = true;
-            for (const auto kind : {"capsule", "hero"}) {
+            for (const auto kind : {"capsule", "hero", "icon"}) {
                 if (!requested.empty() && requested != kind) continue;
                 const auto previous = config->get(property(kind)).value_or("");
                 if (!expected.empty() && previous != expected) continue;

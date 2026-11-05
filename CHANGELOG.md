@@ -3,6 +3,15 @@
 The launcher's version comes from its release tag (`v0.3.2`): premake reads it with `git describe` when it
 generates the project, so a release only needs this entry and the tag.
 
+## 0.6.0-beta.1 (unreleased)
+
+### Added
+- **Custom sidebar game icons.** Open a Library or Home card menu (right-click, keyboard menu key or
+  controller Y), choose **Change icon...**, preview the square centered crop and choose **Use artwork**.
+  **Reset icon** restores that icon alone; **Reset artwork** restores all custom images for the game.
+  Icons use the same local-only PNG, JPEG and WebP artwork store, 20 MiB / 16 million pixel limits,
+  restart persistence and missing-image fallback as cards and banners, including under Proton.
+
 ## 0.5.0 (2026-11-05)
 
 The stable release of the eight 0.5.0 betas (below): character models for X-Men Legends, Marvel: Ultimate Alliance

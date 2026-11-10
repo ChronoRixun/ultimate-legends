@@ -27,6 +27,7 @@
 #include "fix/online_status.hpp"
 #include "muac/settings.hpp"
 #include "muac/runtime_update.hpp"
+#include "muac/setup.hpp"
 
 #include <map>
 
@@ -814,7 +815,15 @@ namespace commands::game_commands
             path_value.SetString(path.data(), static_cast<rapidjson::SizeType>(path.size()), allocator);
             response.AddMember("path", path_value, allocator);
             response.AddMember("valid", updater.is_install_valid(), allocator);
-            response.AddMember("hasPatch", !config->update_manifest_url.empty(), allocator);
+            response.AddMember("hasPatch", config->game_key == "muac" || !config->update_manifest_url.empty(), allocator);
+            if (config->game_key == "muac")
+            {
+                rapidjson::Value missing(rapidjson::kArrayType);
+                if (const auto folder = config->get_install_path(); folder && updater.is_install_valid())
+                    for (const auto& name : muac::missing_runtime(*folder))
+                        missing.PushBack(rapidjson::Value(name.c_str(), allocator), allocator);
+                response.AddMember("missingRuntime", missing, allocator);
+            }
         });
 
         // The game page's patch line: the release installed in the game folder and the latest one
@@ -841,6 +850,18 @@ namespace commands::game_commands
             const auto consent = downgrade_consent(value);
             response.SetObject();
             auto& allocator = response.GetAllocator();
+
+            // MUAC installs a checked runtime bundle, not a generic patch manifest.
+            // Its UI polls get-muac-setup; direct callers get an explicit handoff.
+            if (config->game_key == "muac")
+            {
+                std::string error;
+                const bool started = muac_setup::start_update(error, true);
+                response.AddMember("accepted", started, allocator);
+                response.AddMember("statusCommand", "get-muac-setup", allocator);
+                if (!started) response.AddMember("error", rapidjson::Value(error.c_str(), allocator), allocator);
+                return;
+            }
 
             // Patch work in the game's folder until the worker's last line (never during a built game's build).
             std::shared_ptr<updater::folder_work> work;

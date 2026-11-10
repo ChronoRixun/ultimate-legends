@@ -17,6 +17,7 @@
     let returnFocus;
     let formError = '';
     let updating = false, opening = false;
+    let repairing = false;
     function hide() {
         host?.remove(); host = null;
         if (!last.active) { clearTimeout(timer); timer = null; }
@@ -105,20 +106,21 @@
             if (act === 'start') {
                 if (!updating && (!source.trim() || !output.trim())) throw new Error(t('setupPaths'));
                 starting = true; last = {}; formError = ''; notified = false; render();
-                const result = updating ? await run('start-muac-update') : await run('start-muac-setup', { source: source.trim(), output: output.trim() });
+                const result = updating ? await run('start-muac-update', { repair: repairing }) : await run('start-muac-setup', { source: source.trim(), output: output.trim() });
                 if (!result?.success) throw new Error(result?.error || t('setupFailed'));
                 last = await run('get-muac-setup');
             }
         } catch (error) { formError = error.message || String(error); }
         finally { starting = false; render(); }
     }
-    async function show(update = false) {
+    async function show(update = false, repair = false) {
         if (host || opening) return false;
         opening = true;
         try {
             returnFocus = document.activeElement;
             try { last = await run('get-muac-setup'); } catch (_) { last = {}; }
             updating = last.active ? !!last.updating : update;
+            repairing = repair;
             if (!last.active && (update || updating !== !!last.updating)) last = {};
             formError = ''; notified = false;
             host = document.createElement('div');
@@ -131,8 +133,8 @@
             return true;
         } finally { opening = false; }
     }
-    async function showUpdate() {
-        if (await show(true) && !last.active && updating) {
+    async function showUpdate(repair = false) {
+        if (await show(true, repair) && !last.active && updating) {
             const start = host?.querySelector('[data-act="start"]');
             if (start) { start.focus(); await action({ target: start }); }
         }

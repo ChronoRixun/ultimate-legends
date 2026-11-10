@@ -1915,6 +1915,10 @@ async function verifyGame(gameId, op = 'verify') {
 
     if (!await window.guardOnline()) return false;
 
+    if (gameId === 'muac' && window.MuacSetup) {
+        return window.MuacSetup.showUpdate(true);
+    }
+
     const gameMapping = GameUtils.getGameMapping(gameId);
     const displayName = window.GameInstallationManager.getGameDisplayName(gameId);
 

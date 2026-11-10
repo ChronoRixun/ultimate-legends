@@ -345,10 +345,10 @@ std::optional<std::string> record_version(const std::string& json, const std::st
         return release_channel::is_version(version) ? std::optional(version) : std::nullopt;
     } catch (const std::exception&) { return std::nullopt; }
 }
-bool newer_compatible(const std::string& installed, const std::string& latest, const std::string& minimum, const std::string& launcher, bool wine_migration) {
+bool newer_compatible(const std::string& installed, const std::string& latest, const std::string& minimum, const std::string& launcher, bool wine_migration, bool repair) {
     return release_channel::is_version(latest) && (minimum.empty() || (release_channel::is_version(minimum) && release_channel::compare(launcher, minimum) >= 0)) &&
         (installed.empty() || release_channel::compare(latest, installed) > 0 ||
-         (wine_migration && release_channel::compare(latest, "0.2.2") >= 0 && release_channel::compare(latest, installed) == 0));
+         ((repair || (wine_migration && release_channel::compare(latest, "0.2.2") >= 0)) && release_channel::compare(latest, installed) == 0));
 }
 bool needs_wine_migration(const std::filesystem::path& folder, bool wine) {
     std::error_code ec;

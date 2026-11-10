@@ -27,7 +27,7 @@ namespace muac::runtime {
     package parse_package(const std::string& json, const std::string& expected_version);
     std::optional<std::string> record_version(const std::string& json, const std::string& dll_sha256 = {});
     bool newer_compatible(const std::string& installed, const std::string& latest,
-                          const std::string& minimum, const std::string& launcher, bool wine_migration = false);
+                          const std::string& minimum, const std::string& launcher, bool wine_migration = false, bool repair = false);
     bool needs_wine_migration(const std::filesystem::path& folder, bool wine = platform::is_wine());
     std::string read_file(const std::filesystem::path& path, std::uint64_t maximum = 128 * 1024 * 1024);
     // For read-only status checks (version record, recovery state): no link guard, size-capped.

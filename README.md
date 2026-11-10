@@ -48,6 +48,14 @@ are not required. Game.exe remains unchanged. You can hide or cancel setup; an i
 is never registered as ready. A missing setup release is reported explicitly.
 See [managed setup](docs/muac-managed-setup.md) for the companion release contract.
 
+For a working 2006 PC installation, choose **Use a working installation** and select the game
+root containing `Game.exe`, `libIGCore.dll`, `libIGGfx.dll`, `data/herostat.engb` and `build.ini`.
+No importer stamp is required. A folder already containing the compatibility components is ready
+immediately; otherwise **Finish Setup** installs them into that folder while keeping game files,
+mods, saves and existing settings. **Verify Files** repairs those components through the same
+installer. Select a nested game folder itself; the launcher does not search its parent or `data`
+folder. The 2016 Steam release (`Marvel.exe`) uses the separate Marvel: Ultimate Alliance entry.
+
 ## X-Men Legends (community port)
 
 X-Men Legends (2004) never came to PC. [Legends Classic](https://github.com/ChronoRixun/legends-classic), a

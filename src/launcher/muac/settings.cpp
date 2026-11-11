@@ -5,7 +5,9 @@
 #include <utils/io.hpp>
 #include <utils/string.hpp>
 #include <utils/properties.hpp>
+#include <algorithm>
 #include <charconv>
+#include <iterator>
 
 namespace muac {
 namespace {
@@ -61,20 +63,24 @@ namespace {
         while(!text.empty() && text.back()==L'\0') text.pop_back();
         return utils::string::convert(text);
     }
-    bool is_muac_fix(const std::filesystem::path& file) {
+    std::optional<std::uint64_t> muac_fix_version(const std::filesystem::path& file) {
         DWORD ignored{}; const auto size=GetFileVersionInfoSizeW(file.c_str(),&ignored);
-        if(!size || size>1024*1024) return false;
+        if(!size || size>1024*1024) return std::nullopt;
         std::vector<BYTE> data(size); wchar_t* description{}; UINT length{}; VS_FIXEDFILEINFO* version{};
         if(!GetFileVersionInfoW(file.c_str(),0,size,data.data()) ||
            !VerQueryValueW(data.data(),L"\\",reinterpret_cast<void**>(&version),&length) ||
-           !version || length<sizeof(*version) || version->dwSignature!=0xfeef04bd) return false;
+           !version || length<sizeof(*version) || version->dwSignature!=0xfeef04bd) return std::nullopt;
         const auto number=(static_cast<std::uint64_t>(version->dwFileVersionMS)<<32)|version->dwFileVersionLS;
-        if(number<0x0000000100010000ULL) return false; // 0.1.1: process cursor guard and background option.
         if(!VerQueryValueW(data.data(),L"\\StringFileInfo\\040904b0\\FileDescription",reinterpret_cast<void**>(&description),&length) ||
-           !description || !length || length>80) return false;
+           !description || !length || length>80) return std::nullopt;
         std::wstring_view text(description,length);
         if(text.back()==L'\0') text.remove_suffix(1);
-        return text==L"MUA Classic Fix";
+        if(text!=L"MUA Classic Fix") return std::nullopt;
+        return number;
+    }
+    bool is_muac_fix(const std::filesystem::path& file) {
+        const auto version=muac_fix_version(file);
+        return version && *version>=0x0000000100010000ULL; // 0.1.1: process cursor guard and background option.
     }
     bool integer(const std::string& text, int& number) {
         const auto [end,error]=std::from_chars(text.data(),text.data()+text.size(),number);
@@ -129,6 +135,38 @@ std::optional<std::string> normalise(const std::string& key, const std::string& 
     return std::nullopt;
 }
 
+std::string dgvoodoo_mode(const std::string& resolution) {
+    // 60 Hz: the rate the game's own mode filter wants (it drops modes below 60 Hz).
+    return resolution+"@60";
+}
+
+bool retail_resolution(const std::string& value) {
+    // Game.exe's own list (0x833ea8/0x833ee0); its mode filter keeps nothing else.
+    static constexpr std::string_view retail[]={"640x480","720x480","800x600","1024x768","1280x720","1280x768",
+        "1280x960","1280x1024","1440x900","1600x1200","1680x1050","1920x1080","1920x1200","2048x1536"};
+    return std::find(std::begin(retail),std::end(retail),value)!=std::end(retail);
+}
+
+bool resolution_supported(const std::string& value, bool guard) {
+    const auto checked=normalise("Resolution",value);
+    return checked && (guard || retail_resolution(*checked));
+}
+
+bool resolution_guard(const std::filesystem::path& folder) {
+    const auto version=muac_fix_version(folder/L"dinput8.dll");
+    return version && *version>=resolution_guard_version;
+}
+
+bool enumerate_saved_resolution(const std::filesystem::path& folder, std::string& error, bool wine) {
+    if(wine) return true;
+    const auto saved=normalise("Resolution",resolution());
+    if(!saved) return true;
+    const auto graphics=folder/L"dgVoodoo.conf";
+    const auto wanted=dgvoodoo_mode(*saved);
+    if(key_value(graphics,L"DirectXExt","ExtraEnumeratedResolutions","")==wanted) return true;
+    return fix_ini::write(graphics,L"DirectXExt",{{"ExtraEnumeratedResolutions",wanted}},error);
+}
+
 std::vector<std::string> missing_runtime(const std::filesystem::path& folder, bool wine) {
     std::vector<std::string> missing;
     if(runtime::recovery_pending(folder)) missing.push_back(runtime::pending_message);
@@ -146,6 +184,7 @@ bool write(const std::filesystem::path& folder, const values& requested, std::st
         }
         const auto checked=normalise(key,value);
         if(!checked) {error="Invalid MUAC setting: "+key;return false;}
+        if(key=="Resolution" && !resolution_supported(*checked,resolution_guard(folder))) {error=resolution_message;return false;}
         changes.emplace(key,*checked);
     }
     if(changes.empty()){error="No settings were supplied.";return false;}
@@ -183,6 +222,11 @@ bool write(const std::filesystem::path& folder, const values& requested, std::st
         } else if(key=="OnlineService") {
             put(input,L"Online",{{"Domain",value=="openspy"?"openspy.net":"off"},{"Server",std::nullopt}});
         }
+    }
+    if(ok && changes.contains("Resolution")) {
+        // libIGGfx only creates its device for a size the Direct3D 9 adapter (dgVoodoo) lists;
+        // otherwise the game shows "Display failed!" and faults at libIGGfx+0x5264 (#31).
+        if(!wine) put(graphics,L"DirectXExt",{{"ExtraEnumeratedResolutions",dgvoodoo_mode(changes.at("Resolution"))}});
     }
     if(ok && changes.contains("Resolution")) {
         const auto wide=utils::string::convert(changes.at("Resolution"));

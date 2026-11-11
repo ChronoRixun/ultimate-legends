@@ -56,6 +56,12 @@ mods, saves and existing settings. **Verify Files** repairs those components thr
 installer. Select a nested game folder itself; the launcher does not search its parent or `data`
 folder. The 2016 Steam release (`Marvel.exe`) uses the separate Marvel: Ultimate Alliance entry.
 
+MUA 2006 itself only knows 14 resolutions (640 × 480 up to 1920 × 1200, plus 2048 × 1536); any other
+saved size, such as 2560 × 1440 or 3840 × 2160, crashes the original game at startup. MUA Classic Fix
+0.1.2 or newer removes that limit, and the launcher then offers every resolution your primary monitor
+reports. With an older MUA Classic Fix the launcher offers only the original sizes and asks you to
+choose one before playing if a different size was saved earlier.
+
 ## X-Men Legends (community port)
 
 X-Men Legends (2004) never came to PC. [Legends Classic](https://github.com/ChronoRixun/legends-classic), a

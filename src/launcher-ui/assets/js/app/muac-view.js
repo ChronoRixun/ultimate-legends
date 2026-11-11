@@ -13,13 +13,15 @@
         const current = data.values[key];
         const choices = options.slice();
         if (!choices.some(([value]) => value === current)) choices.push([current,
-            key === 'OnlineService' && current === 'custom' ? t('muac.customService') : t('muac.custom', { value: current })]);
+            key === 'Resolution' && data.resolutionSupported === false ? t('muac.unsupportedResolution', { value: current }) :
+            key === 'OnlineService' && current === 'custom' ? t('muac.customService') : t('muac.custom', { value: current }),
+            key === 'Resolution' && data.resolutionSupported === false]);
         return `<div class="ul-display-row" data-row="${esc(key)}">
             <div class="ul-display-info"><label class="ul-display-label" for="muac-${esc(key)}">${esc(t(title))}</label>
                 <span class="ul-display-description">${esc(t(body))}</span></div>
             <div class="ul-display-control"><select id="muac-${esc(key)}" class="setting-select" data-muac-setting="${esc(key)}"
-                ${data.running || busy ? 'disabled' : ''}>${choices.map(([value, label]) =>
-                    `<option value="${esc(value)}"${value === current ? ' selected' : ''}>${esc(label)}</option>`).join('')}</select></div>
+                ${data.running || busy ? 'disabled' : ''}>${choices.map(([value, label, disabled]) =>
+                    `<option value="${esc(value)}"${value === current ? ' selected' : ''}${disabled ? ' disabled' : ''}>${esc(label)}</option>`).join('')}</select></div>
         </div>`;
     };
     const flags = () => [['0', t('display.off')], ['1', t('display.on')]];
@@ -65,7 +67,8 @@
             row('CaptureMouse', 'muac.capture', 'muac.captureBody', flags()),
             row('OnlineService', 'muac.online', 'muac.onlineBody', [['openspy', 'OpenSpy'], ['off', t('display.off')]])
         ].join('');
-        status(data.running ? t('muac.closeFirst') : t('muac.nextStart'));
+        status(!data.wine && data.resolutionSupported === false ? t('muac.resolutionWarning') :
+            data.running ? t('muac.closeFirst') : t('muac.nextStart'), !data.wine && data.resolutionSupported === false);
     }
     async function load() {
         if (busy || refreshing || !panel()) return;

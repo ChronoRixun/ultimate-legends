@@ -27,11 +27,18 @@ namespace {
             for(const auto& [key,value]:muac::read(*folder)) values.AddMember(text(key,a),text(value,a),a);
         }
         out.AddMember("runtimeReady",installed && missing.Empty(),a);out.AddMember("missing",missing,a);out.AddMember("values",values,a);
+        // The game builds its own list from the primary monitor (adapter 0), the same
+        // monitor these modes come from; MUA Classic Fix 0.1.2 adds the saved size to it.
+        const bool guard=installed && muac::resolution_guard(*folder);
+        out.AddMember("resolutionGuard",guard,a);
+        out.AddMember("resolutionSupported", !installed || wine || muac::resolution_supported(out["values"]["Resolution"].GetString(),guard), a);
         rapidjson::Value modes(rapidjson::kArrayType);
         for(const auto& mode:xml2_display::display_modes()){
             const auto value=std::to_string(mode.width)+"x"+std::to_string(mode.height);
-            if(muac::normalise("Resolution",value)) modes.PushBack(text(value,a),a);
+            if(muac::resolution_supported(value,guard)) modes.PushBack(text(value,a),a);
         }
+        // Keep a recovery choice even when Windows reports no suitable modes.
+        if(modes.Empty()) modes.PushBack(text("800x600",a),a);
         out.AddMember("modes",modes,a);
     }
 }

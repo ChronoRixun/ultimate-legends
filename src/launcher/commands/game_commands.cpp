@@ -688,6 +688,21 @@ namespace commands::game_commands
                     refuse(refusal("no_fix", message), message);
                     return;
                 }
+                // Without MUA Classic Fix 0.1.2 the retail game crashes at startup on any size
+                // outside its own list (#31). Keep the saved value; ask for a supported choice.
+                if (!muac::platform::is_wine() &&
+                    !muac::resolution_supported(muac::read(*folder).at("Resolution"), muac::resolution_guard(*folder)))
+                {
+                    refuse(refusal("muac_resolution", muac::resolution_message), muac::resolution_message);
+                    return;
+                }
+                std::string enumerate_error;
+                if (!muac::enumerate_saved_resolution(*folder, enumerate_error))
+                {
+                    const auto message = "Could not prepare dgVoodoo for the saved resolution: " + enumerate_error;
+                    refuse(refusal("muac_resolution", message), message);
+                    return;
+                }
             }
 
             if (config->built)

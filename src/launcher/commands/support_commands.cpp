@@ -17,6 +17,8 @@ namespace commands::support_commands
 
     void register_commands(cef::cef_ui& cef_ui, command_context&)
     {
+        support::remember_display();
+
         // Support > Copy diagnostics: local facts only, redacted (support/diagnostics.hpp).
         cef_ui.add_command("get-support-diagnostics", [](const rapidjson::Value&, rapidjson::Document& response)
         {

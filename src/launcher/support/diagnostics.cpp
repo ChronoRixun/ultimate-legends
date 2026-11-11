@@ -1,6 +1,7 @@
 #include "std_include.hpp"
 #include "diagnostics.hpp"
 #include "redact.hpp"
+#include "report_rules.hpp"
 
 #include <game_config.hpp>
 #include <version.hpp>
@@ -12,6 +13,7 @@
 #include "display/xml2_display.hpp"
 #include "fix/fix_ini.hpp"
 #include "muac/settings.hpp"
+#include "updater/client_store.hpp"
 #include "updater/patch_channel.hpp"
 #include "updater/patch_status.hpp"
 #include "updater/release_source.hpp"
@@ -61,6 +63,17 @@ namespace support
             return {};
         }
 
+        // The first `limit` bytes of a file ("" when it can't be read).
+        std::string read_head(const std::filesystem::path& file, const std::size_t limit)
+        {
+            std::ifstream stream(file, std::ios::binary);
+            if (!stream) return {};
+            std::string data(limit, '\0');
+            stream.read(data.data(), static_cast<std::streamsize>(limit));
+            data.resize(static_cast<std::size_t>(stream.gcount()));
+            return data;
+        }
+
         bool file_exists(const std::filesystem::path& path)
         {
             std::error_code error;
@@ -79,6 +92,68 @@ namespace support
         {
             const auto it = values.find(name);
             return it == values.end() ? std::string{} : it->second;
+        }
+
+        display_mode read_mode(const DWORD which)
+        {
+            DEVMODEW dm{};
+            dm.dmSize = sizeof(dm);
+            // nullptr: the display device of the primary monitor.
+            if (!EnumDisplaySettingsW(nullptr, which, &dm)) return {};
+            return {static_cast<int>(dm.dmPelsWidth), static_cast<int>(dm.dmPelsHeight),
+                    dm.dmDisplayFrequency > 1 ? static_cast<int>(dm.dmDisplayFrequency) : 0};
+        }
+
+        int primary_monitor_dpi()
+        {
+            const utils::nt::library shcore{"shcore.dll"};
+            if (const auto get_dpi = shcore ? shcore.get_proc<HRESULT(WINAPI*)(HMONITOR, int, UINT*, UINT*)>("GetDpiForMonitor") : nullptr)
+            {
+                UINT dpi_x = 0, dpi_y = 0;
+                const auto monitor = MonitorFromPoint(POINT{0, 0}, MONITOR_DEFAULTTOPRIMARY);
+                if (SUCCEEDED(get_dpi(monitor, 0 /*MDT_EFFECTIVE_DPI*/, &dpi_x, &dpi_y))) return static_cast<int>(dpi_x);
+            }
+            return 0;
+        }
+
+        int system_dpi()
+        {
+            const utils::nt::library user32{"user32.dll"};
+            if (const auto get = user32 ? user32.get_proc<UINT(WINAPI*)()>("GetDpiForSystem") : nullptr) return static_cast<int>(get());
+            return 0;
+        }
+
+        struct remembered_display
+        {
+            std::mutex mutex;
+            display_mode mode;
+            int dpi{};
+        };
+
+        remembered_display& remembered()
+        {
+            static remembered_display value;
+            return value;
+        }
+
+        display_facts read_display()
+        {
+            display_facts facts;
+            facts.desktop = read_mode(ENUM_REGISTRY_SETTINGS);
+            facts.current = read_mode(ENUM_CURRENT_SETTINGS);
+            facts.monitor_dpi = primary_monitor_dpi();
+            facts.system_dpi = system_dpi();
+            auto& memory = remembered();
+            std::lock_guard lock(memory.mutex);
+            // The desktop mode is in use now: what the monitor says is right; keep it for later reads.
+            if (facts.desktop.valid() && facts.current.same_size(facts.desktop) && facts.monitor_dpi > 0)
+            {
+                memory.mode = facts.desktop;
+                memory.dpi = facts.monitor_dpi;
+            }
+            facts.remembered_mode = memory.mode;
+            facts.remembered_dpi = memory.dpi;
+            return facts;
         }
 
         void write_system(rapidjson::Value& out, rapidjson::Document::AllocatorType& allocator)
@@ -119,23 +194,26 @@ namespace support
             out.AddMember("monitors", GetSystemMetrics(SM_CMONITORS), allocator);
 
             // The primary monitor: MUA 2006 and the XML2 engine open on it, and its scaling decides the
-            // window size of a DPI-unaware game (MUA Classic Fix 0.2.4). The launcher is per-monitor DPI
-            // aware (app.manifest), so GetDpiForMonitor reports the real setting.
+            // window size of a DPI-unaware game (MUA Classic Fix 0.2.4). Its desktop mode and scaling, not a
+            // mode an exclusive-fullscreen game set for the moment (report_rules.hpp choose_display).
+            const auto report = choose_display(read_display());
             rapidjson::Value primary(rapidjson::kObjectType);
-            const auto desktop = xml2_display::desktop();
-            primary.AddMember("width", desktop.width, allocator);
-            primary.AddMember("height", desktop.height, allocator);
-            primary.AddMember("refresh", desktop.refresh, allocator);
-            UINT dpi = 0;
-            const utils::nt::library shcore{"shcore.dll"};
-            if (const auto get_dpi = shcore ? shcore.get_proc<HRESULT(WINAPI*)(HMONITOR, int, UINT*, UINT*)>("GetDpiForMonitor") : nullptr)
+            primary.AddMember("width", report.desktop.width, allocator);
+            primary.AddMember("height", report.desktop.height, allocator);
+            primary.AddMember("refresh", report.desktop.refresh, allocator);
+            primary.AddMember("scale", report.scale, allocator);
+            const char* source = report.source == scale_source::now ? "now"
+                : report.source == scale_source::launcher_start ? "launcher-start"
+                : report.source == scale_source::sign_in ? "sign-in" : "";
+            primary.AddMember("scaleSource", rapidjson::StringRef(source), allocator);
+            if (report.current.valid())
             {
-                UINT dpi_x = 0, dpi_y = 0;
-                const auto monitor = MonitorFromPoint(POINT{0, 0}, MONITOR_DEFAULTTOPRIMARY);
-                if (SUCCEEDED(get_dpi(monitor, 0 /*MDT_EFFECTIVE_DPI*/, &dpi_x, &dpi_y))) dpi = dpi_x;
+                rapidjson::Value current(rapidjson::kObjectType);
+                current.AddMember("width", report.current.width, allocator);
+                current.AddMember("height", report.current.height, allocator);
+                current.AddMember("refresh", report.current.refresh, allocator);
+                primary.AddMember("current", current, allocator);
             }
-            primary.AddMember("dpi", dpi, allocator);
-            primary.AddMember("scale", dpi ? static_cast<int>((dpi * 100 + 48) / 96) : 0, allocator);
             out.AddMember("primary", primary, allocator);
         }
 
@@ -172,6 +250,7 @@ namespace support
             fix.AddMember("name", text(fix_name(key), allocator), allocator);
             std::optional<std::string> version;
             std::optional<std::string> runtime;
+            const char* source = "";
             if (folder)
             {
                 if (key == "muac")
@@ -181,11 +260,19 @@ namespace support
                 }
                 else if (!config.patch_file.empty())
                 {
-                    version = patch_channel::installed_version(config, *folder);
+                    // The DLL's version resource (patch_channel: a pre-release by the launcher's record); without
+                    // one, the release the launcher recorded when it installed the fix, else the fix's own log.
+                    const auto record = client_store::read_release(key, *folder);
+                    const auto chosen = choose_fix_version(patch_channel::installed_version(config, *folder),
+                                                           record ? record->version : std::string{},
+                                                           read_head(*folder / utils::string::utf8_to_path(fix_log_name(key)), 4096), fix_name(key));
+                    if (chosen.source != version_source::none) version = chosen.version;
+                    source = chosen.source == version_source::record ? "record" : chosen.source == version_source::log ? "log" : "";
                 }
             }
             // null: not installed; "": installed without a version the launcher can read.
             fix.AddMember("version", version ? text(*version, allocator) : rapidjson::Value(rapidjson::kNullType), allocator);
+            fix.AddMember("source", rapidjson::StringRef(source), allocator);
             if (key == "muac")
             {
                 fix.AddMember("runtime", runtime ? text(*runtime, allocator) : rapidjson::Value(rapidjson::kNullType), allocator);
@@ -324,6 +411,11 @@ namespace support
             }
         }
         return false;
+    }
+
+    void remember_display()
+    {
+        read_display();
     }
 
     void write_diagnostics(rapidjson::Document& out)

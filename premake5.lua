@@ -309,7 +309,7 @@ files {"./src/tests/**.hpp", "./src/tests/**.cpp", "./src/launcher/tools/tool_ch
        "./src/launcher/updater/update_cancelled.cpp", "./src/launcher/updater/release_channel.cpp",
        "./src/launcher/updater/release_resolver.cpp", "./src/launcher/updater/patch_policy.cpp",
        "./src/launcher/updater/file_hash_cache.cpp", "./src/launcher/models/models_args.cpp", "./src/launcher/models/build_transaction.cpp", "./src/launcher/xml1/save_import_args.cpp",
-       "./src/launcher/muac/runtime_update.cpp", "./src/launcher/support/redact.cpp"}
+       "./src/launcher/muac/runtime_update.cpp", "./src/launcher/support/redact.cpp", "./src/launcher/support/report_rules.cpp"}
 removefiles {"./src/tests/windows/**"}
 
 -- src/tests first: its std_include.hpp stands in for the launcher's precompiled header. rapidjson

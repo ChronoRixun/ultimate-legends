@@ -165,6 +165,35 @@ test('Support: the report holds only what the launcher gave it (no paths, names 
     assert.ok(text.includes('Launcher: 0.6.0-beta.3 (Beta channel), installed, offline mode off'));
 });
 
+test('Support: the monitor line shows the desktop mode and scaling, and a fullscreen game\'s mode as "currently"', () => {
+    const p = open(new Backend());
+    const info = JSON.parse(JSON.stringify(WINDOWS));
+    // A 4K primary at 150% while a game runs in exclusive fullscreen at 2560x1440 (native report_rules picks these).
+    info.system.primary = { width: 3840, height: 2160, refresh: 60, scale: 150, scaleSource: 'launcher-start',
+        current: { width: 2560, height: 1440, refresh: 60 } };
+    const lines = p.window.SupportView.formatReport(info, {}).split('\n');
+    assert.ok(lines.includes('Primary monitor: 3840x2160 @ 60 Hz, display scaling 150% (2 monitors), currently 2560x1440 (a game may be fullscreen)'), lines.join('\n'));
+    info.system.primary = { width: 3840, height: 2160, refresh: 60, scale: 150, scaleSource: 'sign-in' };
+    assert.ok(p.window.SupportView.formatReport(info, {}).includes('Primary monitor: 3840x2160 @ 60 Hz, display scaling 150% (at sign-in) (2 monitors)'));
+    info.system.primary = { width: 3840, height: 2160, refresh: 60, scale: 0, scaleSource: '' };
+    assert.ok(p.window.SupportView.formatReport(info, {}).includes('display scaling unknown'));
+});
+
+test('Support: a fix version from the DLL, the launcher\'s record or the fix\'s log; "not installed" only without the DLL', () => {
+    const p = open(new Backend());
+    const info = JSON.parse(JSON.stringify(WINDOWS));
+    const xml1 = info.games.find(game => game.id === 'xml1');
+    const report = () => p.window.SupportView.formatReport(info, {}).split('\n');
+    xml1.fix = { name: 'XML2 Fix', version: '1.11.0', source: '' };
+    assert.ok(report().includes('  XML2 Fix 1.11.0'));
+    xml1.fix = { name: 'XML2 Fix', version: '1.11.0', source: 'record' };
+    assert.ok(report().includes('  XML2 Fix 1.11.0 (as installed by the launcher)'));
+    xml1.fix = { name: 'XML2 Fix', version: '1.11.0', source: 'log' };
+    assert.ok(report().includes('  XML2 Fix 1.11.0 (from xml2-fix.log)'));
+    xml1.fix = { name: 'XML2 Fix', version: null, source: '' };
+    assert.ok(report().includes('  XML2 Fix: not installed'));
+});
+
 test('Support: Copy falls back to the page clipboard, then says to copy by hand', async () => {
     const backend = new Backend({ copy: false });
     const p = open(backend);

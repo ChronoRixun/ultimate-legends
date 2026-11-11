@@ -11,11 +11,14 @@ generates the project, so a release only needs this entry and the tag.
   Known issues lists what is not working yet, per game; Community links the Ultimate Legends Discord and the GitHub
   issues. Every tab and button works with the mouse, the keyboard and a controller, in English, French and Spanish.
 - **Copy diagnostics** copies a short plain-text report, shown on the page before and after copying: the launcher
-  version, update channel, portable and offline mode; Windows' build or Proton/Wine; the primary monitor's size,
-  refresh rate and Windows display scaling (the 150% case behind the MUA 2006 window-size bug) and the number of
-  monitors; and per game whether it is set up, its folder's name, the companion fix and its version (XML2 Fix, MUA
-  Classic Fix package and runtime, MUA Controller Fix), the Legends Classic build and builder, and the display mode
-  and resolution the launcher knows. No personal data: the user name, the user profile folder (shown as
+  version, update channel, portable and offline mode; Windows' build or Proton/Wine; the primary monitor's desktop
+  mode (the saved one, `ENUM_REGISTRY_SETTINGS`), refresh rate and Windows display scaling (the 150% case behind the
+  MUA 2006 window-size bug) and the number of monitors - while an exclusive-fullscreen game has changed the mode,
+  the scaling read at launcher start (else at sign-in) and "currently <mode> (a game may be fullscreen)"; and per
+  game whether it is set up, its folder's name, the companion fix and its version (XML2 Fix, MUA Classic Fix
+  package and runtime, MUA Controller Fix: the DLL's version resource, else the release the launcher recorded,
+  else the fix's log; "not installed" only without the DLL), the Legends Classic build and builder, and the display
+  mode and resolution the launcher knows. No personal data: the user name, the user profile folder (shown as
   `%USERPROFILE%`), the computer name and a Linux home folder are replaced, game folders are shown by name only, and
   there are no accounts, IDs, join codes or addresses (`support/redact.cpp`, native tests with fake profiles). It is
   read locally; nothing is sent anywhere.

@@ -28,6 +28,7 @@
         mua2: 'Marvel: Ultimate Alliance 2'
     };
     const SHORT_NAMES = { xml1: 'X-Men Legends', xml2: 'X-Men Legends II', muac: 'MUA 2006', mua: 'Marvel: Ultimate Alliance', mua2: 'MUA 2' };
+    const LOG_NAMES = { xml1: 'xml2-fix.log', xml2: 'xml2-fix.log', muac: 'muac-fix.log', mua: 'mua-controller-fix.log', mua2: 'mua-controller-fix.log' };
     const FIX_NAMES = { xml1: 'XML2 Fix', xml2: 'XML2 Fix', muac: 'MUA Classic Fix', mua: 'MUA Controller Fix', mua2: 'MUA Controller Fix' };
 
     const t = (key, vars) => (window.LauncherI18n ? window.LauncherI18n.t(key, vars) : key);
@@ -55,6 +56,9 @@
         const name = fix.name || FIX_NAMES[game.id] || 'Fix';
         if (fix.version === null || fix.version === undefined) return `${name}: not installed`;
         let line = `${name} ${fix.version === '' ? '(version unknown)' : fix.version}`;
+        // Without a version resource in the DLL: what the launcher recorded at install, or the fix's own log.
+        if (fix.source === 'record') line += ' (as installed by the launcher)';
+        else if (fix.source === 'log') line += ` (from ${LOG_NAMES[game.id] || 'its log'})`;
         if (game.id === 'muac') {
             line += fix.runtime === null || fix.runtime === undefined ? ', runtime dinput8.dll missing'
                 : fix.runtime === '' ? ', runtime version unknown' : ` (runtime ${fix.runtime})`;
@@ -115,9 +119,13 @@
             lines.push(`System: ${system.windows || 'Windows'} build ${system.build || 'unknown'}`);
         }
         const refresh = primary.refresh ? ` @ ${primary.refresh} Hz` : '';
-        const scale = primary.scale ? `, display scaling ${primary.scale}%` : ', display scaling unknown';
+        // The desktop mode and its scaling (support/report_rules.hpp); a mode a fullscreen game set is "currently".
+        const scale = primary.scale ? `, display scaling ${primary.scale}%${primary.scaleSource === 'sign-in' ? ' (at sign-in)' : ''}`
+            : ', display scaling unknown';
         const monitors = system.monitors > 1 ? ` (${system.monitors} monitors)` : '';
-        lines.push(`Primary monitor: ${primary.width || '?'}x${primary.height || '?'}${refresh}${scale}${monitors}`);
+        const current = primary.current && primary.current.width && primary.current.height
+            ? `, currently ${primary.current.width}x${primary.current.height} (a game may be fullscreen)` : '';
+        lines.push(`Primary monitor: ${primary.width || '?'}x${primary.height || '?'}${refresh}${scale}${monitors}${current}`);
         lines.push('');
         for (const game of data.games || []) lines.push(...gameLines(game));
         const present = (data.logs || []).filter(log => log.available).map(log => log.file);

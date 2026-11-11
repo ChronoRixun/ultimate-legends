@@ -19,6 +19,10 @@ namespace support
     //   height, resolution, proton }, build: { builder, builderInstalled, content } } ], logs: [ ...write_logs ] }
     void write_diagnostics(rapidjson::Document& out);
 
+    // Remembers the primary monitor's scaling while its desktop mode is in use (called at launcher start), so
+    // a report made while a fullscreen game changed the mode still shows the desktop's scaling.
+    void remember_display();
+
     struct log_location
     {
         std::string id;   // "launcher", "updates", "fix:<game key>", "builder"

@@ -40,6 +40,8 @@
     <script src="./assets/js/app/models-view.js"></script>
     <script src="./assets/js/app/launcher-update.js"></script>
     <script src="./assets/js/app/update-channel.js"></script>
+    <script src="./assets/js/data/known-issues.js"></script>
+    <script src="./assets/js/app/support-view.js"></script>
     <script src="./assets/js/app/views.js"></script>
     <script src="./assets/js/app/main.js"></script>
 </head>
@@ -194,29 +196,84 @@
                         <div class="page-title" data-i18n="support.title">Support</div>
                         <div class="page-subtitle" data-i18n="support.subtitle">Troubleshooting, redistributables and community help.</div>
                     </div>
-                    <div class="support-layout">
-                        <section class="support-panel">
-                            <h2 data-i18n="support.redistTitle">Redistributables</h2>
-                            <p data-i18n-html="support.redistBody">Install the Visual C++ and DirectX runtimes the older games need.</p>
-                            <div class="redist-summary">
-                                <span class="redist-summary-text" id="redist-summary-text"></span>
-                                <button class="support-action" id="manage-redist-btn" onclick="window.RedistPopup && window.RedistPopup.show()">
-                                    <span data-i18n="support.manageRedist">Manage redistributables</span>
-                                </button>
-                            </div>
-                        </section>
-                        <section class="support-panel">
-                            <h2 data-i18n="support.launcherFaqTitle">Launcher FAQ</h2>
-                            <p data-i18n="support.launcherFaqBody">Pointing the launcher at your installs, keeping patches up to date and games that won't start.</p>
-                            <div class="support-actions">
-                                <a class="support-action faq" href="https://github.com/ChronoRixun/ultimate-legends#readme" target="_blank" data-i18n="support.launcherFaqCta">Open Launcher FAQ</a>
-                            </div>
-                        </section>
+                    <div class="filter-chips support-tabs" role="tablist">
+                        <button type="button" class="chip active" role="tab" id="support-tab-help" data-support-tab="help" aria-selected="true" aria-controls="support-panel-help" data-i18n="support.tabHelp">Help</button>
+                        <button type="button" class="chip" role="tab" id="support-tab-troubleshoot" data-support-tab="troubleshoot" aria-selected="false" aria-controls="support-panel-troubleshoot" data-i18n="support.tabTroubleshoot">Report a problem</button>
+                        <button type="button" class="chip" role="tab" id="support-tab-known" data-support-tab="known" aria-selected="false" aria-controls="support-panel-known" data-i18n="support.tabKnown">Known issues</button>
+                        <button type="button" class="chip" role="tab" id="support-tab-community" data-support-tab="community" aria-selected="false" aria-controls="support-panel-community" data-i18n="support.tabCommunity">Community</button>
+                    </div>
+                    <div class="support-tabpanel" id="support-panel-help" role="tabpanel" aria-labelledby="support-tab-help" data-support-panel="help">
+                        <div class="support-layout">
+                            <section class="support-panel">
+                                <h2 data-i18n="support.redistTitle">Redistributables</h2>
+                                <p data-i18n-html="support.redistBody">Install the Visual C++ and DirectX runtimes the older games need.</p>
+                                <div class="redist-summary">
+                                    <span class="redist-summary-text" id="redist-summary-text"></span>
+                                    <button class="support-action" id="manage-redist-btn" onclick="window.RedistPopup && window.RedistPopup.show()">
+                                        <span data-i18n="support.manageRedist">Manage redistributables</span>
+                                    </button>
+                                </div>
+                            </section>
+                            <section class="support-panel">
+                                <h2 data-i18n="support.launcherFaqTitle">Launcher FAQ</h2>
+                                <p data-i18n="support.launcherFaqBody">Pointing the launcher at your installs, keeping patches up to date and games that won't start.</p>
+                                <div class="support-actions">
+                                    <a class="support-action faq" href="https://github.com/ChronoRixun/ultimate-legends#readme" target="_blank" data-i18n="support.launcherFaqCta">Open Launcher FAQ</a>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+                    <div class="support-tabpanel" id="support-panel-troubleshoot" role="tabpanel" aria-labelledby="support-tab-troubleshoot" data-support-panel="troubleshoot" hidden>
+                        <div class="support-layout">
+                            <section class="support-panel support-wide">
+                                <h2 data-i18n="support.diagnosticsTitle">Diagnostics</h2>
+                                <p data-i18n="support.diagnosticsBody">A short plain-text summary of your launcher, Windows or Proton, screen and game setup, to paste into a bug report. It has no user name, no account and no full folder paths: check it below before you share it.</p>
+                                <div class="support-actions">
+                                    <button type="button" class="support-action" id="support-copy-diagnostics" data-act="copy-diagnostics" data-i18n="support.copyDiagnostics">Copy diagnostics</button>
+                                    <button type="button" class="settings-action-btn" id="support-refresh-diagnostics" data-act="refresh-diagnostics" data-i18n="support.refreshDiagnostics">Refresh</button>
+                                    <span class="support-status" id="support-diagnostics-status" role="status" aria-live="polite"></span>
+                                </div>
+                                <pre class="support-diagnostics" id="support-diagnostics-preview" tabindex="0"></pre>
+                            </section>
+                            <section class="support-panel">
+                                <h2 data-i18n="support.reportTitle">Report a bug</h2>
+                                <p data-i18n="support.reportBody">Opens the bug report form on GitHub in your browser (you need a free GitHub account). Copy your diagnostics first and paste them into the form; attach a log if you can.</p>
+                                <div class="support-actions">
+                                    <button type="button" class="support-action" id="support-report-bug" data-act="report-bug" data-i18n="support.reportBug">Report a bug</button>
+                                </div>
+                            </section>
+                            <section class="support-panel">
+                                <h2 data-i18n="support.logsTitle">Logs</h2>
+                                <p data-i18n="support.logsBody">Opens the folder with the log file selected, so you can attach it to a bug report.</p>
+                                <div class="support-logs" id="support-logs"></div>
+                            </section>
+                        </div>
+                    </div>
+                    <div class="support-tabpanel" id="support-panel-known" role="tabpanel" aria-labelledby="support-tab-known" data-support-panel="known" hidden>
+                        <div class="support-layout support-known" id="support-known-issues"></div>
+                    </div>
+                    <div class="support-tabpanel" id="support-panel-community" role="tabpanel" aria-labelledby="support-tab-community" data-support-panel="community" hidden>
+                        <div class="support-layout">
+                            <section class="support-panel">
+                                <h2 data-i18n="support.discordTitle">Discord</h2>
+                                <p data-i18n="support.discordBody">The Ultimate Legends Discord server: get help with setup, find people to play co-op with, hear about new releases first and tell us how the games run on your PC or Steam Deck.</p>
+                                <div class="support-actions">
+                                    <button type="button" class="support-action" id="support-join-discord" data-act="join-discord" data-i18n="support.joinDiscord">Join the Discord</button>
+                                </div>
+                            </section>
+                            <section class="support-panel">
+                                <h2 data-i18n="support.issuesTitle">GitHub issues</h2>
+                                <p data-i18n="support.issuesBody">See what has already been reported and what is being worked on, or follow a bug you reported.</p>
+                                <div class="support-actions">
+                                    <button type="button" class="support-action faq" id="support-open-issues" data-act="open-issues" data-i18n="support.openIssues">Open GitHub issues</button>
+                                </div>
+                            </section>
+                        </div>
                     </div>
                     <div class="support-footer">
                         <span data-i18n="support.noteBody">Ultimate Legends is an unofficial fan project. It is not affiliated with or endorsed by Activision, Marvel or Disney, and it never downloads the games: you need your own copies. Based on the CB Servers launcher.</span>
                         <div class="support-footer-links">
-                            <a href="#" onclick="window.executeCommand('open-url', { url: 'https://github.com/ChronoRixun/ultimate-legends/issues/new' }); return false;" data-i18n="support.reportBug">Report a bug</a>
+                            <a href="#" id="support-footer-report" data-act="report-bug" data-i18n="support.reportBug">Report a bug</a>
                             <a href="https://github.com/ChronoRixun/ultimate-legends" target="_blank" data-i18n="support.github">Ultimate Legends on GitHub</a>
                         </div>
                     </div>

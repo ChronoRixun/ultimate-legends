@@ -160,6 +160,10 @@ release page. Development builds (Debug, or built from anything but a release ta
 
 Help, bug reports and co-op partners: the community Discord, [discord.gg/tFxwHtZv8k](https://discord.gg/tFxwHtZv8k).
 No game files, disc images or links to them there either.
+To report a bug, open **Support > Report a problem** in the launcher: **Copy diagnostics** copies a short summary of
+your launcher, system and game setup (no user name, account or full folder paths) to paste into the GitHub bug report
+form that **Report a bug** opens, and **Logs** opens the folder of each log. **Known issues** lists what is not
+working yet, per game.
 
 ### Update channel (Stable / Beta)
 

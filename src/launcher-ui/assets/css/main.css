@@ -3140,6 +3140,113 @@ html[data-theme="dark"] .secondary-action:hover {
 
 .support-action.faq { background: linear-gradient(135deg, #6C63FF 0%, #4B45C7 100%); }
 
+/* Support page tabs (app/support-view.js) */
+.support-tabs {
+    flex: none;
+    padding: 0 36px 6px;
+}
+
+.support-tabs .chip {
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.support-tabpanel[hidden] {
+    display: none;
+}
+
+.support-panel.support-wide {
+    grid-column: 1 / -1;
+}
+
+.support-status {
+    align-self: center;
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.support-status[data-kind="ok"] { color: var(--play); }
+.support-status[data-kind="error"] { color: var(--warn); }
+
+.support-diagnostics {
+    margin-top: 16px;
+    max-height: 260px;
+    overflow: auto;
+    padding: 14px 16px;
+    background: var(--surface-lo);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: var(--font-mono, 'IBM Plex Mono', monospace);
+    font-size: 12px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+    user-select: text;
+    -webkit-user-select: text;
+}
+
+.support-logs {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: auto;
+}
+
+.support-log-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 0;
+    border-top: 1px solid var(--border);
+}
+
+.support-log-row:first-child {
+    border-top: 0;
+}
+
+.support-log-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.support-log-name {
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.support-log-file {
+    color: var(--text-muted);
+    font-family: var(--font-mono, 'IBM Plex Mono', monospace);
+    font-size: 11px;
+}
+
+.support-log-open:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.support-known-list {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--text-muted);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.support-known-list li + li {
+    margin-top: 8px;
+}
+
+.support-empty {
+    color: var(--text-dim);
+    font-size: 13px;
+}
+
 .support-action:hover {
     color: #fff;
     transform: translateY(-1px);

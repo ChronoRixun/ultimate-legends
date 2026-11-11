@@ -6,8 +6,12 @@
 #include <utils/logger.hpp>
 #include <utils/properties.hpp>
 #include <utils/string.hpp>
+#include <utils/nt.hpp>
 #include <game_config.hpp>
 #include "steam_library.hpp"
+#include "muac/settings.hpp"
+#include "muac/runtime_update.hpp"
+#include "updater/folder_work.hpp"
 
 namespace commands::property_commands
 {
@@ -183,6 +187,19 @@ namespace commands::property_commands
                 return; // Invalid - no valid game exe found
             }
 
+            // Prepared existing MUAC installs need no download. Clear stale readiness
+            // when switching to a folder that still needs compatibility components.
+            std::shared_ptr<updater::folder_work> hold;
+            if (game == "muac")
+            {
+                hold = updater::reserve(path, updater::folder_use::builder);
+                if (!hold || utils::nt::is_any_image_running({path / L"Game.exe"})) return;
+                const auto properties = utils::properties::lock();
+                config->set_install_path(path);
+                config->set_installed(muac::missing_runtime(path).empty());
+                response.SetBool(true);
+                return;
+            }
             // Path is valid, store it (set_install_path serializes to UTF-8 internally)
             config->set_install_path(path);
             response.SetBool(true); // Success

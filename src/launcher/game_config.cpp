@@ -1,5 +1,6 @@
 #include "std_include.hpp"
 #include "game_config.hpp"
+#include "muac/install.hpp"
 #include <utils/properties.hpp>
 #include <utils/property_keys.hpp>
 #include <utils/io.hpp>
@@ -271,7 +272,8 @@ namespace game_config
         {
             return utils::io::file_exists(path / utils::string::utf8_to_path(file));
         };
-        if (config->built || game == "muac")
+        if (game == "muac") return muac::valid_install(path);
+        if (config->built)
         {
             return !config->valid_game_files.empty() && std::all_of(config->valid_game_files.begin(), config->valid_game_files.end(), has);
         }

@@ -91,6 +91,12 @@ TEST(muac_release_comparison_and_min_launcher_respect_semver) {
     CHECK(!runtime::newer_compatible("0.2.2", "0.2.2", "0.5.0-beta.8", "0.5.0-beta.7", true));
     CHECK(!runtime::newer_compatible("0.2.3", "0.2.2", "", "0.5.0", true));
 }
+TEST(muac_existing_install_repair_allows_same_version_without_downgrades) {
+    CHECK(runtime::newer_compatible("0.2.1", "0.2.1", "0.5.0", "0.5.0", false, true));
+    CHECK(!runtime::newer_compatible("0.2.1", "0.2.0", "", "0.5.0", false, true));
+    CHECK(!runtime::newer_compatible("0.2.1", "0.2.1", "0.6.0", "0.5.0", false, true));
+    CHECK(!runtime::newer_compatible("0.2.1", "bad", "", "0.5.0", false, true));
+}
 TEST(muac_release_channel_requires_setup_manifest_and_picks_latest_beta) {
     std::string error;
     const auto releases = release_channel::parse_releases_json(R"([

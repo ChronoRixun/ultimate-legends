@@ -42,6 +42,16 @@ int main() {
     CHECK(!muac::normalise("FrameLimit", "19"));
     CHECK(!muac::normalise("FrameLimit", "60fps"));
     CHECK(!muac::normalise("Resolution", "1920x1080x1"));
+    CHECK(muac::normalise("Resolution", "1920x1080") == "1920x1080");
+    CHECK(muac::normalise("Resolution", "3840x2160") == "3840x2160");
+    CHECK(!muac::normalise("Resolution", "7681x4320") && !muac::normalise("Resolution", "639x480"));
+    // Without the 0.1.2 guard only Game.exe's own 14 sizes start (#31): 1600x900 crashes too.
+    for (const auto* resolution : {"640x480", "1280x1024", "1680x1050", "1920x1080", "1920x1200", "2048x1536"})
+        CHECK(muac::retail_resolution(resolution) && muac::resolution_supported(resolution, false));
+    for (const auto* resolution : {"3840x2160", "2560x1440", "2560x1080", "2048x1152", "1600x900", "1921x1080"})
+        CHECK(!muac::resolution_supported(resolution, false) && muac::resolution_supported(resolution, true));
+    CHECK(!muac::resolution_supported("invalid", true) && !muac::resolution_supported("8000x4000", true));
+    CHECK(!muac::resolution_guard(test.folder));
     CHECK(!muac::normalise("OnlineService", "custom"));
     CHECK(!muac::normalise("unknown", "1"));
     auto values = muac::read(test.folder);
@@ -65,9 +75,23 @@ int main() {
     CHECK(values.at("OnlineService") == "openspy");
     CHECK(bytes(graphics).find("Unrelated=keep") != std::string::npos);
     CHECK(bytes(graphics).find("; keep graphics comment") != std::string::npos);
+    // dgVoodoo must list the saved size or libIGGfx gets no device (#31); keeping it in sync is idempotent.
+    CHECK(bytes(graphics).find("[DirectXExt]") != std::string::npos);
+    CHECK(bytes(graphics).find("ExtraEnumeratedResolutions=1920x1080@60") != std::string::npos);
+    CHECK(muac::dgvoodoo_mode("3840x2160") == "3840x2160@60");
+    {
+        const auto synced = bytes(graphics);
+        CHECK(muac::enumerate_saved_resolution(test.folder, error, false));
+        CHECK(bytes(graphics) == synced);
+        CHECK(muac::enumerate_saved_resolution(test.folder, error, true));
+    }
     CHECK(bytes(input).find("; keep input comment") != std::string::npos);
     CHECK(bytes(input).find("Server=") == std::string::npos);
     const auto before_graphics = bytes(graphics), before_input = bytes(input);
+    CHECK(!muac::write(test.folder, {{"CaptureMouse","1"},{"Resolution","3840x2160"}}, error));
+    CHECK(error == muac::resolution_message);
+    CHECK(muac::read(test.folder).at("Resolution") == "1920x1080");
+    CHECK(bytes(graphics) == before_graphics && bytes(input) == before_input);
     CHECK(!muac::write(test.folder, {{"CaptureMouse","1"},{"Resolution","invalid"}}, error));
     CHECK(bytes(graphics) == before_graphics && bytes(input) == before_input);
 

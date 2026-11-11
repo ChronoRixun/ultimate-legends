@@ -69,6 +69,9 @@ class InstallPopup {
         this.popup.querySelector('#install-popup-note').textContent = this.t(finishSetup
             ? 'popup.manageInstall.setupNote'
             : 'popup.manageInstall.manageNote');
+        if (this.currentGame === 'muac') {
+            this.popup.querySelector('#install-popup-note').textContent = this.t('muac.existingSetupBody');
+        }
         this.popup.querySelector('#install-popup-folder-label').textContent = this.t('popup.manageInstall.folder');
         this.popup.querySelector('#install-popup-patch-label').textContent = this.t('popup.manageInstall.patch');
         this.popup.querySelector('#install-popup-missing').textContent = this.t('popup.manageInstall.folderMissing', { game: displayName });
@@ -146,6 +149,10 @@ class InstallPopup {
 
         // A folder that no longer holds the game can't take the patch; point at Game Settings instead.
         this.popup.querySelector('#install-popup-missing').hidden = !!info.valid;
+        if (this.currentGame === 'muac' && info.valid && info.missingRuntime?.length) {
+            this.popup.querySelector('#install-popup-missing').textContent = this.t('muac.existingMissing', { files: info.missingRuntime.join(', ') });
+            this.popup.querySelector('#install-popup-missing').hidden = false;
+        }
         this.popup.querySelector('.btn-apply').disabled = !info.valid;
     }
 

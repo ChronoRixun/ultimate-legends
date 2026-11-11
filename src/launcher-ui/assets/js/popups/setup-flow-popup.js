@@ -147,7 +147,8 @@ class SetupFlowPopup {
                         if (typeof window.showMessageBox === 'function') {
                             window.showMessageBox(
                                 this.t('popup.setup.invalidGamePathTitle'),
-                                this.t('popup.setup.invalidGamePathBody', { game: this.currentGameDisplayName }),
+                                this.currentGame === 'muac' ? this.t('muac.existingFolderHint') :
+                                    this.t('popup.setup.invalidGamePathBody', { game: this.currentGameDisplayName }),
                                 [this.t('common.ok')]
                             );
                         } else {
@@ -159,6 +160,13 @@ class SetupFlowPopup {
                     // Hide popup and trigger page refresh
                     this.hide();
                     this.triggerInstallationUpdate();
+
+                    // A prepared MUA 2006 folder is registered by set-game-path.
+                    // Unprepared folders continue to its compatibility installer.
+                    if (this.currentGame === 'muac') {
+                        const settings = await window.executeCommand('get-muac-settings');
+                        if (settings?.runtimeReady) return;
+                    }
 
                     // Continue the pipeline: confirm the install, then install the patch
                     const gameId = this.getGameIdFromMapping(this.currentGame);

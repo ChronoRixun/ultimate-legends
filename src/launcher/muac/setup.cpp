@@ -27,7 +27,7 @@ namespace {
     struct job {
         std::mutex mutex;
         bool active = true, cancelled = false, success = false;
-        bool updating = false;
+        bool updating = false, repair = false;
         std::string phase = "Preparing setup", error, output;
         std::uint64_t done{}, total{};
         std::shared_ptr<xml1::builder_process> process;
@@ -105,7 +105,7 @@ namespace {
             if (work->updating) {
                 const auto version = patch_status::muac_installed_version(output);
                 if (version && !muac::runtime::newer_compatible(*version, manifest->version, manifest->min_launcher, launcher_update::running_version(),
-                        muac::runtime::needs_wine_migration(output)))
+                        muac::runtime::needs_wine_migration(output), work->repair || !muac::missing_runtime(output).empty()))
                     throw std::runtime_error("MUA Classic Fix is already up to date on this channel. A newer installed release was kept.");
             }
             const auto progress = [work](std::uint64_t done, std::uint64_t total) {
@@ -153,7 +153,18 @@ namespace {
                 controls.log = [](const std::string& message) { utils::logger::write("{}", message); };
                 muac::runtime::update(output, bundle, runtime, muac::platform::is_wine() ? std::string{} : graphics_dll(archive, runtime.dll_size),
                     [](const std::string& bytes) { return utils::cryptography::sha256::compute(bytes, true); }, controls);
+                if (!game_config::validate_game_path("muac", output) || !muac::missing_runtime(output).empty())
+                    throw std::runtime_error("The prepared installation is missing required files.");
+                const auto game = game_config::get_game_config("muac");
+                if (!game) throw std::runtime_error("MUA 2006 configuration is unavailable.");
                 std::lock_guard lock(work->mutex);
+                if (work->cancelled) throw std::runtime_error("MUA Classic Fix update cancelled. The completed files were kept; finish setup again to register them.");
+                const auto properties = utils::properties::lock();
+                const auto selected = game->get_install_path();
+                if (!selected || updater::folder_key(*selected) != updater::folder_key(output))
+                    throw std::runtime_error("The selected MUA 2006 folder changed. Finish setup again for that folder.");
+                game->set_install_path(output);
+                game->set_installed(true);
                 work->success = true; work->active = false; work->phase = "MUA Classic Fix updated"; work->hold.reset();
                 return;
             }
@@ -224,7 +235,7 @@ bool start(const std::filesystem::path& source, const std::filesystem::path& out
     std::thread([work, source, output, channel = release_source::current_channel()] { run(work, source, output, channel); }).detach();
     return true;
 }
-bool start_update(std::string& error) {
+bool start_update(std::string& error, bool repair) {
     std::lock_guard lock(jobs_mutex);
     if (current) { std::lock_guard job_lock(current->mutex); if (current->active) { error = "MUA 2006 setup or update is already running."; return false; } }
     const auto game = game_config::get_game_config("muac");
@@ -235,7 +246,7 @@ bool start_update(std::string& error) {
     if (!hold) { error = "The game folder is busy. Wait for the current operation to finish."; return false; }
     if (utils::nt::is_any_image_running({*folder / L"Game.exe"})) { error = "Close MUA 2006 before updating MUA Classic Fix."; return false; }
     try { muac::runtime::recover(*folder, [](const std::string& message) { utils::logger::write("{}", message); }); } catch (const std::exception& e) { error = e.what(); return false; }
-    auto work = std::make_shared<job>(); work->updating = true; work->hold = std::move(hold);
+    auto work = std::make_shared<job>(); work->updating = true; work->repair = repair; work->hold = std::move(hold);
     work->output = utils::string::path_to_utf8(*folder); current = work;
     std::thread([work, output = *folder, channel = release_source::current_channel()] { run(work, {}, output, channel); }).detach();
     return true;

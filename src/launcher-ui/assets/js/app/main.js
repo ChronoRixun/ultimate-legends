@@ -132,6 +132,10 @@ async function refreshLocalizedUI(targetPage) {
 
     syncConsoleButtonLabel();
 
+    if (window.SupportView) {
+        window.SupportView.refreshText();
+    }
+
     if (window.AppViews) {
         window.AppViews.renderAll();
         window.AppViews.updateSidebarMyGames(recentGames);
@@ -465,8 +469,9 @@ async function initialize() {
         const isInTargetPage = link.closest('#home-page') || link.closest('#support-page') || link.closest('.game-page') || link.closest('#settings-page');
         if (!isInTargetPage) return;
 
-        // Only handle http/https links
-        if (link.href && link.href.startsWith('http')) {
+        // Only links written as http(s) addresses: link.href is always absolute, so href="#" (a link
+        // a script handles) would otherwise send http://ultimate-legends/main.html# to the browser too.
+        if (/^https?:\/\//i.test(link.getAttribute('href') || '')) {
             e.preventDefault();
             window.executeCommand('open-url', { url: link.href });
         }
@@ -627,6 +632,7 @@ function handleSupportClick(e) {
     loadNavigationPage("support");
 
     if (window.RedistManager) window.RedistManager.refresh();
+    if (window.SupportView) window.SupportView.onShow();
 }
 
 // setInnerHTML function removed - no longer needed with single page approach

@@ -3,6 +3,45 @@
 The launcher's version comes from its release tag (`v0.3.2`): premake reads it with `git describe` when it
 generates the project, so a release only needs this entry and the tag.
 
+## 0.5.2 (2026-11-11)
+
+A support release: the new Support page (the same as in 0.6.0-beta.3). The release notes are
+`docs/release/v0.5.2-notes.md`.
+
+### Added
+- **A new Support page: Help, Report a problem, Known issues and Community tabs.** Help keeps the
+  redistributables and the launcher FAQ. Report a problem has **Copy diagnostics**, **Report a bug** and **Logs**;
+  Known issues lists what is not working yet, per game; Community links the Ultimate Legends Discord and the GitHub
+  issues. Every tab and button works with the mouse, the keyboard and a controller, in English, French and Spanish.
+- **Copy diagnostics** copies a short plain-text report, shown on the page before and after copying: the launcher
+  version, update channel, portable and offline mode; Windows' build or Proton/Wine; the primary monitor's size,
+  refresh rate and Windows display scaling (the 150% case behind the MUA 2006 window-size bug) and the number of
+  monitors; and per game whether it is set up, its folder's name, the companion fix and its version (XML2 Fix, MUA
+  Classic Fix package and runtime, MUA Controller Fix), the Legends Classic build and builder, and the display mode
+  and resolution the launcher knows. No personal data: the user name, the user profile folder (shown as
+  `%USERPROFILE%`), the computer name and a Linux home folder are replaced, game folders are shown by name only, and
+  there are no accounts, IDs, join codes or addresses (`support/redact.cpp`, native tests with fake profiles). It is
+  read locally; nothing is sent anywhere.
+- **Report a bug** opens GitHub's new bug report form in the browser
+  (`issues/new?template=bug_report.yml`, the template name and nothing else in the address): game (launcher,
+  X-Men Legends / Legends Classic, X-Men Legends II, MUA 2006, MUA 2016, MUA2), Windows or Steam Deck / Linux, what
+  happened, steps, a "Diagnostics (paste from Support > Copy diagnostics)" field and where to find the logs.
+- **Logs** opens the folder of each log with the file selected: the launcher's `ultimate-legends.log` and
+  `updates\update.log`, and per installed game its fix's log (`muac-fix.log`, `xml2-fix.log`,
+  `mua-controller-fix.log`) and the Legends Classic builder's latest log. A log that isn't there yet is greyed out
+  and says why. Under Proton the folder opens in Wine's own file browser window.
+- **Known issues** come from `src/launcher-ui/assets/js/data/known-issues.js`, a small list kept in step with the
+  release notes.
+
+### Fixed
+- **Under Proton, Settings > Open log folder started a second launcher instead of opening the folder** (it then
+  said Ultimate Legends is already running). Wine's ShellExecute tries `<name>.exe` first, and the portable data
+  folder `ultimate-legends` sits beside `ultimate-legends.exe`; the folder is now opened with a trailing separator.
+  The new Logs buttons do the same.
+- **The Support footer's Report a bug link also opened `http://ultimate-legends/main.html#` in the browser.** The
+  page's external-link handler took the link's `href="#"` (made absolute by the browser) for a web address; it now
+  sends only links written as `http(s)://` addresses to the browser.
+
 ## 0.5.1 (2026-11-10)
 
 A fix release for Marvel: Ultimate Alliance (2006 PC), with **MUA Classic Fix 0.2.3** and **0.2.4**. The release

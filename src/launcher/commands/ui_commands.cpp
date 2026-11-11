@@ -63,7 +63,10 @@ namespace commands::ui_commands
 
         cef_ui.add_command("open-logs", [](const auto&, auto&)
         {
-            const auto wide_path = utils::properties::get_appdata_path().wstring();
+            auto wide_path = utils::properties::get_appdata_path().wstring();
+            // With a trailing separator: Wine's ShellExecute tries "<name>.exe" first, and the portable data
+            // folder "ultimate-legends" sits beside ultimate-legends.exe (it started a second launcher).
+            if (!wide_path.empty() && wide_path.back() != L'\\') wide_path.push_back(L'\\');
             const auto result = ShellExecuteW(nullptr, L"explore", wide_path.data(), nullptr, nullptr, SW_SHOWNORMAL);
 
             if (reinterpret_cast<INT_PTR>(result) <= 32 && utils::nt::is_wine_environment())

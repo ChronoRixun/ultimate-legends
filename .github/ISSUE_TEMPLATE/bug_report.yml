@@ -1,0 +1,80 @@
+name: Bug report
+description: Something in Ultimate Legends or one of its games doesn't work as it should.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. In the launcher, open **Support > Report a problem** and choose
+        **Copy diagnostics** first: it copies a short summary of your launcher, system and game setup that you can
+        paste below. It has no user name and no full folder paths, but please read it (and any log you attach)
+        before you post: this page is public.
+  - type: dropdown
+    id: game
+    attributes:
+      label: Game
+      description: Which part has the problem?
+      options:
+        - Ultimate Legends launcher
+        - X-Men Legends (Legends Classic)
+        - "X-Men Legends II: Rise of Apocalypse (XML2)"
+        - "Marvel: Ultimate Alliance (2006 PC)"
+        - "Marvel: Ultimate Alliance (2016, Steam)"
+        - "Marvel: Ultimate Alliance 2"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Where do you play?
+      options:
+        - Windows
+        - Steam Deck (Proton)
+        - Linux (Proton / Wine)
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you see? Include any error message exactly as it was shown.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What did you do before it happened?
+      placeholder: |
+        1. Open the MUA 2006 page
+        2. Choose ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: false
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics (paste from Support > Copy diagnostics)
+      description: In the launcher, Support > Report a problem > Copy diagnostics, then paste here (Ctrl+V).
+      render: text
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Support > Report a problem > Logs opens the folder of each log with the file selected:
+        `ultimate-legends.log` (the launcher), `update.log` (launcher updates), `muac-fix.log` (MUA 2006),
+        `xml2-fix.log` (X-Men Legends, X-Men Legends II), `mua-controller-fix.log` (Marvel: Ultimate Alliance,
+        Marvel: Ultimate Alliance 2) and the Legends Classic builder log. Drag the file into this box to attach it.
+        Logs can contain folder paths: check them first.
+    validations:
+      required: false

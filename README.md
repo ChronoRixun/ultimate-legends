@@ -58,7 +58,7 @@ folder. The 2016 Steam release (`Marvel.exe`) uses the separate Marvel: Ultimate
 
 MUA 2006 itself only knows 14 resolutions (640 × 480 up to 1920 × 1200, plus 2048 × 1536); any other
 saved size, such as 2560 × 1440 or 3840 × 2160, crashes the original game at startup. MUA Classic Fix
-0.1.2 or newer removes that limit, and the launcher then offers every resolution your primary monitor
+0.2.3 or newer (its `dinput8.dll` 0.1.2) removes that limit; **Update** or **Verify Files** installs it, and the launcher then offers every resolution your primary monitor
 reports. With an older MUA Classic Fix the launcher offers only the original sizes and asks you to
 choose one before playing if a different size was saved earlier.
 

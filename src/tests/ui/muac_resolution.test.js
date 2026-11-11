@@ -25,8 +25,8 @@ test('MUAC resolution: 4K without the 0.1.2 guard is explained and disabled; cho
     assert.equal(select.value, '3840x2160');
     const invalid = select.querySelector('option[value="3840x2160"]');
     assert.ok(invalid.disabled);
-    assert.match(invalid.textContent, /needs MUA Classic Fix 0\.1\.2/);
-    assert.match(p.document.querySelector('.ul-display-status').textContent, /original sizes.*0\.1\.2 or newer/);
+    assert.match(invalid.textContent, /needs MUA Classic Fix 0\.2\.3/);
+    assert.match(p.document.querySelector('.ul-display-status').textContent, /original sizes.*0\.2\.3 or newer/);
     assert.equal(calls.filter(c => c.command === 'set-muac-settings').length, 0);
     select.value = '1920x1080';
     select.dispatchEvent(new p.window.Event('change', { bubbles: true })); await settle();

@@ -10,7 +10,7 @@
 namespace muac {
     // Without MUA Classic Fix 0.1.2 the retail game only knows 14 sizes (640x480 ... 1920x1200,
     // 2048x1536); any other saved size makes its startup mode lookup read past its list (#31).
-    inline constexpr auto resolution_message = "This MUA Classic Fix version can start MUA 2006 only at the game's original resolutions (up to 1920x1200, plus 2048x1536). Other sizes, such as 2560x1440 or 3840x2160, crash at startup without MUA Classic Fix 0.1.2 or newer. Choose an original resolution or update MUA Classic Fix.";
+    inline constexpr auto resolution_message = "This MUA Classic Fix version can start MUA 2006 only at the game's original resolutions (up to 1920x1200, plus 2048x1536). Other sizes, such as 2560x1440 or 3840x2160, crash at startup without MUA Classic Fix 0.2.3 or newer (its dinput8.dll 0.1.2). Choose an original resolution, or choose Update to get MUA Classic Fix 0.2.3.";
     inline constexpr std::uint64_t resolution_guard_version = 0x0000000100020000ULL; // 0.1.2
     bool retail_resolution(const std::string& value);
     // dgVoodoo [DirectXExt] ExtraEnumeratedResolutions entry for a saved size.

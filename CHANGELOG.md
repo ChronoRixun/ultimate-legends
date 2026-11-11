@@ -5,10 +5,17 @@ generates the project, so a release only needs this entry and the tag.
 
 ## 0.5.1 (2026-11-10)
 
-A fix release for Marvel: Ultimate Alliance (2006 PC), with **MUA Classic Fix 0.2.3**. The release notes are
-`docs/release/v0.5.1-notes.md`.
+A fix release for Marvel: Ultimate Alliance (2006 PC), with **MUA Classic Fix 0.2.3** and **0.2.4**. The release
+notes are `docs/release/v0.5.1-notes.md`.
 
 ### Fixed
+- **MUA 2006's window is the right size with Windows display scaling (MUA Classic Fix 0.2.4).** On a scaled primary
+  monitor (a 4K screen at the default 150%) Windowed and Borderless were about 1.5x too big and ran onto the next
+  monitor, and Borderless kept its title bar. Not a launcher bug and not new in 0.5.1: the 2006 game is DPI-unaware,
+  so Windows enlarged the window dgVoodoo2 had sized in real pixels, and the engine re-applied its frame over
+  dgVoodoo2's borderless setting. MUA Classic Fix 0.2.4 (`dinput8.dll` 0.1.3) makes the game per-monitor DPI aware
+  and keeps Borderless frameless on exactly the primary monitor; **Update** on the MUA 2006 page installs it. The
+  launcher's settings are unchanged; Fullscreen was never affected.
 - **MUA 2006 no longer crashes at startup at 2560x1440, 4K and other sizes the game doesn't know (#31).** The game
   only knows 14 resolutions (640x480 to 1920x1200, plus 2048x1536) and read past the end of that list when any other
   size was saved. MUA Classic Fix 0.2.3 (its `dinput8.dll` 0.1.2, detected from the DLL's version resource) fixes

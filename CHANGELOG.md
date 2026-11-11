@@ -3,7 +3,7 @@
 The launcher's version comes from its release tag (`v0.3.2`): premake reads it with `git describe` when it
 generates the project, so a release only needs this entry and the tag.
 
-## 0.6.0-beta.2 (a pre-release for the Beta update channel)
+## 0.6.0-beta.2 (2026-11-10: a pre-release for the Beta update channel)
 
 ### Fixed
 - The two MUA 2006 fixes of 0.5.1 (below): no startup crash at 2560x1440, 4K and other sizes the game doesn't know

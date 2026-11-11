@@ -6,8 +6,9 @@ generates the project, so a release only needs this entry and the tag.
 ## 0.6.0-beta.2 (2026-11-10: a pre-release for the Beta update channel)
 
 ### Fixed
-- The two MUA 2006 fixes of 0.5.1 (below): no startup crash at 2560x1440, 4K and other sizes the game doesn't know
-  with MUA Classic Fix 0.2.3 (#31), and **I have a working installation** finishes setting up (#32).
+- The MUA 2006 fixes of 0.5.1 (below): no startup crash at 2560x1440, 4K and other sizes the game doesn't know
+  with MUA Classic Fix 0.2.3 (#31), the right window size with Windows display scaling and a real Borderless with
+  MUA Classic Fix 0.2.4, and **I have a working installation** finishes setting up (#32).
 
 ## 0.6.0-beta.1 (2026-11-05: a pre-release for the Beta update channel)
 

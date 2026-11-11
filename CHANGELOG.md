@@ -3,6 +3,30 @@
 The launcher's version comes from its release tag (`v0.3.2`): premake reads it with `git describe` when it
 generates the project, so a release only needs this entry and the tag.
 
+## 0.5.1 (2026-11-10)
+
+A fix release for Marvel: Ultimate Alliance (2006 PC), with **MUA Classic Fix 0.2.3**. The release notes are
+`docs/release/v0.5.1-notes.md`.
+
+### Fixed
+- **MUA 2006 no longer crashes at startup at 2560x1440, 4K and other sizes the game doesn't know (#31).** The game
+  only knows 14 resolutions (640x480 to 1920x1200, plus 2048x1536) and read past the end of that list when any other
+  size was saved. MUA Classic Fix 0.2.3 (its `dinput8.dll` 0.1.2, detected from the DLL's version resource) fixes
+  that in the game; with it, the options page offers every primary-monitor mode, and a resolution write also writes
+  dgVoodoo2's `[DirectXExt] ExtraEnumeratedResolutions=<size>@60` (re-synced before every launch for sizes saved
+  elsewhere), without which the game shows "Display failed!". With an older MUA Classic Fix the page offers only the
+  game's own sizes, keeps an older saved size visible with an explanation, and **Play** is refused
+  (`muac_resolution`) until a supported size is chosen. A write is checked as a whole before any INI or registry
+  change. Proton is unchanged.
+- **"I have a working installation" finishes setting up MUA 2006 (#32).** Finish Setup and Verify Files used the
+  generic updater, which has nothing to do for MUA 2006 and reported success, so the folder never became ready.
+  Choosing a folder now registers it at once when it already has the compatibility files, and otherwise Finish
+  Setup / Verify Files install or repair them through the MUA Classic Fix runtime transaction (same-version repair
+  allowed, downgrades still refused), then register the game. Game files, mods, saves and settings are kept. The
+  folder must be the game root with `Game.exe`, `libIGCore.dll`, `libIGGfx.dll`, `build.ini` and
+  `data/herostat.engb` (any letter case); a parent or `data` folder and the 2016 `Marvel.exe` release are refused
+  with an explanation.
+
 ## 0.5.0 (2026-11-05)
 
 The stable release of the eight 0.5.0 betas (below): character models for X-Men Legends, Marvel: Ultimate Alliance

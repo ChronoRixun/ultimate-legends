@@ -1316,7 +1316,7 @@ namespace xml1_port
         out.AddMember("movies", flag(game, property_keys::BUILD_MOVIES, true), allocator);
         out.AddMember("keepCache", flag(game, property_keys::BUILD_KEEP_CACHE, true), allocator);
         out.AddMember("linkBase", flag(game, property_keys::BUILD_LINK_BASE, false), allocator);
-        out.AddMember("classicConversation", flag(game, property_keys::BUILD_CLASSIC_CONVERSATION, false), allocator);
+        out.AddMember("classicConversation", flag(game, property_keys::BUILD_CLASSIC_CONVERSATION, true), allocator);
         out.AddMember("cache", make_string(utils::string::path_to_utf8(cache_folder()), allocator), allocator);
         // The build cache still holds the disc of the build in the folder: a rebuild, a repair or a
         // resume works without the disc image (the builder reads the disc from the cache).

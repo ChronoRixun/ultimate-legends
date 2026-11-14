@@ -220,7 +220,7 @@
                     <span class="xml1-option-text"><strong>${escapeHtml(t('xml1.classicConversation'))}</strong>
                         <small>${escapeHtml(t('xml1.classicConversationBody'))}</small></span>
                     <span class="ul-mod-toggle"><input type="checkbox" data-option="classicConversation"
-                        ${s.classicConversation ? 'checked' : ''} ${blocked ? 'disabled' : ''}><span class="ul-mod-switch"></span></span>
+                        ${s.classicConversation !== false ? 'checked' : ''} ${blocked ? 'disabled' : ''}><span class="ul-mod-switch"></span></span>
                 </label>
             </div>` : '';
         const importFocus = window.Xml1SaveImport && window.Xml1SaveImport.captureFocus();

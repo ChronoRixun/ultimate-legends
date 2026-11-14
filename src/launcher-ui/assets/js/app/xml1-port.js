@@ -385,7 +385,7 @@
                 }
             }
             options = { ...options, classicConversation: options?.classicConversation ??
-                (!!this.status?.builder?.classicConversation && !!this.status?.classicConversation) };
+                (!!this.status?.builder?.classicConversation && this.status?.classicConversation !== false) };
             const out = options && options.out;
             let told = false;
             const tell = () => {

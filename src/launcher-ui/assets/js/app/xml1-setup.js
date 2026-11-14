@@ -63,7 +63,7 @@
                     out: s.install || s.defaultOut || '',
                     movies: s.movies !== false,
                     keepCache: s.keepCache !== false,
-                    classicConversation: !!s.classicConversation,
+                    classicConversation: s.classicConversation !== false,
                     linkBase: LINK_BASE_SUPPORTED && !!s.linkBase
                 };
             }

@@ -1,5 +1,6 @@
 #include "rapidjson_config.hpp"
 #include "properties.hpp"
+#include "test_instance.hpp"
 
 #include "finally.hpp"
 
@@ -117,7 +118,7 @@ namespace utils::properties
 
     std::unique_lock<named_mutex> lock()
     {
-        static named_mutex mutex{"ultimate-legends-properties-lock"};
+        static named_mutex mutex{test_instance::suffixed("ultimate-legends-properties-lock", test_instance::name())};
         std::unique_lock lock{mutex};
         return lock;
     }

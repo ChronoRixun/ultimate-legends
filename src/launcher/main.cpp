@@ -13,6 +13,7 @@
 #include <utils/io.hpp>
 #include <utils/nt.hpp>
 #include <utils/com.hpp>
+#include <utils/test_instance.hpp>
 
 #include <crtdbg.h>
 
@@ -101,7 +102,9 @@ namespace
 
     utils::named_mutex& singleton_mutex()
     {
-        static utils::named_mutex mutex{"ultimate-legends"};
+        // A test instance (-portable -test-instance <name>) has a lock of its own: it never hands its start
+        // to the player's launcher, and the player's launcher never hands one to it.
+        static utils::named_mutex mutex{utils::test_instance::suffixed("ultimate-legends", utils::test_instance::name())};
         return mutex;
     }
 
@@ -265,6 +268,21 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
 
     try
     {
+        // First: the test-instance mode decides lock / pipe names and what may touch the system.
+        if (!is_subprocess())
+        {
+            std::string error;
+            const auto name = utils::test_instance::resolve(utils::flags::get_flag_value("test-instance"),
+                                                            utils::properties::is_portable(), error);
+            if (!error.empty())
+            {
+                // No message box: a test run must never leave a modal window on the desktop.
+                fprintf(stderr, "%s\n", error.c_str());
+                return 2;
+            }
+            utils::test_instance::set(name.value_or(""));
+        }
+
         set_working_directory();
 
         const utils::nt::library lib{instance};
@@ -337,8 +355,8 @@ int CALLBACK WinMain(const HINSTANCE instance, HINSTANCE, LPSTR, int)
 
         if (!utils::nt::is_wine_environment())
         {
-            create_shortcuts();
-            uri_scheme::ensure_registered();
+            // A test instance does neither (utils/test_instance.hpp; src/tests/test_instance_tests.cpp).
+            utils::test_instance::run_startup(utils::test_instance::current(), {create_shortcuts, [] { uri_scheme::ensure_registered(); }});
         }
         else
         {

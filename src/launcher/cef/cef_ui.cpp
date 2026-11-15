@@ -1,4 +1,5 @@
 #include <std_include.hpp>
+#include <utils/test_instance.hpp>
 
 #include "cef/cef_ui.hpp"
 #include "cef/cef_ui_app.hpp"
@@ -208,7 +209,7 @@ namespace cef
         this->browser_ = CefBrowserHost::CreateBrowserSync(window_info, this->ui_handler_, url, browser_settings,
                                                            nullptr, nullptr);
 
-        if (bounds.maximized)
+        if (bounds.maximized && utils::test_instance::may_activate())
         {
             ShowWindow(this->get_window(), SW_MAXIMIZE);
         }

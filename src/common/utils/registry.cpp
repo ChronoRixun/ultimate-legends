@@ -1,4 +1,5 @@
 #include "registry.hpp"
+#include "test_instance.hpp"
 
 #include <Windows.h>
 
@@ -37,6 +38,12 @@ namespace utils::registry
 
     bool set_hkcu_string(const std::wstring& subkey, const std::wstring& value_name, const std::wstring& value)
     {
+        // A test instance writes nothing outside its own folder.
+        if (!test_instance::hkcu_writes_allowed())
+        {
+            return false;
+        }
+
         HKEY key{};
         if (RegCreateKeyExW(HKEY_CURRENT_USER, subkey.data(), 0, nullptr, REG_OPTION_NON_VOLATILE,
                             KEY_WRITE, nullptr, &key, nullptr) != ERROR_SUCCESS)

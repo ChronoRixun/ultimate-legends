@@ -1,4 +1,5 @@
 #include "std_include.hpp"
+#include <utils/test_instance.hpp>
 #include "release_source.hpp"
 #include "release_resolver.hpp"
 
@@ -16,13 +17,14 @@ namespace release_source
 
         std::string api_base()
         {
-#ifdef _DEBUG
-            // Debug builds only (the CDP tests): a local server standing in for api.github.com.
-            if (const auto base = utils::properties::load(property_keys::DEV_RELEASE_API); base && !base->empty())
+            // Debug builds and test instances only (the CDP tests): a local server standing in for api.github.com.
+            if (utils::test_instance::dev_overrides())
             {
-                return *base;
+                if (const auto base = utils::properties::load(property_keys::DEV_RELEASE_API); base && !base->empty())
+                {
+                    return *base;
+                }
             }
-#endif
             return "https://api.github.com";
         }
 
@@ -97,12 +99,13 @@ namespace release_source
 
     std::string file_url(const std::string& repo, const release_channel::release& chosen, const std::string& file)
     {
-#ifdef _DEBUG
-        if (const auto* const asset = chosen.find(file); asset && (asset->url.starts_with("http://127.0.0.1:") || asset->url.starts_with("http://localhost:")))
+        if (utils::test_instance::dev_overrides())
         {
-            return asset->url; // the test's local server
+            if (const auto* const asset = chosen.find(file); asset && (asset->url.starts_with("http://127.0.0.1:") || asset->url.starts_with("http://localhost:")))
+            {
+                return asset->url; // the test's local server
+            }
         }
-#endif
         return release_channel::download_url(repo, chosen.tag, file);
     }
 }

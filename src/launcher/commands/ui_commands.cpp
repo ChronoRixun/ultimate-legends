@@ -1,4 +1,5 @@
 #include "std_include.hpp"
+#include <utils/test_instance.hpp>
 #include "ui_commands.hpp"
 #include "cef/cef_ui.hpp"
 
@@ -104,6 +105,15 @@ namespace commands::ui_commands
         cef_ui.add_command("show", [&cef_ui](const auto&, auto&)
         {
             auto* const window = cef_ui.get_window();
+
+            if (!utils::test_instance::may_activate())
+            {
+                // A test instance: visible, never activated or brought to the front.
+                ShowWindow(window, SW_SHOWNOACTIVATE);
+                PostMessageA(window, WM_DELAYEDDPICHANGE, 0, 0);
+                cef_ui.notify_frontend_ready();
+                return;
+            }
 
             // Preserve the window's current state. SW_SHOWDEFAULT would un-maximize a
             // window that was restored maximized on launch, and clobber the saved flag.

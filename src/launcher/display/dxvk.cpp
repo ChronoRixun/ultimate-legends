@@ -175,6 +175,11 @@ namespace dxvk
         }
     }
 
+    bool offered_for(const std::string_view game_key)
+    {
+        return game_key == "xml1";
+    }
+
     const release& pinned()
     {
         static const release dxvk_3_1_1{

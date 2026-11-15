@@ -44,6 +44,11 @@ namespace dxvk
     // DXVK 3.1.1 (O:/Projects/agent-work/dxvk-pin/v3.1.1/PIN.md): the only release the launcher installs.
     const release& pinned();
 
+    // The games whose page offers DXVK. Owen 11-15: only X-Men Legends (Legends Classic, "xml1") for now; X-Men
+    // Legends II ("xml2") follows after testing - add "xml2" here, and to SUPPORTED in app/dxvk-view.js, to turn
+    // it on. The launcher commands (commands/dxvk_commands.cpp) all go through this.
+    bool offered_for(std::string_view game_key);
+
     std::string sha256_file(const std::filesystem::path& file);
 
     // The archive in the cache is the pinned one (size, then SHA-256).

@@ -50,7 +50,7 @@ namespace commands::dxvk_commands
 
         bool supported(const std::optional<game_config::game_config_t>& config)
         {
-            return config && (config->get_game_key() == "xml1" || config->get_game_key() == "xml2");
+            return config && dxvk::offered_for(config->get_game_key());
         }
 
         // The folder the game's XMen2.exe runs from, when it is set and exists.

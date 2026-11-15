@@ -1,4 +1,4 @@
-// The optional Vulkan renderer (DXVK) of the XML2-engine games, in Display & options. Off by default and
+// The optional Vulkan renderer (DXVK) of the XML2-engine games (offered on X-Men Legends only for now), in Display & options. Off by default and
 // nothing is downloaded until the player turns it on and confirms: then the launcher (dxvk_commands.cpp)
 // downloads the one pinned official release (DXVK 3.1.1 from github.com/doitsujin/dxvk), checks its
 // SHA-256 and the SHA-256 of the two files it uses, and puts the 32-bit d3d8.dll and d3d9.dll next to the
@@ -8,7 +8,9 @@
 (function () {
     'use strict';
 
-    const SUPPORTED = new Set(['xml1', 'xml2']);
+    // Only X-Men Legends (Legends Classic) for now; add 'xml2' (and "xml2" in dxvk::offered_for, display/dxvk.cpp)
+    // to offer it on X-Men Legends II too, once tested there.
+    const SUPPORTED = new Set(['xml1']);
     const POLL_MS = 500;
     const state = {};
 
@@ -51,7 +53,7 @@
 
     function render(game) {
         const h = host(game);
-        if (!h) return;
+        if (!h || !SUPPORTED.has(game)) return;
         if (!h.dataset.bound) {
             h.dataset.bound = 'true';
             h.addEventListener('click', event => onClick(game, event));

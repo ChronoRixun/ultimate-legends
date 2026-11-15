@@ -304,6 +304,9 @@ test('game tabs: the other game pages keep one stacked page with the compact hea
     // (Its sections are checked in the rendered preview: the tiny DOM stops parsing at the banner's
     // url("...") inline style.)
     assert.equal(p.document.getElementById('xml2-tabs'), null);
+    // DXVK is offered on X-Men Legends only for now: its section is on the XML1 page, not the XML2 one.
+    assert.ok(p.$('#xml1-dxvk-panel'));
+    assert.equal(p.$('#xml2-dxvk-panel'), null);
     const css = fs.readFileSync(path.join(__dirname, '..', '..', 'launcher-ui', 'assets', 'css', 'main.css'), 'utf8');
     assert.match(css, /\.game-page \.hero-section \{\s*height: 150px;/);
     assert.match(css, /\.game-page \.hero-section \.game-meta-row \{\s*display: none;/);

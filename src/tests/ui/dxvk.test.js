@@ -197,10 +197,15 @@ test('DXVK: a failure and an unset-up game say so', async () => {
     assert.match(absent.document.querySelector('#xml1-dxvk-panel').textContent, /Set up the game first/);
 });
 
-test('DXVK: offered on both XML2-engine games and nowhere else', async () => {
+test('DXVK: offered on X-Men Legends only (not X-Men Legends II, not the MUA games)', async () => {
     const p = await open({}, { game: 'xml2' });
-    assert.ok(p.on());
+    // X-Men Legends II: no row, no backend call, even when its panel host exists.
+    assert.equal(p.on(), null);
+    assert.equal(p.$('.ul-dxvk-toggle'), null);
+    assert.deepEqual(p.backend.calls, []);
     assert.equal(p.window.DxvkView.supports('xml1'), true);
-    assert.equal(p.window.DxvkView.supports('xml2'), true);
+    assert.equal(p.window.DxvkView.supports('xml2'), false);
     for (const other of ['mua', 'mua2', 'muac']) assert.equal(p.window.DxvkView.supports(other), false);
+    const lc = await open({}, { game: 'xml1' });
+    assert.ok(lc.on());
 });

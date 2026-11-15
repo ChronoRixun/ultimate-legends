@@ -153,6 +153,17 @@ TEST(dxvk_pin_is_the_official_3_1_1_release)
     CHECK(pin.files[1].sha256 == "265888c31ca78dffa290c39cb7e50bfb02762590e41927906e46fb32f01497fa");
 }
 
+TEST(dxvk_is_offered_on_x_men_legends_only)
+{
+    // Owen 11-15: X-Men Legends II gets it later, after testing. Turning it on is one line (dxvk::offered_for).
+    CHECK(dxvk::offered_for("xml1"));
+    CHECK(!dxvk::offered_for("xml2"));
+    CHECK(!dxvk::offered_for("mua"));
+    CHECK(!dxvk::offered_for("mua2"));
+    CHECK(!dxvk::offered_for("muac"));
+    CHECK(!dxvk::offered_for(""));
+}
+
 TEST(dxvk_extract_takes_only_the_pinned_32_bit_files)
 {
     fixture f;

@@ -41,7 +41,7 @@ test('Classic conversation: hidden for beta.2 or no installed builder even if an
     }
 });
 
-test('Classic conversation: defaults off, explains rebuild, saves on change and preserves focus on refresh', async () => {
+test('Classic conversation: explicit opt-out, explains rebuild, saves on change and preserves focus on refresh', async () => {
     const p = await open();
     assert.equal(p.box().checked, false);
     assert.match(p.document.querySelector('.xml1-appearance').textContent, /Classic conversation box \(XML1 look\)/);
@@ -135,4 +135,17 @@ test('Early cancelled rebuild: UI respects the native completed-build recovery a
         assert.equal(!!p.document.querySelector('#xml1-build-panel [data-act="resume"]'), state === 'incomplete');
         assert.equal(p.document.querySelector('#xml1-build-panel [data-act="install-fix"]'), null);
     }
+});
+
+test('Classic conversation: a missing preference defaults checked and forwards xml1 while explicit off stays off', async () => {
+    const p = await open();
+    delete p.status.classicConversation;
+    p.window.Xml1View.render('xml1');
+    assert.equal(p.box().checked, true);
+    await p.port.startBuild();
+    assert.equal(p.calls.find(call => call.command === 'xml1-build-start').data.classicConversation, true);
+    const off = await open({ enabled: false });
+    assert.equal(off.box().checked, false);
+    await off.port.startBuild();
+    assert.equal(off.calls.find(call => call.command === 'xml1-build-start').data.classicConversation, false);
 });

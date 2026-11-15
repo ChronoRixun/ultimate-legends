@@ -3,6 +3,20 @@
 The launcher's version comes from its release tag (`v0.3.2`): premake reads it with `git describe` when it
 generates the project, so a release only needs this entry and the tag.
 
+## 0.6.0 (2026-11-14)
+
+The stable release of the 0.6.0 betas, for Legends Classic 0.6.0 and XML2 Fix 1.11.0.
+
+### Changed
+- **The Classic conversation box is on by default** for Legends Classic. A saved choice to turn it off is kept; untick
+  it and Rebuild to go back to the PC conversation box.
+
+### Included from the 0.6.0 betas
+- Custom sidebar game icons (beta 1).
+- MUA 2006 resolution and display-scaling fixes from 0.5.1 / 0.5.2 (beta 2).
+- The Support page with Help, Report a problem (Copy diagnostics, Report a bug, Logs), Known issues and Community
+  tabs, and the Proton "Open log folder" fix (beta 3).
+
 ## 0.6.0-beta.3 (2026-11-11: a pre-release for the Beta update channel)
 
 ### Added

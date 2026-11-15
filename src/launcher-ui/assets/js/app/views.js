@@ -1080,6 +1080,9 @@
                         <div id="${escapeHtml(config.uiId)}-display-panel"></div>
                     </section>`
                         : ''}
+                    ${!comingSoon && window.RemasteredView && window.RemasteredView.supports(config.uiId)
+                        ? `<section class="detail-display"><h3 class="detail-display-title">${escapeHtml(t('remastered.title'))}</h3>
+                        <div id="${escapeHtml(config.uiId)}-remastered-panel"></div></section>` : ''}
                     ${!comingSoon && window.PresenceView && window.PresenceView.supports(config.uiId)
                         ? `<section class="detail-presence">
                         <h3 class="detail-presence-title">${escapeHtml(t('presence.title'))}</h3>
@@ -1120,6 +1123,12 @@
             GameUtils.getAllGameConfigs()
                 .filter(config => !config.comingSoon && window.DisplayView.supports(config.uiId))
                 .forEach(config => window.DisplayView.render(config.uiId));
+        }
+
+        if (window.RemasteredView) {
+            GameUtils.getAllGameConfigs()
+                .filter(config => !config.comingSoon && window.RemasteredView.supports(config.uiId))
+                .forEach(config => window.RemasteredView.render(config.uiId));
         }
 
         if (window.PresenceView) {

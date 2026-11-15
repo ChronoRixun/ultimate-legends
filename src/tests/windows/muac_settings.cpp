@@ -1,5 +1,6 @@
 #include "std_include.hpp"
 #include "muac/settings.hpp"
+#include "display/remastered_settings.hpp"
 #include "game_config.hpp"
 #include <cstdio>
 #include <fstream>
@@ -37,6 +38,30 @@ namespace {
 
 int main() {
     fixture test;
+    // Real Win32 profile I/O: Remastered edits must preserve unrelated options
+    // and reject the whole request before the first write on invalid input.
+    const auto remastered_ini = test.folder / "xml2-fix.ini";
+    CHECK(remastered_settings::read(remastered_ini).empty());
+    CHECK(!std::filesystem::exists(remastered_ini));
+    std::ofstream(remastered_ini, std::ios::binary) << "; keep header\n[Display]\nFrameRate=60\n[Game]\nSaveFolder=synthetic\n"
+        "[Remastered]\nEnabled=0 ; keep choice comment\nMSAASamples=8\nUnknownOption=keep\n";
+    const auto original = bytes(remastered_ini);
+    std::string remastered_error;
+    CHECK(!remastered_settings::write(remastered_ini, {{"Enabled", "1"}, {"Anisotropy", "6"}}, remastered_error));
+    CHECK(bytes(remastered_ini) == original);
+    CHECK(!remastered_settings::write(remastered_ini, {{"FrameRate", std::nullopt}}, remastered_error));
+    CHECK(bytes(remastered_ini) == original);
+    CHECK(remastered_settings::write(remastered_ini, {{"Enabled", "1"}}, remastered_error));
+    CHECK(remastered_settings::read(remastered_ini).at("Enabled") == "1");
+    CHECK(remastered_settings::read(remastered_ini).at("MSAASamples") == "8");
+    CHECK(bytes(remastered_ini).find("; keep choice comment") != std::string::npos);
+    CHECK(bytes(remastered_ini).find("UnknownOption=keep") != std::string::npos);
+    CHECK(bytes(remastered_ini).find("FrameRate=60") != std::string::npos);
+    CHECK(bytes(remastered_ini).find("SaveFolder=synthetic") != std::string::npos);
+    CHECK(remastered_settings::write(remastered_ini, {{"Enabled", "0"}}, remastered_error));
+    CHECK(remastered_settings::read(remastered_ini).at("MSAASamples") == "8");
+    CHECK(!remastered_settings::read(remastered_ini).contains("Anisotropy"));
+
     CHECK(muac::normalise("CaptureMouse", " YES ") == "1");
     CHECK(muac::normalise("FrameLimit", "060") == "60");
     CHECK(!muac::normalise("FrameLimit", "19"));

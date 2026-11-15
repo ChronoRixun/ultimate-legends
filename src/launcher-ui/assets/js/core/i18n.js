@@ -1,6 +1,23 @@
 (function() {
     const translations = {
         en: {
+            remastered: {
+                title: 'Remastered',
+                intro: 'Optional graphics settings. Off keeps the original look. Your saved choices apply again when you turn it on.',
+                Enabled: 'Remastered', EnabledBody: 'Enable the graphics options below. Off is the default.',
+                MSAASamples: 'Anti-aliasing', MSAASamplesBody: 'Smooth 3D edges. Unsupported sample counts fall back to a supported setting.',
+                Anisotropy: 'Texture filtering', AnisotropyBody: 'Sharpen eligible distant and angled world textures. Interface art keeps its original filtering.',
+                AnisotropyOnPointArt: 'Filter point-sampled world art', AnisotropyOnPointArtBody: 'Also filter world art authored with sharp sampling; this can soften its texture.',
+                CenteredHud: 'Centered Beenox menus', CenteredHudBody: 'Keep the Advanced options panels proportional on wide screens. HUD and dialogue keep their current size.',
+                off: 'Off', on: 'On', savedFSAA: 'Use saved game setting',
+                x2: '2x', x4: '4x', x6: '6x', x8: '8x', x16: '16x',
+                invalid: '{{value}} (invalid; component disabled)',
+                building: 'Settings are unavailable while the game is being built.', saving: 'Saving...',
+                needsFix: 'Update to XML2 Fix {{version}} or later to use Remastered.',
+                restart: 'Changes apply the next time you start the game.',
+                setUp: 'Set up the game and install XML2 Fix to use these options.',
+                failed: 'Remastered settings could not be saved.'
+            },
             gameOrder: {
                 earlier: 'Move earlier',
                 later: 'Move later',

@@ -21,6 +21,20 @@
         return document.getElementById(`${gameId}-build-panel`);
     }
 
+    // The tabbed page's persistent attention strip (above the tabs) and the Display & options tab's
+    // Appearance host; without them (the page before tabs, the tests' bare panel) everything stays in the
+    // Build panel as it was.
+    function stripHost(gameId) {
+        return document.getElementById(`${gameId}-attention`);
+    }
+
+    function appearanceHost(gameId) {
+        return document.getElementById(`${gameId}-appearance-panel`);
+    }
+
+    // States the strip shows (the game can't simply be played): what the player can do about each.
+    const STRIP_STATES = new Set(['not-setup', 'absent', 'building', 'finishing', 'incomplete', 'damaged', 'needs-fix']);
+
     function bytes(value) {
         return GameUtils.formatBytes(Math.max(0, Number(value) || 0));
     }
@@ -52,7 +66,7 @@
             case 'not-setup': return t('xml1.state.notSetUp');
             case 'absent': return t('xml1.state.absent', { folder: s.install });
             case 'incomplete': return t(s.isoExists || s.cacheHasDisc ? 'xml1.state.incomplete' : 'xml1.state.incompleteNeedsDisc');
-            case 'building': return port.build && port.build.cancelRequested ? t('xml1.cancelling') : port.progressMessage(port.build);
+            case 'building': return port.build && port.build.cancelRequested ? t('xml1.cancelling') : port.build ? port.progressMessage(port.build) : t('xml1.buildingTitle');
             case 'finishing': return t('xml1.finishingBody');
             case 'needs-fix': return t('xml1.state.needsFix');
             case 'damaged': return t('xml1.state.damaged', { count: port.damageCount(port.verify) });
@@ -212,10 +226,72 @@
             actions.push(button('setup', t('common.setUp')));
         }
 
-        const appearanceFocus = host.contains(document.activeElement) && document.activeElement?.dataset?.option === 'classicConversation';
+        // The attention strip above the tabs: the state, the build's progress and the one thing to do
+        // (Details opens Build & tools); the Build panel then leaves out the pill, the bar and those buttons.
+        const strip = stripHost(gameId);
+        const stripShown = !!strip && STRIP_STATES.has(state);
+        const stripActs = new Set();
+        if (strip) {
+            if (stripShown) {
+                const stripActions = [];
+                const take = (action, label, extra) => {
+                    stripActs.add(action);
+                    stripActions.push(button(action, label, extra));
+                };
+                const disabled = blocked ? 'disabled' : '';
+                // Set up / Build stay in the Build panel too: before a first build it is that tab's one action.
+                if (state === 'not-setup') stripActions.push(button('setup', t('common.setUp')));
+                else if (state === 'absent') stripActions.push(button('setup', t('xml1.build')));
+                else if (state === 'building') {
+                    take('cancel-build', t('xml1.cancelBuild'), job && job.cancelRequested ? 'disabled' : '');
+                    take('show-progress', t('xml1.showProgress'));
+                } else if (state === 'incomplete') take('resume', t('xml1.resume'), disabled);
+                else if (state === 'damaged') take('rebuild', t('xml1.repair'), disabled);
+                else if (state === 'needs-fix') take('install-fix', t('xml1.installFix'), disabled);
+                if (!['not-setup', 'absent', 'building', 'finishing'].includes(state)) {
+                    stripActions.push(`<button type="button" class="secondary-action xml1-small" data-goto-tab="build">${escapeHtml(t('gameTabs.details'))}</button>`);
+                }
+                const focused = strip.contains(document.activeElement) ? document.activeElement : null;
+                const stripFocus = focused && focused.dataset ? (focused.dataset.act || focused.dataset.gotoTab || '') : '';
+                strip.innerHTML = `
+                    <div class="xml1-state xml1-attention is-${escapeHtml(state)}" data-state="${escapeHtml(state)}" role="status">
+                        <span class="xml1-state-name">${escapeHtml(t(`xml1.stateName.${state}`))}</span>
+                        <span class="xml1-state-text">${escapeHtml(stateText(port))}${progress}</span>
+                        ${stripActions.length ? `<span class="xml1-attention-actions">${stripActions.join('')}</span>` : ''}
+                    </div>`;
+                strip.hidden = false;
+                strip.querySelectorAll('[data-act]').forEach(element => {
+                    element.addEventListener('click', () => act(gameId, element.dataset.act));
+                });
+                const details = strip.querySelector('[data-goto-tab]');
+                if (details) {
+                    details.addEventListener('click', () => {
+                        if (window.GameTabs) window.GameTabs.select(gameId, 'build', { user: true, focus: true });
+                    });
+                }
+                if (stripFocus) {
+                    const again = strip.querySelector(`[data-act="${stripFocus}"]`) || strip.querySelector(`[data-goto-tab="${stripFocus}"]`);
+                    if (again && !again.disabled) again.focus();
+                }
+            } else {
+                const hadFocus = strip.contains(document.activeElement);
+                strip.hidden = true;
+                strip.innerHTML = '';
+                // A keyboard or controller user who pressed the strip's last button lands on Play.
+                if (hadFocus) {
+                    const group = document.getElementById(`${gameId}-button-group`);
+                    const next = group && [...group.querySelectorAll('button')].find(item => !item.disabled);
+                    if (next) next.focus();
+                }
+            }
+        }
+
+        const updatesRow = s.install && strip ? channelRow() : '';
+        const appearanceTarget = appearanceHost(gameId) || host;
+        const appearanceFocus = appearanceTarget.contains(document.activeElement) && document.activeElement?.dataset?.option === 'classicConversation';
         const appearance = builder.installed && builder.classicConversation ? `
             <div class="xml1-appearance">
-                <h3>${escapeHtml(t('xml1.appearance'))}</h3>
+                ${appearanceTarget === host ? `<h3>${escapeHtml(t('xml1.appearance'))}</h3>` : ''}
                 <label class="xml1-option">
                     <span class="xml1-option-text"><strong>${escapeHtml(t('xml1.classicConversation'))}</strong>
                         <small>${escapeHtml(t('xml1.classicConversationBody'))}</small></span>
@@ -224,24 +300,32 @@
                 </label>
             </div>` : '';
         const importFocus = window.Xml1SaveImport && window.Xml1SaveImport.captureFocus();
+        const shownActions = actions.filter(html => !stripActs.has((/data-act="([^"]+)"/.exec(html) || [])[1]));
         host.innerHTML = `
             <div class="ul-display xml1-view" data-state="${escapeHtml(state)}">
-                <div class="xml1-state is-${escapeHtml(state)}">
+                ${stripShown ? '' : `<div class="xml1-state is-${escapeHtml(state)}">
                     <span class="xml1-state-name">${escapeHtml(t(`xml1.stateName.${state}`))}</span>
                     <span class="xml1-state-text">${escapeHtml(stateText(port))}</span>
                 </div>
-                ${progress}
+                ${progress}`}
                 ${error}
                 ${fixNote}
                 ${state !== 'building' ? verifyHTML(port) : ''}
                 ${state !== 'building' && !failed ? noticesHTML(port, job) : ''}
                 ${rows}
-                ${appearance}
-                <div class="xml1-actions">${actions.join('')}</div>
+                ${updatesRow}
+                ${appearanceTarget === host ? appearance : ''}
+                ${shownActions.length ? `<div class="xml1-actions">${shownActions.join('')}</div>` : ''}
                 ${saveImport ? '<div id="xml1-save-import"></div>' : ''}
             </div>`;
+        if (appearanceTarget !== host) {
+            appearanceTarget.innerHTML = appearance;
+            // Without a builder that offers it there is nothing to show: the section goes, title and all.
+            const section = appearanceTarget.closest ? appearanceTarget.closest('section') : null;
+            if (section) section.hidden = !appearance;
+        }
 
-        const appearanceBox = host.querySelector('[data-option="classicConversation"]');
+        const appearanceBox = appearanceTarget.querySelector('[data-option="classicConversation"]');
         if (appearanceBox) {
             appearanceBox.addEventListener('change', () => port.setClassicConversation(appearanceBox.checked));
             if (appearanceFocus) appearanceBox.focus();
@@ -250,6 +334,26 @@
         host.querySelectorAll('[data-act]').forEach(element => {
             element.addEventListener('click', () => act(gameId, element.dataset.act));
         });
+        const channelButton = host.querySelector('[data-op="open-channel"]');
+        if (channelButton) {
+            channelButton.addEventListener('click', () => {
+                if (window.UpdateChannel) window.UpdateChannel.openSetting();
+            });
+        }
+    }
+
+    // Build & tools: the builder and the XML2 Fix come from the launcher's update channel (Settings >
+    // Updates), so the tab says which one and leads there.
+    function channelRow() {
+        const channel = window.UpdateChannel && typeof window.UpdateChannel.channel === 'function' && window.UpdateChannel.status
+            ? window.UpdateChannel.channel() : '';
+        const value = channel === 'beta' ? t('gameTabs.updatesBeta') : channel === 'stable' ? t('gameTabs.updatesStable') : t('gameTabs.updatesChannel');
+        const action = window.UpdateChannel && typeof window.UpdateChannel.openSetting === 'function'
+            ? `<button type="button" class="secondary-action xml1-small" data-op="open-channel">${escapeHtml(t('online.openUpdateChannel'))}</button>` : '';
+        return `
+            <div class="install-info-section xml1-facts xml1-updates">
+                ${row(t('gameTabs.updatesRow'), value, action)}
+            </div>`;
     }
 
     // Rebuild (this page, and the Online section when the build is older than the XML2 Fix): from the disc
@@ -366,6 +470,47 @@
             }, 0);
         }
     }, true);
+
+    // The X-Men Legends page's tabs (TAB-MAP.md, Owen's decisions 2026-11-11): Online, Display & options,
+    // Characters and Mods exist once a build has put the game in its folder; a state the player must act on
+    // opens Build & tools once. Not set up / absent need no override: only Overview and Build & tools
+    // exist then, Overview shows and the strip offers Set up, and the remembered tab returns after the build.
+    const OVERRIDES = { building: 'build', damaged: 'build', 'needs-fix': 'build', incomplete: 'build' };
+
+    function hasGame() {
+        const port = window.Xml1Port;
+        const s = port && port.status;
+        if (!s || !s.install || s.exists === false || !s.build) return false;
+        if (['not-setup', 'absent', 'loading'].includes(port.state())) return false;
+        return !!(s.build.stamp || s.build.game);
+    }
+
+    let testersWereOn = false;
+    if (window.GameTabs) {
+        window.GameTabs.define('xml1', {
+            fallback: 'overview',
+            tabs: [
+                { id: 'overview', label: 'gameTabs.overview' },
+                { id: 'online', label: 'gameTabs.online', available: hasGame },
+                { id: 'options', label: 'gameTabs.options', available: hasGame },
+                { id: 'characters', label: 'gameTabs.characters', available: hasGame },
+                { id: 'mods', label: 'gameTabs.mods', available: hasGame },
+                { id: 'build', label: 'gameTabs.build', always: true }
+            ],
+            override() {
+                const port = window.Xml1Port;
+                const state = port && port.status ? port.state() : 'loading';
+                return { state, tab: OVERRIDES[state] || null };
+            },
+            // "For testers" opens by itself when a test switch turns on (the badge by Play says so too).
+            onRefresh() {
+                const on = !!(window.TestModeView && window.TestModeView.isOn('xml1'));
+                const details = document.getElementById('xml1-testers');
+                if (details && on && !testersWereOn) details.open = true;
+                testersWereOn = on;
+            }
+        });
+    }
 
     window.Xml1View = {
         supports: gameId => SUPPORTED.has(gameId),

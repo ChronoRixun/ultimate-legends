@@ -5212,3 +5212,139 @@ html[data-reduce-motion] .ul-online-spinner { animation: none; }
 .hub-hero.has-custom-banner .hub-hero-info {
     text-shadow: 0 2px 6px rgba(0, 0, 0, 0.65);
 }
+
+/* ============================================================ */
+/* GAME PAGE HEADER + TABS (TAB-MAP.md, Owen 2026-11-11)        */
+/* ============================================================ */
+
+/* Compact header on every game page: a 150px banner without its meta chip, so Play and the content
+   start high enough on a Steam Deck (1280x800). */
+.game-page .hero-section {
+    height: 150px;
+}
+
+.game-page .hero-section .game-meta-row {
+    display: none;
+}
+
+.game-page .hero-bottom-content {
+    bottom: 26px;
+}
+
+.game-page .game-logo-img {
+    height: 80px;
+    margin-bottom: 0;
+}
+
+/* The tab strip stays at the top while a long panel scrolls (.content-area scrolls; the page must not be
+   a scroll container of its own for that, hence clip instead of hidden). */
+.game-page.is-tabbed {
+    overflow: clip;
+}
+
+.game-tabs {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    flex: none;
+    margin: -10px 0 8px;
+    padding: 10px 0 12px;
+    background: var(--bg-base);
+}
+
+html[data-theme="navy-gradient"] .game-tabs {
+    background: #0b0b14;
+}
+
+.game-tabs .chip {
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.game-tabs .chip[hidden],
+.game-tabpanel[hidden],
+.game-attention[hidden] {
+    display: none;
+}
+
+.game-tabpanel {
+    padding-bottom: 30px;
+}
+
+.game-tabpanel > section:first-child {
+    margin-top: 6px;
+}
+
+.game-tabpanel > section[hidden] {
+    display: none;
+}
+
+/* The attention strip: shown only while the game can't simply be played. */
+.game-attention {
+    margin: 0 0 14px;
+}
+
+.game-attention .xml1-state-text {
+    flex: 1;
+}
+
+.game-attention .xml1-progress {
+    margin-top: 10px;
+}
+
+.xml1-attention-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.xml1-updates {
+    margin-top: 12px;
+}
+
+/* Build & tools: the testers' switches folded away (they open by themselves when one is on). */
+details.game-testers {
+    margin-top: 24px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface-lo, rgba(255, 255, 255, 0.03));
+}
+
+details.game-testers > summary {
+    cursor: pointer;
+    font-size: 12.5px;
+    font-weight: 600;
+}
+
+details.game-testers[open] > summary {
+    margin-bottom: 10px;
+}
+
+details.game-testers .detail-testmode {
+    margin-top: 0;
+}
+
+/* The optional Vulkan renderer (app/dxvk-view.js). */
+.ul-dxvk-status {
+    display: block;
+    margin-top: 6px;
+    font-size: 12px;
+}
+
+.ul-dxvk-status.is-ok { color: #6ff0a8; }
+.ul-dxvk-status.is-warn { color: var(--warn, #ffb23f); }
+.ul-dxvk-status.is-error { color: #ff8a9a; }
+.ul-dxvk-status.is-info { color: var(--text-muted); }
+
+.ul-dxvk-bar {
+    margin-top: 8px;
+    max-width: 420px;
+}
+
+.ul-dxvk .ul-display-footer {
+    white-space: normal;
+    overflow: visible;
+}

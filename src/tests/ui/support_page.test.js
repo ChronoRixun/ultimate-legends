@@ -11,7 +11,7 @@ const assert = require('node:assert/strict');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { page, test, settle } = require('./harness');
+const { page, test, settle, KeyboardEvent } = require('./harness');
 
 const ROOT = path.join(__dirname, '..', '..', '..');
 const SCRIPTS = ['core/utils.js', 'core/i18n.js', 'core/focus-nav.js', 'data/known-issues.js', 'app/support-view.js'];
@@ -104,6 +104,22 @@ test('Support: four tabs, Help first; each tab shows only its own panel and is a
     }
     // No native <select> popups on the page (Proton rule).
     assert.equal(p.document.querySelectorAll('#support-page select').length, 0);
+});
+
+test('Support: the game-page tab keys and chips leave the Support tabs alone', async () => {
+    const backend = new Backend();
+    const p = page({ scripts: [...SCRIPTS.slice(0, 3), 'core/game-tabs.js', ...SCRIPTS.slice(3)], backend });
+    p.window.SupportView.onShow();
+    p.document.querySelector('[data-support-tab="known"]').click();
+    await settle();
+    // No tabbed game page is defined or shown: Ctrl+PageDown / LT / RT do nothing here.
+    p.document.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageDown', ctrlKey: true, bubbles: true }));
+    assert.equal(p.window.GameTabs.step(1), false);
+    assert.deepEqual(panels(p), ['known']);
+    assert.equal(p.window.SupportView.activeTab, 'known');
+    // Both strips are the same chip buttons (filter-chips + chip, role=tab, aria-selected).
+    const chip = p.document.querySelector('[data-support-tab="known"]');
+    assert.ok(chip.classList.contains('chip') && chip.getAttribute('role') === 'tab' && chip.getAttribute('aria-selected') === 'true');
 });
 
 test('Support: the diagnostics preview is the report, and Copy puts exactly that text on the clipboard', async () => {

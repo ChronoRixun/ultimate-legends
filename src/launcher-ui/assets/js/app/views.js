@@ -983,13 +983,71 @@
         renderHomeFromStates(states);
     }
 
+    // A game page's sections, as hosts the views render into (each view owns its host's content). A game
+    // with tabs (game-tabs.js; the X-Men Legends page) gets a persistent header - Play, the test-mode
+    // badge, the attention strip - then its tab strip and one panel per tab; the others stack their
+    // sections as before. Hosts keep their ids either way.
+    function gameDetailsHTML(config, comingSoon, descriptionSection, actionsAside) {
+        const id = escapeHtml(config.uiId);
+        const on = view => !comingSoon && window[view] && window[view].supports(config.uiId);
+        const section = (cls, titleKey, host, titleCls = 'detail-display-title') => `
+                    <section class="${cls}">
+                        ${titleKey ? `<h3 class="${titleCls}">${escapeHtml(t(titleKey))}</h3>` : ''}
+                        <div id="${id}-${host}"></div>
+                    </section>`;
+        const header = `
+                    <div class="button-group" id="${id}-button-group"></div>
+                    ${on('TestModeView') ? `<div class="ul-testmode-badge-host" id="${id}-testmode-badge" hidden></div>` : ''}`;
+        const overview = `
+                    <div class="detail-panel-grid">
+                        ${descriptionSection}
+                        ${actionsAside}
+                    </div>`;
+        const online = on('OnlineView') ? section('detail-online', 'online.title', 'online-panel') : '';
+        const build = on('Xml1View') ? section('detail-display detail-build', 'xml1.sectionTitle', 'build-panel') : '';
+        const muac = on('MuacView') ? `<section class="detail-display"><h3 class="detail-display-title">${escapeHtml(t('muac.title'))}</h3>
+                        <div id="muac-options-panel"></div></section>` : '';
+        const display = on('DisplayView') ? section('detail-display', 'display.title', 'display-panel') : '';
+        const remastered = on('RemasteredView') ? section('detail-display detail-remastered', 'remastered.title', 'remastered-panel') : '';
+        const dxvk = on('DxvkView') ? section('detail-display detail-dxvk', 'dxvk.title', 'dxvk-panel') : '';
+        const presence = on('PresenceView') ? section('detail-presence', 'presence.title', 'presence-panel', 'detail-presence-title') : '';
+        const models = on('ModelsView') ? section('detail-display detail-models', 'models.title', 'models-panel') : '';
+        const mods = on('ModsView') ? section('detail-mods', 'mods.title', 'mods-panel', 'detail-mods-title') : '';
+        const testMode = on('TestModeView') ? section('detail-testmode', 'testMode.title', 'testmode-panel') : '';
+
+        const tabs = !comingSoon && window.GameTabs && window.GameTabs.has(config.uiId) ? window.GameTabs : null;
+        if (!tabs) {
+            return `${header}
+                    ${overview}${online}${build}${muac}${display}${remastered}${dxvk}${presence}${models}${mods}${testMode}`;
+        }
+        // One section in a tab: the tab's label is its title.
+        const bare = (cls, host) => `
+                    <section class="${cls}"><div id="${id}-${host}"></div></section>`;
+        const appearance = on('Xml1View') ? section('detail-display detail-appearance', 'xml1.appearance', 'appearance-panel') : '';
+        const testers = on('TestModeView') ? `
+                    <details class="game-testers" id="${id}-testers">
+                        <summary class="game-testers-summary">${escapeHtml(t('gameTabs.forTesters'))}</summary>
+                        <section class="detail-testmode"><div id="${id}-testmode-panel"></div></section>
+                    </details>` : '';
+        return `${header}
+                    ${on('Xml1View') ? `<div class="game-attention" id="${id}-attention" hidden></div>` : ''}
+                    ${tabs.stripHTML(config.uiId)}
+                    ${tabs.panelHTML(config.uiId, 'overview', overview)}
+                    ${on('OnlineView') ? tabs.panelHTML(config.uiId, 'online', bare('detail-online', 'online-panel')) : ''}
+                    ${tabs.panelHTML(config.uiId, 'options', `${display}${remastered}${dxvk}${presence}${appearance}`)}
+                    ${on('ModelsView') ? tabs.panelHTML(config.uiId, 'characters', bare('detail-display detail-models', 'models-panel')) : ''}
+                    ${on('ModsView') ? tabs.panelHTML(config.uiId, 'mods', bare('detail-mods', 'mods-panel')) : ''}
+                    ${tabs.panelHTML(config.uiId, 'build', `${bare('detail-display detail-build', 'build-panel')}${testers}`)}`;
+    }
+
     function renderGamePages() {
         const host = document.getElementById('game-pages');
         if (!host) return;
 
         host.innerHTML = GameUtils.getAllGameConfigs().map(config => {
             const comingSoon = !!config.comingSoon;
-            const pageCls = `page-section game-page${comingSoon ? ' is-coming-soon' : ''}${window.Artwork?.records[config.uiId]?.hero ? ' has-custom-banner' : ''}`;
+            const tabbed = !comingSoon && window.GameTabs && window.GameTabs.has(config.uiId);
+            const pageCls = `page-section game-page${comingSoon ? ' is-coming-soon' : ''}${tabbed ? ' is-tabbed' : ''}${window.Artwork?.records[config.uiId]?.hero ? ' has-custom-banner' : ''}`;
             const credits = gameCredits(config);
             const hasCredits = credits && String(credits).trim().length > 0;
             const descriptionSection = `
@@ -1050,63 +1108,7 @@
                 </div>
 
                 <div class="game-details">
-                    <div class="button-group" id="${escapeHtml(config.uiId)}-button-group"></div>
-                    ${!comingSoon && window.TestModeView && window.TestModeView.supports(config.uiId)
-                        ? `<div class="ul-testmode-badge-host" id="${escapeHtml(config.uiId)}-testmode-badge" hidden></div>`
-                        : ''}
-
-                    <div class="detail-panel-grid">
-                        ${descriptionSection}
-                        ${actionsAside}
-                    </div>
-                    ${!comingSoon && window.OnlineView && window.OnlineView.supports(config.uiId)
-                        ? `<section class="detail-online">
-                        <h3 class="detail-display-title">${escapeHtml(t('online.title'))}</h3>
-                        <div id="${escapeHtml(config.uiId)}-online-panel"></div>
-                    </section>`
-                        : ''}
-                    ${!comingSoon && window.Xml1View && window.Xml1View.supports(config.uiId)
-                        ? `<section class="detail-display detail-build">
-                        <h3 class="detail-display-title">${escapeHtml(t('xml1.sectionTitle'))}</h3>
-                        <div id="${escapeHtml(config.uiId)}-build-panel"></div>
-                    </section>`
-                        : ''}
-                    ${!comingSoon && window.MuacView && window.MuacView.supports(config.uiId)
-                        ? `<section class="detail-display"><h3 class="detail-display-title">${escapeHtml(t('muac.title'))}</h3>
-                        <div id="muac-options-panel"></div></section>` : ''}
-                    ${!comingSoon && window.DisplayView && window.DisplayView.supports(config.uiId)
-                        ? `<section class="detail-display">
-                        <h3 class="detail-display-title">${escapeHtml(t('display.title'))}</h3>
-                        <div id="${escapeHtml(config.uiId)}-display-panel"></div>
-                    </section>`
-                        : ''}
-                    ${!comingSoon && window.RemasteredView && window.RemasteredView.supports(config.uiId)
-                        ? `<section class="detail-display"><h3 class="detail-display-title">${escapeHtml(t('remastered.title'))}</h3>
-                        <div id="${escapeHtml(config.uiId)}-remastered-panel"></div></section>` : ''}
-                    ${!comingSoon && window.PresenceView && window.PresenceView.supports(config.uiId)
-                        ? `<section class="detail-presence">
-                        <h3 class="detail-presence-title">${escapeHtml(t('presence.title'))}</h3>
-                        <div id="${escapeHtml(config.uiId)}-presence-panel"></div>
-                    </section>`
-                        : ''}
-                    ${!comingSoon && window.ModelsView && window.ModelsView.supports(config.uiId)
-                        ? `<section class="detail-display detail-models">
-                        <h3 class="detail-display-title">${escapeHtml(t('models.title'))}</h3>
-                        <div id="${escapeHtml(config.uiId)}-models-panel"></div>
-                    </section>`
-                        : ''}
-                    ${!comingSoon && window.ModsView && window.ModsView.supports(config.uiId)
-                        ? `<section class="detail-mods">
-                        <h3 class="detail-mods-title">${escapeHtml(t('mods.title'))}</h3>
-                        <div id="${escapeHtml(config.uiId)}-mods-panel"></div>
-                    </section>`
-                        : ''}
-                    ${!comingSoon && window.TestModeView && window.TestModeView.supports(config.uiId)
-                        ? `<section class="detail-testmode">
-                        <h3 class="detail-display-title">${escapeHtml(t('testMode.title'))}</h3>
-                        <div id="${escapeHtml(config.uiId)}-testmode-panel"></div>
-                    </section>`
-                        : ''}
+                    ${gameDetailsHTML(config, comingSoon, descriptionSection, actionsAside)}
                 </div>
             </div>
         `;
@@ -1129,6 +1131,12 @@
             GameUtils.getAllGameConfigs()
                 .filter(config => !config.comingSoon && window.RemasteredView.supports(config.uiId))
                 .forEach(config => window.RemasteredView.render(config.uiId));
+        }
+
+        if (window.DxvkView) {
+            GameUtils.getAllGameConfigs()
+                .filter(config => !config.comingSoon && window.DxvkView.supports(config.uiId))
+                .forEach(config => window.DxvkView.render(config.uiId));
         }
 
         if (window.PresenceView) {
@@ -1166,6 +1174,9 @@
                 .filter(config => !config.comingSoon && window.PatchView.supports(config.uiId))
                 .forEach(config => window.PatchView.render(config.uiId));
         }
+
+        // Which tabs exist now, and the remembered one (the sections above rendered what they could).
+        if (window.GameTabs) window.GameTabs.refreshAll();
 
         host.querySelectorAll('.detail-browse-files-action').forEach(button => {
             button.addEventListener('click', async () => {

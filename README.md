@@ -90,16 +90,10 @@ removes the built game and, if you want, the build cache; your saves in `Documen
 
 **Online play:** since Legends Classic 0.6, online co-op runs from the game's own **Play Online** screen (Host, Join
 by code, Browse, the lobby and Party; see the [player guide](https://github.com/ChronoRixun/legends-classic/blob/main/docs/ONLINE.md)).
-The launcher page's **Online** section (added for Legends Classic 0.3.0) has **Host a game** and **Join a game**.
-The host opens Play Online in the game and gets a code like `ABCD-EFGH` to send to friends, who type or paste it and
-press Join; in the game, the host picks Play Online → Host and the friends Play Online → Join Game. A host can also
-turn on **List my game publicly**: the game then shows in **Browse games** for everyone with the launcher, who can join
-it from there. There is no port forwarding and nothing to edit: the launcher writes the XML2 Fix's `[Online]` keys for
-that start, and **Play** removes them, so a normal start never opens a room (LAN and Connect by IP work as before).
-**How online works** on the page explains each message. Online play needs XML2 Fix 1.8.0 or later in the port's
-folder (Verify Files installs it); Play does not. Public games connect players directly, so they can see each other's
-internet address: share a private code to play only with friends. Joining a campaign already in progress, you wait on
-the game's Joined Game screen and come in at the next level change.
+A friend can join a campaign in progress: they wait as pending, and the host brings them in at the next area change
+(for example Xtraction point > Change Team > START). The launcher page's older **Online** section (Host a game /
+Join a game, from Legends Classic 0.3) still works for one start and needs nothing set up. Public games connect
+players directly, so they can see each other's internet address: share a private code to play only with friends.
 
 The X-Men Legends **Appearance** section offers **Classic conversation box (XML1 look)** when
 Legends Classic builder 0.6.0-beta.3 or newer is installed. It is on by default since 0.6.0 (a choice you saved

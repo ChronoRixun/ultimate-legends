@@ -88,7 +88,9 @@ over. A build first brings the XML2 Fix already in its folder up to date, and a 
 **Verify Files** (the fix) next to **Resume**. Display, Discord and Mods work as for X-Men Legends II. Uninstalling
 removes the built game and, if you want, the build cache; your saves in `Documents\Activision\X-Men Legends` are kept.
 
-**Online play** (with Legends Classic 0.3.0): the page's **Online** section has **Host a game** and **Join a game**.
+**Online play:** since Legends Classic 0.6, online co-op runs from the game's own **Play Online** screen (Host, Join
+by code, Browse, the lobby and Party; see the [player guide](https://github.com/ChronoRixun/legends-classic/blob/main/docs/ONLINE.md)).
+The launcher page's **Online** section (added for Legends Classic 0.3.0) has **Host a game** and **Join a game**.
 The host opens Play Online in the game and gets a code like `ABCD-EFGH` to send to friends, who type or paste it and
 press Join; in the game, the host picks Play Online → Host and the friends Play Online → Join Game. A host can also
 turn on **List my game publicly**: the game then shows in **Browse games** for everyone with the launcher, who can join
@@ -100,11 +102,12 @@ internet address: share a private code to play only with friends. Joining a camp
 the game's Joined Game screen and come in at the next level change.
 
 The X-Men Legends **Appearance** section offers **Classic conversation box (XML1 look)** when
-Legends Classic builder 0.6.0-beta.3 or newer is installed. It is off by default. Choose it and rebuild to use
-the blue conversation background from your own XML1 source; turn it off and rebuild to restore the PC look.
+Legends Classic builder 0.6.0-beta.3 or newer is installed. It is on by default since 0.6.0 (a choice you saved
+earlier to turn it off is kept). It uses the blue conversation background from your own XML1 source; untick it and
+rebuild to restore the PC look.
 A newer builder being available does not enable the option until it is installed.
 
-**Save import preview (hidden in 0.5.0):** save import is planned for a later release, so 0.5.0 shows no
+**Save import preview (hidden since 0.5.0):** save import is planned for a later release, so 0.5.0 and 0.6.0 show no
 Import button; the code stays behind `Xml1SaveImport.enabled` (off) and the UI tests turn it on. With it on,
 **Import an X-Men Legends save** on the built game's page opens an offline
 campaign picker, source summary and empty-slot preview. Choose an extracted Xbox save folder, an
@@ -126,7 +129,8 @@ from games you own by the legends-models tool. Choose **Off** (the original mode
 skins, credited to their authors; needs nothing else) or **Upgraded** (per hero the best of Marvel: Ultimate Alliance 2,
 Marvel: Ultimate Alliance and the community pack; it needs one of those games set up in the launcher), and under
 **More** Sharpened classic or XML2 look. The table shows per hero where its model comes from and why, a costume
-dropdown where a source has several, and whether it is planned, built or kept the original (with the reason).
+dropdown where a source has several, and whether it is planned, built or kept the original (with the reason); a
+model the project has checked and approved shows as **Approved model** (legends-models 0.4.1 or newer).
 **Apply** builds the mod folders into the port's `mods` folder (your other mods stay; the game needs a restart),
 **Remove** or **Off** takes them out again, and opening the page verifies them (and offers **Rebuild** when the port
 was rebuilt since the models were made). The launcher ships no models: the tool reads your installs and writes only its
@@ -202,8 +206,8 @@ The launcher accepts the following optional command line arguments.
 | Argument | Value | Description |
 |----------|-------|-------------|
 | `-offline` | — | Runs the launcher in offline mode. Downloads and online features are disabled. |
-| `-portable` | — | Runs the launcher in portable mode. Launcher data (user settings, CEF cache, the CEF runtime and UI files) lives in an `ultimate-legends` folder next to the executable instead of `%LOCALAPPDATA%\ultimate-legends`. Until there is a release, copy `data\cef\release` and `data\launcher-ui` into that folder yourself: `tools\stage-runtime.ps1` only stages `%LOCALAPPDATA%`. |
-| `-launch` | game id | Launches the given game once the launcher finishes loading. Accepts `mua`, `mua2`, `xml2` and `xml1`, plus the aliases `mua1`, `ultimatealliance`, `ultimatealliance2`, `xmenlegends2` and `xmenlegends`. (`muac` is recognised, but until it is supported it only opens the game's page; `xml1` opens its setup until the port has been built.) |
+| `-portable` | — | Runs the launcher in portable mode. Launcher data (user settings, CEF cache, the CEF runtime and UI files) lives in an `ultimate-legends` folder next to the executable instead of `%LOCALAPPDATA%\ultimate-legends`. The release zip is already portable. For a build from source, copy `data\cef\release` and `data\launcher-ui` into that folder yourself: `tools\stage-runtime.ps1` only stages `%LOCALAPPDATA%`. |
+| `-launch` | game id | Launches the given game once the launcher finishes loading. Accepts `mua`, `mua2`, `xml2`, `muac` and `xml1`, plus the aliases `mua1`, `ultimatealliance`, `ultimatealliance2`, `xmenlegends2` and `xmenlegends`. (`xml1` opens its setup until the port has been built.) |
 | `-install` | game id | Opens the given game's page and its setup flow (or its Manage install dialog if the game is already set up) once the launcher finishes loading. Accepts the same ids as `-launch`. If both are given, `-install` wins. |
 
 ## URL scheme (`ultimatelegends://`)

@@ -371,7 +371,7 @@ test('Support: Known issues for X-Men Legends carry the Legends Classic 0.6.1 en
         assert.notEqual(note.textContent, 'support.knownFor');
         // The online entry: both Fix versions and the exact in-game refusal / update texts (kept in English: the game shows them so).
         const online = items[0];
-        for (const text of ['1.11.2', '1.12.0-beta.2', "The host's game refused you. Check build and settings.", 'Everyone must update XML2 Fix']) {
+        for (const text of ['1.11.2', '1.12.0-beta.2', "The host's game refused you. Check build and settings."]) {
             assert.ok(online.includes(text), `${language}: ${text}`);
         }
         // Issue numbers the entries cite stay open on GitHub (#22, #101); the closed #106 is not cited.

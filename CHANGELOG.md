@@ -3,7 +3,7 @@
 The launcher's version comes from its release tag (`v0.3.2`): premake reads it with `git describe` when it
 generates the project, so a release only needs this entry and the tag.
 
-## 0.7.0-beta.1 (a pre-release for the Beta update channel)
+## 0.7.0-beta.1 - 2026-11-21 (a pre-release for the Beta update channel)
 
 Release notes for players: `docs/release/v0.7.0-notes.md`.
 

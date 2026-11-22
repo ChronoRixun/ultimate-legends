@@ -85,9 +85,9 @@ window.KnownIssues = [
         game: 'xml1',
         id: 'online-fix-version',
         text: {
-            en: 'Online: everyone in the party needs XML2 Fix 1.11.2 or 1.12.0-beta.2 (the internet play fix), plus the same Legends Classic build and gameplay settings. A PC with an older XML2 Fix is refused ("The host\'s game refused you. Check build and settings." or "Everyone must update XML2 Fix") or its join times out.',
-            fr: 'En ligne : tout le groupe a besoin de XML2 Fix 1.11.2 ou 1.12.0-beta.2 (le correctif du jeu par Internet), ainsi que de la même version de Legends Classic et des mêmes réglages de jeu. Un PC avec un XML2 Fix plus ancien est refusé (« The host\'s game refused you. Check build and settings. » ou « Everyone must update XML2 Fix ») ou sa connexion expire.',
-            es: 'En línea: todo el grupo necesita XML2 Fix 1.11.2 o 1.12.0-beta.2 (la corrección del juego por Internet), además de la misma versión de Legends Classic y los mismos ajustes de juego. Un PC con un XML2 Fix más antiguo es rechazado ("The host\'s game refused you. Check build and settings." o "Everyone must update XML2 Fix") o su conexión agota el tiempo de espera.'
+            en: 'Online: everyone in the party needs XML2 Fix 1.11.2 or 1.12.0-beta.2 (the internet play fix), plus the same Legends Classic build and gameplay settings. A PC with an older XML2 Fix is refused ("The host\'s game refused you. Check build and settings.") or its join times out.',
+            fr: 'En ligne : tout le groupe a besoin de XML2 Fix 1.11.2 ou 1.12.0-beta.2 (le correctif du jeu par Internet), ainsi que de la même version de Legends Classic et des mêmes réglages de jeu. Un PC avec un XML2 Fix plus ancien est refusé (« The host\'s game refused you. Check build and settings. ») ou sa connexion expire.',
+            es: 'En línea: todo el grupo necesita XML2 Fix 1.11.2 o 1.12.0-beta.2 (la corrección del juego por Internet), además de la misma versión de Legends Classic y los mismos ajustes de juego. Un PC con un XML2 Fix más antiguo es rechazado ("The host\'s game refused you. Check build and settings.") o su conexión agota el tiempo de espera.'
         }
     },
     {

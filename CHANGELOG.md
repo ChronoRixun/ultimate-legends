@@ -3,6 +3,38 @@
 The launcher's version comes from its release tag (`v0.3.2`): premake reads it with `git describe` when it
 generates the project, so a release only needs this entry and the tag.
 
+## 0.7.0-beta.1 (a pre-release for the Beta update channel)
+
+Release notes for players: `docs/release/v0.7.0-notes.md`.
+
+### Added
+- **The X-Men Legends page has tabs**: Overview, Online, Display & options, Characters, Mods and Build & tools.
+  Play, the test-mode badge and an attention strip (not set up, building with progress and Cancel, damaged with
+  Repair, needs XML2 Fix, unfinished build) stay above the tabs. Empty tabs are hidden (before a first build only
+  Overview and Build & tools show); Overview opens first, then the last tab picked (remembered across restarts); a
+  build, damage or an unfinished build opens Build & tools once. Ctrl+PageUp / Ctrl+PageDown and the pad's LT / RT
+  step tabs (LB / RB still change sidebar page). Test mode is folded under Build & tools "For testers"; Build &
+  tools says which update channel the builder and XML2 Fix follow. Other game pages keep one page; every game page
+  gets a compact 150 px banner.
+- **Remastered** in Display & options (X-Men Legends and X-Men Legends II): the version-gated `[Remastered]`
+  settings of XML2 Fix 1.12.0 (pre-releases included): master switch, anti-aliasing, texture filtering, filtering
+  of point-sampled world art, centered Beenox menus. Opening the page writes nothing; Off keeps the component
+  choices; other ini settings and comments are kept; no edits while a builder owns the folder.
+- **Optional Vulkan renderer (DXVK 3.1.1), X-Men Legends only**, off by default. Turning it on asks first (source
+  and size), downloads the official release, checks the archive's pinned SHA-256 and the SHA-256 and size of its
+  32-bit `d3d8.dll` and `d3d9.dll`, and installs only those two files. Off removes exactly those files; a foreign
+  `d3d8.dll` / `d3d9.dll` is never replaced or removed. The checked download is kept, so after a port rebuild
+  swept the files the launcher restores them once without downloading. Refused while the game runs and under
+  Proton / Wine (Proton has its own DXVK).
+- **Support > Known issues for X-Men Legends (Legends Classic 0.6.1)**: the online requirement (everyone needs XML2
+  Fix 1.11.2 or 1.12.0-beta.2; an older PC is refused or times out), little-tested online setups, host leaving,
+  drop-in at the next area, four-player pause, experimental Skirmish, enemy attack rate (#101), fall kill zones
+  (#22), settings shared with X-Men Legends II and save import being off. The game's list notes the versions it
+  was written for.
+- **For developers: a test-instance mode** (`-portable -test-instance <name>`): its own lock and deep-link pipe, no
+  `ultimatelegends://` registration, no shortcuts, no display-key writes, a window that never takes the
+  foreground. `tools/dev/test_instance.py` prepares, starts and stops one.
+
 ## 0.6.0 (2026-11-14)
 
 The stable release of the 0.6.0 betas, for Legends Classic 0.6.0 and XML2 Fix 1.11.0.

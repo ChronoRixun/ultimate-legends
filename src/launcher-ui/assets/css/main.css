@@ -3247,6 +3247,12 @@ html[data-theme="dark"] .secondary-action:hover {
     font-size: 13px;
 }
 
+.support-known-for {
+    margin: 0 0 10px;
+    color: var(--text-dim);
+    font-size: 12px;
+}
+
 .support-action:hover {
     color: #fff;
     transform: translateY(-1px);

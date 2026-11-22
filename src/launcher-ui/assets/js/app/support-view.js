@@ -253,13 +253,16 @@
         if (!host) return;
         const language = window.LauncherI18n && window.LauncherI18n.getLanguage ? window.LauncherI18n.getLanguage() : 'en';
         const entries = Array.isArray(window.KnownIssues) ? window.KnownIssues : [];
+        const checked = window.KnownIssuesFor && typeof window.KnownIssuesFor === 'object' ? window.KnownIssuesFor : {};
         host.innerHTML = KNOWN_ORDER.map(game => {
             const items = entries.filter(entry => entry && entry.game === game).map(entry => knownIssueText(entry, language)).filter(Boolean);
             const title = game === 'launcher' ? t('support.knownLauncher') : GAME_NAMES[game];
             const body = items.length
                 ? `<ul class="support-known-list">${items.map(item => `<li>${esc(item)}</li>`).join('')}</ul>`
                 : `<p class="support-empty">${esc(t('support.knownNone'))}</p>`;
-            return `<section class="support-panel support-known-game" data-game="${esc(game)}"><h2>${esc(title)}</h2>${body}</section>`;
+            const versions = typeof checked[game] === 'string' && checked[game] ? checked[game] : '';
+            const note = versions ? `<p class="support-known-for">${esc(t('support.knownFor', { versions }))}</p>` : '';
+            return `<section class="support-panel support-known-game" data-game="${esc(game)}"><h2>${esc(title)}</h2>${note}${body}</section>`;
         }).join('');
     }
 

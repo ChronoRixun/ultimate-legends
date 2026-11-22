@@ -1,4 +1,5 @@
 #include "std_include.hpp"
+#include <utils/test_instance.hpp>
 #include "xml1_port.hpp"
 #include "build_requirements.hpp"
 #include "build_appearance.hpp"
@@ -77,13 +78,14 @@ namespace xml1_port
         tool_install::tool builder_tool()
         {
             tool_install::tool tool{"xml1-builder", "xml1-builder.exe", builder_manifest_url};
-#ifdef _DEBUG
-            // Debug builds only: the CDP tests publish a fake builder from a local server.
-            if (const auto manifest = config().get(property_keys::DEV_BUILDER_MANIFEST); manifest && !manifest->empty())
+            // Debug builds and test instances only: the CDP tests publish a fake builder from a local server.
+            if (utils::test_instance::dev_overrides())
             {
-                tool.manifest_url = *manifest;
+                if (const auto manifest = config().get(property_keys::DEV_BUILDER_MANIFEST); manifest && !manifest->empty())
+                {
+                    tool.manifest_url = *manifest;
+                }
             }
-#endif
             return tool;
         }
 
@@ -121,16 +123,17 @@ namespace xml1_port
         std::optional<builder_exe> find_builder()
         {
             const auto game = config();
-#ifdef _DEBUG
-            if (const auto exe = game.get(property_keys::DEV_BUILDER_EXE); exe && !exe->empty())
+            if (utils::test_instance::dev_overrides())
             {
-                const auto path = utils::string::utf8_to_path(*exe);
-                if (utils::io::file_exists(path))
+                if (const auto exe = game.get(property_keys::DEV_BUILDER_EXE); exe && !exe->empty())
                 {
-                    return builder_exe{path, "dev", true};
+                    const auto path = utils::string::utf8_to_path(*exe);
+                    if (utils::io::file_exists(path))
+                    {
+                        return builder_exe{path, "dev", true};
+                    }
                 }
             }
-#endif
             const auto installed = tool_install::find(builder_tool(), property(game, property_keys::BUILDER_VERSION));
             if (!installed)
             {

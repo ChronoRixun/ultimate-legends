@@ -1,4 +1,5 @@
 #include "com.hpp"
+#include "test_instance.hpp"
 #include "nt.hpp"
 #include "string.hpp"
 
@@ -216,6 +217,12 @@ namespace utils::com
         const std::string& description,
         const std::filesystem::path& working_directory)
     {
+        // A test instance creates no shortcuts (Desktop, Start Menu, game shortcuts).
+        if (test_instance::active())
+        {
+            return false;
+        }
+
         CComPtr<IShellLinkW> shell_link{};
         if (FAILED(CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&shell_link))))
         {

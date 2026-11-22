@@ -1,4 +1,5 @@
 #include "std_include.hpp"
+#include <utils/test_instance.hpp>
 #include "game_config.hpp"
 #include "muac/install.hpp"
 #include <utils/properties.hpp>
@@ -223,10 +224,13 @@ namespace game_config
         const auto it = game_configs_.find(game);
         if (it != game_configs_.end())
         {
-#ifdef _DEBUG
-            // Debug builds only: the CDP tests serve a stand-in patch from a local server
+            // Debug builds and test instances only: the CDP tests serve a stand-in patch from a local server
             // (<game>-patch-manifest = its manifest URL; the files sit next to it), and a stand-in
             // for its latest release (<game>-patch-release = the GitHub API answer's URL).
+            if (!utils::test_instance::dev_overrides())
+            {
+                return it->second;
+            }
             auto config = it->second;
             if (const auto manifest = config.get(property_keys::DEV_PATCH_MANIFEST); manifest && !manifest->empty())
             {
@@ -238,9 +242,6 @@ namespace game_config
                 config.patch_release_url = *release;
             }
             return config;
-#else
-            return it->second;
-#endif
         }
         return std::nullopt;
     }

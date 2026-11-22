@@ -627,7 +627,7 @@ function mainBody() {
 
 // Loads `scripts` (paths under src/launcher-ui/assets/js) into a fresh page whose commands go to
 // `backend.handle(command, data)` (a value or a promise): main.html's body, then `body`.
-function page({ scripts, backend, body = '', clock = new Clock(), offline = false }) {
+function page({ scripts, backend, body = '', clock = new Clock(), offline = false, storage = null }) {
     const document = new Document();
     document.body.innerHTML = mainBody() + body;
     const window = new Target();
@@ -654,7 +654,8 @@ function page({ scripts, backend, body = '', clock = new Clock(), offline = fals
         requestAnimationFrame: fn => clock.setTimeout(fn, 16),
         navigator: { userAgent: 'ui-tests', clipboard: { writeText: async () => {} } },
         location: { protocol: 'https:', hostname: 'launcher', href: 'https://launcher/' },
-        localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
+        // `storage`: a test's own (a Map-backed store kept across two pages: a launcher restart).
+        localStorage: storage || { getItem: () => null, setItem: () => {}, removeItem: () => {} },
         IS_OFFLINE: offline,
         __clock: clock
     };

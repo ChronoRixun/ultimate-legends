@@ -1,4 +1,5 @@
 #include "std_include.hpp"
+#include <utils/test_instance.hpp>
 #include "models_tool.hpp"
 #include "build_transaction.hpp"
 #include "process_wait.hpp"
@@ -74,13 +75,14 @@ namespace models_tool
         tool_install::tool tool_def()
         {
             tool_install::tool tool{"legends-models", "legends-models.exe", tool_manifest_url};
-#ifdef _DEBUG
-            // Debug builds only: the CDP tests publish a stand-in release from a local server.
-            if (const auto manifest = port_config().get(property_keys::DEV_MODELS_MANIFEST); manifest && !manifest->empty())
+            // Debug builds and test instances only: the CDP tests publish a stand-in release from a local server.
+            if (utils::test_instance::dev_overrides())
             {
-                tool.manifest_url = *manifest;
+                if (const auto manifest = port_config().get(property_keys::DEV_MODELS_MANIFEST); manifest && !manifest->empty())
+                {
+                    tool.manifest_url = *manifest;
+                }
             }
-#endif
             return tool;
         }
 
@@ -435,16 +437,17 @@ namespace models_tool
 
     std::optional<tool_location> find_tool()
     {
-#ifdef _DEBUG
-        if (const auto exe = port_config().get(property_keys::DEV_MODELS_TOOL); exe && !exe->empty())
+        if (utils::test_instance::dev_overrides())
         {
-            const auto path = utils::string::utf8_to_path(*exe);
-            if (utils::io::file_exists(path))
+            if (const auto exe = port_config().get(property_keys::DEV_MODELS_TOOL); exe && !exe->empty())
             {
-                return tool_location{path, "dev", true};
+                const auto path = utils::string::utf8_to_path(*exe);
+                if (utils::io::file_exists(path))
+                {
+                    return tool_location{path, "dev", true};
+                }
             }
         }
-#endif
         if (const auto installed = installed_tool())
         {
             return tool_location{installed->exe, installed->version, false};

@@ -8,6 +8,8 @@
 #include "game_commands.hpp"
 #include "mod_commands.hpp"
 #include "display_commands.hpp"
+#include "remastered_commands.hpp"
+#include "dxvk_commands.hpp"
 #include "presence_commands.hpp"
 #include "test_mode_commands.hpp"
 #include "online_commands.hpp"
@@ -44,6 +46,8 @@ namespace commands
         game_commands::register_commands(cef_ui, ctx);
         mod_commands::register_commands(cef_ui, ctx);
         display_commands::register_commands(cef_ui, ctx);
+        remastered_commands::register_commands(cef_ui, ctx);
+        dxvk_commands::register_commands(cef_ui, ctx);
         presence_commands::register_commands(cef_ui, ctx);
         test_mode_commands::register_commands(cef_ui, ctx);
         online_commands::register_commands(cef_ui, ctx);

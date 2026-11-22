@@ -1,4 +1,5 @@
 #include "std_include.hpp"
+#include <utils/test_instance.hpp>
 #include "settings.hpp"
 #include "runtime_update.hpp"
 #include "fix/fix_ini.hpp"
@@ -50,6 +51,7 @@ namespace {
     }
     bool set_resolution(const registry_value& value) {
         HKEY key{};
+        if(!utils::test_instance::hkcu_writes_allowed()) return false; // a test instance writes no registry
         if(RegCreateKeyExW(HKEY_CURRENT_USER,display_key().c_str(),0,nullptr,0,KEY_SET_VALUE,nullptr,&key,nullptr)!=ERROR_SUCCESS) return false;
         const auto result=value.exists ? RegSetValueExW(key,L"Resolution",0,value.type,value.data.data(),static_cast<DWORD>(value.data.size()))
                                       : RegDeleteValueW(key,L"Resolution");

@@ -304,7 +304,7 @@ language "C++"
 targetname "ultimate-legends-tests"
 
 files {"./src/tests/**.hpp", "./src/tests/**.cpp", "./src/launcher/tools/tool_check.cpp", "./src/launcher/updater/swap_retry.cpp",
-       "./src/launcher/display/display_changes.cpp", "./src/launcher/updater/folder_work.cpp", "./src/launcher/fix/online_rules.cpp",
+       "./src/launcher/display/display_changes.cpp", "./src/launcher/display/remastered_values.cpp", "./src/launcher/display/dxvk.cpp", "./src/launcher/updater/folder_work.cpp", "./src/launcher/fix/online_rules.cpp",
        "./src/launcher/fix/online_launch.cpp", "./src/launcher/fix/online_status.cpp", "./src/launcher/updater/progress_tracker.cpp",
        "./src/launcher/updater/update_cancelled.cpp", "./src/launcher/updater/release_channel.cpp",
        "./src/launcher/updater/release_resolver.cpp", "./src/launcher/updater/patch_policy.cpp",
@@ -320,7 +320,9 @@ defines {"RAPIDJSON_HAS_STDSTRING"}
 includedirs {"./src/common"}
 libtomcrypt.includes()
 libtommath.includes()
-links {"common", "libtomcrypt", "libtommath"}
+-- display/dxvk.cpp unpacks the pinned DXVK .tar.gz with the bundled miniz (synthetic archives in the tests).
+miniz.includes()
+links {"common", "libtomcrypt", "libtommath", "miniz"}
 
 -- Real Win32 profile/registry I/O against synthetic files and a test-only registry namespace.
 project "ultimate-legends-muac-tests"
@@ -328,7 +330,8 @@ kind "ConsoleApp"
 language "C++"
 files {"./src/tests/windows/**.hpp", "./src/tests/windows/**.cpp",
        "./src/launcher/muac/settings.cpp", "./src/launcher/fix/fix_ini.cpp",
-       "./src/launcher/muac/runtime_update.cpp", "./src/launcher/updater/release_channel.cpp"}
+       "./src/launcher/muac/runtime_update.cpp", "./src/launcher/updater/release_channel.cpp",
+       "./src/launcher/display/remastered_values.cpp", "./src/launcher/display/remastered_settings.cpp"}
 includedirs {"./src/tests/windows", "./src/launcher", "./src/common", path.join(dependencies.basePath, "rapidjson/include")}
 defines {"MUAC_SETTINGS_TEST", "NOMINMAX", "WIN32_LEAN_AND_MEAN"}
 links {"common", "Version", "Advapi32", "Shell32", "User32", "Ole32"}

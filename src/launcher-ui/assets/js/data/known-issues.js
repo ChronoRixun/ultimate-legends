@@ -3,6 +3,11 @@
 // (en) and, when translated, French (fr) and Spanish (es); a missing language shows the English text.
 // `game` is the launcher's game key, or 'launcher' for the launcher itself. Plain text only: the page
 // shows it as text, never as HTML.
+// KnownIssuesFor: per game, the versions the list was last checked against (shown above that game's list).
+window.KnownIssuesFor = {
+    xml1: 'Legends Classic 0.6.1 with XML2 Fix 1.11.2 or 1.12.0-beta.2'
+};
+
 window.KnownIssues = [
     {
         game: 'launcher',
@@ -74,6 +79,96 @@ window.KnownIssues = [
             en: 'MUA 2006 under Proton was tested under GE-Proton on Linux up to its main menu, not yet on a real Steam Deck: gameplay, controllers through Steam Input, saves and online play are not confirmed yet. Please tell us how it goes on a Deck.',
             fr: 'MUA 2006 sous Proton a été testé avec GE-Proton sous Linux jusqu\'à son menu principal, pas encore sur un vrai Steam Deck : le jeu lui-même, les manettes via Steam Input, les sauvegardes et le jeu en ligne ne sont pas encore confirmés. Dites-nous comment ça se passe sur un Deck.',
             es: 'MUA 2006 en Proton se probó con GE-Proton en Linux hasta su menú principal, aún no en un Steam Deck real: el juego en sí, los mandos con Steam Input, las partidas guardadas y el juego en línea aún no están confirmados. Cuéntanos qué tal va en un Deck.'
+        }
+    },
+    {
+        game: 'xml1',
+        id: 'online-fix-version',
+        text: {
+            en: 'Online: everyone in the party needs XML2 Fix 1.11.2 or 1.12.0-beta.2 (the internet play fix), plus the same Legends Classic build and gameplay settings. A PC with an older XML2 Fix is refused ("The host\'s game refused you. Check build and settings.") or its join times out.',
+            fr: 'En ligne : tout le groupe a besoin de XML2 Fix 1.11.2 ou 1.12.0-beta.2 (le correctif du jeu par Internet), ainsi que de la même version de Legends Classic et des mêmes réglages de jeu. Un PC avec un XML2 Fix plus ancien est refusé (« The host\'s game refused you. Check build and settings. ») ou sa connexion expire.',
+            es: 'En línea: todo el grupo necesita XML2 Fix 1.11.2 o 1.12.0-beta.2 (la corrección del juego por Internet), además de la misma versión de Legends Classic y los mismos ajustes de juego. Un PC con un XML2 Fix más antiguo es rechazado ("The host\'s game refused you. Check build and settings.") o su conexión agota el tiempo de espera.'
+        }
+    },
+    {
+        game: 'xml1',
+        id: 'online-little-tested',
+        text: {
+            en: 'Online play between different homes, through the relay, with three or four separate PCs and in long sessions has had little testing so far. If something goes wrong, keep xml2-fix.log from every PC.',
+            fr: 'Le jeu en ligne entre plusieurs foyers, via le relais, avec trois ou quatre PC distincts et sur de longues sessions a encore été peu testé. En cas de problème, gardez le fichier xml2-fix.log de chaque PC.',
+            es: 'El juego en línea entre distintas casas, a través del relé, con tres o cuatro PC distintos y en sesiones largas aún se ha probado poco. Si algo falla, guarda el archivo xml2-fix.log de cada PC.'
+        }
+    },
+    {
+        game: 'xml1',
+        id: 'online-host-leaves',
+        text: {
+            en: 'Online: if the host leaves, the session ends. There is no host migration or automatic reconnect yet; guests can join again by code.',
+            fr: 'En ligne : si l\'hôte part, la session se termine. Il n\'y a pas encore de migration d\'hôte ni de reconnexion automatique ; les invités peuvent revenir avec le code.',
+            es: 'En línea: si el anfitrión se va, la sesión termina. Aún no hay migración de anfitrión ni reconexión automática; los invitados pueden volver a unirse con el código.'
+        }
+    },
+    {
+        game: 'xml1',
+        id: 'online-join-next-area',
+        text: {
+            en: 'A friend who joins a game in progress comes in at the host\'s next area, not mid-level. Everyone reloads that area together, so that load takes a little longer.',
+            fr: 'Un ami qui rejoint une partie en cours arrive à la prochaine zone de l\'hôte, pas en plein niveau. Tout le monde recharge cette zone ensemble, ce chargement est donc un peu plus long.',
+            es: 'Un amigo que se une a una partida en curso entra en la siguiente zona del anfitrión, no a mitad de nivel. Todos recargan esa zona juntos, así que esa carga tarda un poco más.'
+        }
+    },
+    {
+        game: 'xml1',
+        id: 'four-player-pause',
+        text: {
+            en: 'With four players, a Ready press on the pause screen can occasionally not register (seen in tests). Press Ready again.',
+            fr: 'À quatre joueurs, un appui sur Ready à l\'écran de pause peut parfois ne pas être pris en compte (vu en test). Appuyez de nouveau sur Ready.',
+            es: 'Con cuatro jugadores, a veces una pulsación de Ready en la pantalla de pausa no se registra (visto en pruebas). Pulsa Ready otra vez.'
+        }
+    },
+    {
+        game: 'xml1',
+        id: 'skirmish-experimental',
+        text: {
+            en: 'Skirmish is experimental. Everyone joins in the lobby before the host starts a round; a friend who asks to join a round already under way is refused. Not every hero, power and arena has been tested yet.',
+            fr: 'Le mode Skirmish est expérimental. Tout le monde rejoint le salon avant que l\'hôte lance une manche ; un ami qui demande à rejoindre une manche en cours est refusé. Tous les héros, pouvoirs et arènes n\'ont pas encore été testés.',
+            es: 'El modo Skirmish es experimental. Todos se unen en la sala antes de que el anfitrión empiece una ronda; a un amigo que pide unirse a una ronda ya empezada se le rechaza. Aún no se han probado todos los héroes, poderes y arenas.'
+        }
+    },
+    {
+        game: 'xml1',
+        id: 'enemy-attack-rate',
+        text: {
+            en: 'Some enemies (the Brotherhood in the HAARP tunnels, for example) attack more often than in the original game (issue #101).',
+            fr: 'Certains ennemis (la Confrérie dans les tunnels de HAARP, par exemple) attaquent plus souvent que dans le jeu original (ticket n° 101).',
+            es: 'Algunos enemigos (la Hermandad en los túneles de HAARP, por ejemplo) atacan más a menudo que en el juego original (incidencia n.º 101).'
+        }
+    },
+    {
+        game: 'xml1',
+        id: 'fall-zones-off',
+        text: {
+            en: 'Some of the original game\'s fall kill zones are still switched off until they are proven safe (issue #22).',
+            fr: 'Certaines zones de chute mortelle du jeu original restent désactivées tant qu\'elles ne sont pas jugées sûres (ticket n° 22).',
+            es: 'Algunas zonas de caída mortal del juego original siguen desactivadas hasta que se demuestre que son seguras (incidencia n.º 22).'
+        }
+    },
+    {
+        game: 'xml1',
+        id: 'shared-settings',
+        text: {
+            en: 'Key bindings and display settings are shared with X-Men Legends II (the same Windows settings). Saves are separate.',
+            fr: 'Les touches et les réglages d\'affichage sont partagés avec X-Men Legends II (les mêmes réglages Windows). Les sauvegardes sont séparées.',
+            es: 'Los controles y los ajustes de pantalla se comparten con X-Men Legends II (los mismos ajustes de Windows). Las partidas guardadas son independientes.'
+        }
+    },
+    {
+        game: 'xml1',
+        id: 'save-import-off',
+        text: {
+            en: 'Importing saves from xemu or XML1-recomp is switched off for now.',
+            fr: 'L\'import de sauvegardes depuis xemu ou XML1-recomp est désactivé pour l\'instant.',
+            es: 'La importación de partidas guardadas de xemu o XML1-recomp está desactivada por ahora.'
         }
     },
     {

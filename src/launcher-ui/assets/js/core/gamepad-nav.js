@@ -1,6 +1,7 @@
 // A pad through the Gamepad API drives the launcher like the keyboard (focus-nav.js), so an Xbox-style
 // controller works without Steam Input too: the D-pad and the left stick are the arrow keys, A is
-// Enter, B is Escape, Y opens a card's menu, LB / RB go to the previous / next sidebar page. A held
+// Enter, B is Escape, Y opens a card's menu, LB / RB go to the previous / next sidebar page, LT / RT to the
+// previous / next tab of a game's page (game-tabs.js). A held
 // direction repeats (after 400 ms, every 120 ms). Nothing is read while the launcher isn't the window
 // in front (a game running on the same pad), and a button already held when it comes back waits for
 // its release.
@@ -14,6 +15,8 @@
         [3, 'ContextMenu'],
         [4, 'PrevSection'],
         [5, 'NextSection'],
+        [6, 'PrevTab'],
+        [7, 'NextTab'],
         [12, 'ArrowUp'],
         [13, 'ArrowDown'],
         [14, 'ArrowLeft'],
@@ -87,6 +90,9 @@
         if (!window.FocusNav || window.FocusNav.isPadMuted()) return;
         if (name === 'PrevSection') window.FocusNav.section(-1);
         else if (name === 'NextSection') window.FocusNav.section(1);
+        else if (name === 'PrevTab' || name === 'NextTab') {
+            if (window.GameTabs && !(window.FocusNav.hasLayer && window.FocusNav.hasLayer())) window.GameTabs.step(name === 'PrevTab' ? -1 : 1);
+        }
         else window.FocusNav.press(name, 'pad');
     }
 

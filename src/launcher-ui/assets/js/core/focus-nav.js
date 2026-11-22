@@ -685,6 +685,8 @@
         setRectSource(fn) {
             rectOf = fn || defaultRect;
         },
-        isPadMuted: () => padMuted
+        isPadMuted: () => padMuted,
+        // A message box, popup or menu is over the page (game-tabs.js leaves its keys alone then).
+        hasLayer: () => { sync(); return !!topLayer(); }
     };
 })();

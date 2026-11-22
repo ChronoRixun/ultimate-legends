@@ -3,6 +3,7 @@
 
 #include <utils/finally.hpp>
 #include <utils/string.hpp>
+#include <utils/test_instance.hpp>
 
 #include <shellapi.h>
 
@@ -10,7 +11,13 @@ namespace deep_link
 {
     namespace
     {
-        constexpr auto* PIPE_NAME = L"\\\\.\\pipe\\ultimate-legends-deeplink";
+        // A test instance listens on (and forwards to) a pipe of its own, never the player's.
+        const std::wstring& pipe_name()
+        {
+            static const std::wstring name = utils::test_instance::suffixed(std::wstring(L"\\\\.\\pipe\\ultimate-legends-deeplink"),
+                                                                            utils::test_instance::name());
+            return name;
+        }
         constexpr size_t MAX_URL_LENGTH = 4096;
 
         std::string scheme_prefix()
@@ -54,7 +61,7 @@ namespace deep_link
         // The running instance may be mid-accept (or still starting its listener); retry briefly.
         for (auto attempt = 0; attempt < 20; ++attempt)
         {
-            const auto pipe = CreateFileW(PIPE_NAME, GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
+            const auto pipe = CreateFileW(pipe_name().c_str(), GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
             if (pipe != INVALID_HANDLE_VALUE)
             {
                 DWORD written = 0;
@@ -66,7 +73,7 @@ namespace deep_link
 
             if (GetLastError() == ERROR_PIPE_BUSY)
             {
-                WaitNamedPipeW(PIPE_NAME, 1000);
+                WaitNamedPipeW(pipe_name().c_str(), 1000);
                 continue;
             }
 
@@ -86,7 +93,7 @@ namespace deep_link
         this->callback_ = std::move(callback);
 
         pipe::listener::options opts{};
-        opts.name = PIPE_NAME;
+        opts.name = pipe_name().c_str();
         opts.access = PIPE_ACCESS_INBOUND;
         opts.in_buffer = 8192;
         this->listener_.start(std::move(opts), [this](void* pipe) { this->read_and_dispatch(pipe); });

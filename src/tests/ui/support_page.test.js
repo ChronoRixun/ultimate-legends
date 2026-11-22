@@ -11,7 +11,7 @@ const assert = require('node:assert/strict');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { page, test, settle } = require('./harness');
+const { page, test, settle, KeyboardEvent } = require('./harness');
 
 const ROOT = path.join(__dirname, '..', '..', '..');
 const SCRIPTS = ['core/utils.js', 'core/i18n.js', 'core/focus-nav.js', 'data/known-issues.js', 'app/support-view.js'];
@@ -104,6 +104,22 @@ test('Support: four tabs, Help first; each tab shows only its own panel and is a
     }
     // No native <select> popups on the page (Proton rule).
     assert.equal(p.document.querySelectorAll('#support-page select').length, 0);
+});
+
+test('Support: the game-page tab keys and chips leave the Support tabs alone', async () => {
+    const backend = new Backend();
+    const p = page({ scripts: [...SCRIPTS.slice(0, 3), 'core/game-tabs.js', ...SCRIPTS.slice(3)], backend });
+    p.window.SupportView.onShow();
+    p.document.querySelector('[data-support-tab="known"]').click();
+    await settle();
+    // No tabbed game page is defined or shown: Ctrl+PageDown / LT / RT do nothing here.
+    p.document.dispatchEvent(new KeyboardEvent('keydown', { key: 'PageDown', ctrlKey: true, bubbles: true }));
+    assert.equal(p.window.GameTabs.step(1), false);
+    assert.deepEqual(panels(p), ['known']);
+    assert.equal(p.window.SupportView.activeTab, 'known');
+    // Both strips are the same chip buttons (filter-chips + chip, role=tab, aria-selected).
+    const chip = p.document.querySelector('[data-support-tab="known"]');
+    assert.ok(chip.classList.contains('chip') && chip.getAttribute('role') === 'tab' && chip.getAttribute('aria-selected') === 'true');
 });
 
 test('Support: the diagnostics preview is the report, and Copy puts exactly that text on the clipboard', async () => {
@@ -337,18 +353,63 @@ test('Support: known-issues data is well formed and shown as text, never HTML', 
     assert.equal(p.document.querySelectorAll('#support-known-issues img').length, 0);
 });
 
+test('Support: Known issues for X-Men Legends carry the Legends Classic 0.6.1 entries and the online Fix requirement', async () => {
+    const lcIds = ['online-fix-version', 'online-little-tested', 'online-host-leaves', 'online-join-next-area', 'four-player-pause',
+        'skirmish-experimental', 'enemy-attack-rate', 'fall-zones-off', 'shared-settings', 'save-import-off'];
+    for (const language of ['en', 'fr', 'es']) {
+        const p = open(new Backend(), language);
+        p.document.querySelector('[data-support-tab="known"]').click();
+        await settle();
+        const xml1 = p.document.querySelector('#support-known-issues [data-game="xml1"]');
+        const data = p.window.KnownIssues.filter(entry => entry.game === 'xml1');
+        assert.equal(JSON.stringify(data.map(entry => entry.id).slice(0, lcIds.length)), JSON.stringify(lcIds), 'the Legends Classic entries come first, online first');
+        const items = xml1.querySelectorAll('li').map(li => li.textContent);
+        assert.equal(JSON.stringify(items), JSON.stringify(data.map(entry => entry.text[language])));
+        // Which versions the list was checked against, above the list, in the player's language.
+        const note = xml1.querySelector('.support-known-for');
+        assert.equal(note.textContent, p.window.LauncherI18n.t('support.knownFor', { versions: 'Legends Classic 0.6.1 with XML2 Fix 1.11.2 or 1.12.0-beta.2' }));
+        assert.notEqual(note.textContent, 'support.knownFor');
+        // The online entry: both Fix versions and the exact in-game refusal / update texts (kept in English: the game shows them so).
+        const online = items[0];
+        for (const text of ['1.11.2', '1.12.0-beta.2', "The host's game refused you. Check build and settings."]) {
+            assert.ok(online.includes(text), `${language}: ${text}`);
+        }
+        // Issue numbers the entries cite stay open on GitHub (#22, #101); the closed #106 is not cited.
+        assert.ok(items.some(item => item.includes('101')) && items.some(item => item.includes('22')));
+        assert.ok(!items.some(item => item.includes('106')));
+        // The online requirement is Legends Classic's: XML2 still shows nothing known, and no other game gets a version note.
+        assert.equal(p.document.querySelector('#support-known-issues [data-game="xml2"] .support-empty').textContent, p.window.LauncherI18n.t('support.knownNone'));
+        assert.equal(p.document.querySelectorAll('#support-known-issues .support-known-for').length, 1);
+    }
+});
+
+test('Support: Known issues entries stay short and the version note is text, never HTML', () => {
+    const p = open(new Backend());
+    for (const entry of p.window.KnownIssues) {
+        for (const language of ['en', 'fr', 'es']) assert.ok(entry.text[language].length <= 420, `${entry.id} ${language}: ${entry.text[language].length} characters`);
+    }
+    p.window.KnownIssuesFor = { mua: '<b>x</b>' };
+    p.window.SupportView.renderKnownIssues();
+    const note = p.document.querySelector('#support-known-issues [data-game="mua"] .support-known-for');
+    assert.ok(note.textContent.includes('<b>x</b>'));
+    assert.equal(p.document.querySelectorAll('#support-known-issues b').length, 0);
+    p.window.KnownIssuesFor = undefined;
+    p.window.SupportView.renderKnownIssues();
+    assert.equal(p.document.querySelectorAll('#support-known-issues .support-known-for').length, 0);
+});
+
 test('Support: every Support string exists in en, fr and es', () => {
     const p = open(new Backend());
     const i18n = p.window.LauncherI18n;
     const keys = ['tabHelp', 'tabTroubleshoot', 'tabKnown', 'tabCommunity', 'diagnosticsTitle', 'diagnosticsBody', 'copyDiagnostics',
         'refreshDiagnostics', 'diagnosticsLoading', 'diagnosticsFailed', 'copying', 'copied', 'copyFailed', 'reportTitle', 'reportBody',
         'reportBug', 'logsTitle', 'logsBody', 'logsLoading', 'logLauncher', 'logUpdates', 'logBuilder', 'logFix', 'logMissing',
-        'logOpenTitle', 'logNotFound', 'openFolder', 'openFolderFailed', 'knownLauncher', 'knownNone', 'discordTitle', 'discordBody',
+        'logOpenTitle', 'logNotFound', 'openFolder', 'openFolderFailed', 'knownLauncher', 'knownNone', 'knownFor', 'discordTitle', 'discordBody',
         'joinDiscord', 'issuesTitle', 'issuesBody', 'openIssues'];
     const html = fs.readFileSync(path.join(ROOT, 'src', 'launcher-ui', 'main.html'), 'utf8');
     for (const key of keys.filter(key => !['diagnosticsLoading', 'diagnosticsFailed', 'copying', 'copied', 'copyFailed', 'logsLoading',
         'logLauncher', 'logUpdates', 'logBuilder', 'logFix', 'logMissing', 'logOpenTitle', 'logNotFound', 'openFolder', 'openFolderFailed',
-        'knownLauncher', 'knownNone'].includes(key))) {
+        'knownLauncher', 'knownNone', 'knownFor'].includes(key))) {
         assert.ok(html.includes(`"support.${key}"`), `main.html uses support.${key}`);
     }
     const english = {};

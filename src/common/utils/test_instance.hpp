@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <string>
@@ -10,7 +11,8 @@
 //     hands its start to the player's launcher nor can take the player's ultimatelegends:// links;
 //   - it writes nothing to HKCU (no ultimatelegends:// registration, registry::set_hkcu_string and the
 //     launcher's other registry writes refuse) and creates no Desktop / Start Menu / game shortcuts;
-//   - its window is never activated: shown with SW_SHOWNOACTIVATE, never maximized, never brought to the
+//   - its window is never activated: created WS_EX_NOACTIVATE (so neither CEF's focus on start nor a click
+//     makes it the foreground window), shown with SW_SHOWNOACTIVATE, never maximized, never brought to the
 //     front (and a Release build has no console);
 //   - the Debug-only dev overrides (builder / patch / models manifests, the release API, ...) used by
 //     tools/dev/*_cdp.py work in this mode too, so a Release build can be driven against local fixtures.
@@ -63,4 +65,8 @@ namespace utils::test_instance
     bool dev_overrides();
     // The window may be activated / brought to the front (false in a test instance).
     bool may_activate();
+    // Extended window styles the launcher window adds: WS_EX_NOACTIVATE (0x08000000) in a test instance, else 0.
+    // (SW_SHOWNOACTIVATE alone is not enough: the browser focuses its window when it starts, which activated
+    // the test window on the player's desktop for about a minute in the 11-21 real run.)
+    std::uint32_t extra_window_ex_style();
 }

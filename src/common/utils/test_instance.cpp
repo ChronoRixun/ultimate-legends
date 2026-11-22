@@ -126,4 +126,9 @@ namespace utils::test_instance
     {
         return current().activate_window;
     }
+
+    std::uint32_t extra_window_ex_style()
+    {
+        return may_activate() ? 0u : 0x08000000u; // WS_EX_NOACTIVATE
+    }
 }

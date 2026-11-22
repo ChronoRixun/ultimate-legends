@@ -199,6 +199,9 @@ namespace cef
         window_info.bounds.x = bounds.x;
         window_info.bounds.y = bounds.y;
         window_info.style = WS_POPUP | WS_THICKFRAME | WS_CAPTION | WS_MAXIMIZEBOX | WS_MINIMIZEBOX;
+        // A test instance: CEF never activates a WS_EX_NOACTIVATE browser window, on creation or on a click.
+        static_assert(WS_EX_NOACTIVATE == 0x08000000L);
+        window_info.ex_style |= utils::test_instance::extra_window_ex_style();
 
         if (!this->ui_handler_)
         {

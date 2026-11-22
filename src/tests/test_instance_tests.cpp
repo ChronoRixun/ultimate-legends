@@ -86,8 +86,10 @@ TEST(test_instance_startup_never_registers_the_url_scheme_or_creates_shortcuts)
         CHECK(registered == 0 && shortcuts == 0);
         CHECK(ti::active() && ti::name() == "agent-1");
         CHECK(!ti::hkcu_writes_allowed() && !ti::may_activate() && ti::dev_overrides());
+        CHECK(ti::extra_window_ex_style() == 0x08000000u); // WS_EX_NOACTIVATE: never the foreground window
     }
     CHECK(!ti::active() && ti::hkcu_writes_allowed() && ti::may_activate());
+    CHECK(ti::extra_window_ex_style() == 0u); // the player's launcher: unchanged
 }
 
 TEST(test_instance_registry_and_shortcut_writes_are_refused)

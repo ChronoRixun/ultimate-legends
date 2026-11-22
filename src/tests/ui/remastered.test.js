@@ -2,12 +2,12 @@
 const assert = require('node:assert/strict');
 const { page, test, Event, settle } = require('./harness');
 
-async function open(values = {}, available = true) {
+async function open(values = {}, available = true, setUp = { installed: true, fixInstalled: true }) {
     const backend = {
         values: { ...values }, saves: [], available, refuse: false, deferred: null,
         handle(command, payload) {
             if (command === 'get-remastered-settings') return {
-                installed: true, fixInstalled: true, available: this.available, requiredFix: '1.12.0', values: { ...this.values }
+                ...setUp, available: this.available, requiredFix: '1.12.0', values: { ...this.values }
             };
             if (command === 'set-remastered-settings') {
                 this.saves.push({ ...payload.values });
@@ -46,6 +46,20 @@ test('Remastered: opening keeps absent keys absent and requests the in-page pick
     assert.equal(p.select('MSAASamples').value, '4');
     assert.equal(p.select('MSAASamples').disabled, true);
     assert.equal(p.enhanced(), 1);
+});
+
+test('Remastered: before the game and XML2 Fix are set up, only the set-up line shows (no update-the-Fix status)', async () => {
+    for (const setUp of [{ installed: false, fixInstalled: false }, { installed: true, fixInstalled: false }]) {
+        const p = await open({}, false, setUp);
+        const panel = p.document.querySelector('#xml1-remastered-panel');
+        const empty = panel.querySelector('.ul-display-empty');
+        assert.equal(empty.textContent, p.window.LauncherI18n.t('remastered.setUp'));
+        assert.match(empty.textContent, /^Set up the game and install XML2 Fix/);
+        assert.equal(panel.querySelector('[role="status"]'), null);
+        assert.ok(!panel.textContent.includes('1.12.0'), panel.textContent);
+        assert.equal(panel.querySelectorAll('select').length, 0);
+        assert.deepEqual(p.backend.saves, []);
+    }
 });
 
 test('Remastered: toggling writes only Enabled and retains component choices', async () => {

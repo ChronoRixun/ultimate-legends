@@ -52,10 +52,13 @@
     function body(game) {
         const h = host(game), data = get(game).data;
         if (!h || !data) return;
+        // Not set up yet (no game or no XML2 Fix): only the set-up line, in the same empty box as Display and
+        // Discord; the "update the Fix" status would only repeat it.
+        const ready = data.installed && data.fixInstalled;
         h.innerHTML = `<div class="ul-display"><p class="ul-display-intro">${esc(t('intro'))}</p>
-            <p role="status" aria-live="polite" class="ul-display-status"></p>
-            ${data.installed && data.fixInstalled ? Object.keys(choices).map(key => row(data, key)).join('') :
-                `<p>${esc(t('setUp'))}</p>`}</div>`;
+            ${ready ? `<p role="status" aria-live="polite" class="ul-display-status"></p>
+            ${Object.keys(choices).map(key => row(data, key)).join('')}` :
+                `<div class="ul-display-empty">${esc(t('setUp'))}</div>`}</div>`;
         sync(game);
         if (window.LauncherDropdowns) window.LauncherDropdowns.enhance(h);
     }
